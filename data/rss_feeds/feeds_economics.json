@@ -1,0 +1,316 @@
+{
+    "feeds": [
+        {
+            "title": "The Wall Street Journal \u00bb Economy",
+            "url": "https://feeds.content.dowjones.io/public/rss/socialeconomyfeed"
+        },
+        {
+            "title": "Financial Times \u00bb Global Economy",
+            "url": "https://www.ft.com/stream/sectionsId/MTA3-U2VjdGlvbnM=?format=rss"
+        },
+        {
+            "title": "The Street",
+            "url": "https://www.thestreet.com/economonitor/.rss/full/"
+        },
+        {
+            "title": "Calculated Risk Blog",
+            "url": "http://www.calculatedriskblog.com/feeds/posts/default"
+        },
+        {
+            "title": "Naked Capitalism",
+            "url": "http://www.nakedcapitalism.com/feed"
+        },
+        {
+            "title": "Freakonomics Blog",
+            "url": "https://freakonomics.com/feed/"
+        },
+        {
+            "title": "The Big Picture (Barry Ritholtz)",
+            "url": "https://ritholtz.com/feed/"
+        },
+        {
+            "title": "MishTalk",
+            "url": "https://mishtalk.com/feed/"
+        },
+        {
+            "title": "The Capital Spectator",
+            "url": "https://www.capitalspectator.com/feed/"
+        },
+        {
+            "title": "Greg Mankiw's Blog",
+            "url": "https://gregmankiw.blogspot.com/feeds/posts/default"
+        },
+        {
+            "title": "Brad DeLong's Grasping Reality",
+            "url": "https://braddelong.substack.com/feed"
+        },
+        {
+            "title": "The Grumpy Economist",
+            "url": "https://johnhcochrane.blogspot.com/feeds/posts/default"
+        },
+        {
+            "title": "The Money Illusion",
+            "url": "http://www.themoneyillusion.com/?feed=rss2"
+        },
+        {
+            "title": "Cafe Hayek",
+            "url": "http://cafehayek.com/feed"
+        },
+        {
+            "title": "Economist's View",
+            "url": "http://economistsview.typepad.com/economistsview/atom.xml"
+        },
+        {
+            "title": "The Federal Reserve Bank of New York",
+            "url": "http://libertystreeteconomics.newyorkfed.org/atom.xml"
+        },
+        {
+            "title": "Federal Reserve Bank of St. Louis",
+            "url": "https://www.stlouisfed.org/rss/page%20resources/publications/blog-entries"
+        },
+        {
+            "title": "Atlanta Fed \u00bb Macroblog",
+            "url": "https://www.atlantafed.org/RSS/macroblog.aspx"
+        },
+        {
+            "title": "Economic Policy Institute Blog",
+            "url": "https://www.epi.org/blog/feed/"
+        },
+        {
+            "title": "Equitable Growth",
+            "url": "https://equitablegrowth.org/feed/"
+        },
+        {
+            "title": "American Institute for Economic Research",
+            "url": "https://aier.org/feed/"
+        },
+        {
+            "title": "New Economics Foundation",
+            "url": "https://neweconomics.org/feed.rss"
+        },
+        {
+            "title": "Econlib Blog",
+            "url": "https://www.econlib.org/feed/main"
+        },
+        {
+            "title": "Casey Mulligan Blog",
+            "url": "https://caseymulligan.blogspot.com/feeds/posts/default?alt=rss"
+        },
+        {
+            "title": "Econbrowser",
+            "url": "https://econbrowser.com/feed"
+        },
+        {
+            "title": "Baseline Scenario",
+            "url": "https://baselinescenario.com/feed"
+        },
+        {
+            "title": "Economics One",
+            "url": "https://economicsone.com/feed/"
+        },
+        {
+            "title": "Market Monetarist",
+            "url": "https://marketmonetarist.com/feed"
+        },
+        {
+            "title": "long and variable",
+            "url": "https://longandvariable.wordpress.com/feed/"
+        },
+        {
+            "title": "Notayesmanseconomics's Blog",
+            "url": "https://notayesmanseconomics.wordpress.com/feed/"
+        },
+        {
+            "title": "David Andolfatto",
+            "url": "http://andolfatto.blogspot.com/feeds/posts/default?alt=rss"
+        },
+        {
+            "title": "Moneyness",
+            "url": "https://www.moneyness.ca/feeds/posts/default?alt=rss"
+        },
+        {
+            "title": "Cheap Talk",
+            "url": "https://cheaptalk.org/feed/"
+        },
+        {
+            "title": "Microeconomic Insights",
+            "url": "https://microeconomicinsights.org/feed/"
+        },
+        {
+            "title": "Rajiv Sethi",
+            "url": "http://rajivsethi.blogspot.com/feeds/posts/default"
+        },
+        {
+            "title": "Chris Blattman Blog",
+            "url": "https://chrisblattman.com/feed/"
+        },
+        {
+            "title": "Evolving Economics Blog",
+            "url": "https://jasoncollins.blog/feed.xml"
+        },
+        {
+            "title": "Tim Harford",
+            "url": "https://timharford.com/feed/"
+        },
+        {
+            "title": "The Enlightened Economist Blog",
+            "url": "http://www.enlightenmenteconomics.com/blog/index.php/feed/"
+        },
+        {
+            "title": "William Mitchell Blog",
+            "url": "https://billmitchell.org/blog/?feed=rss2"
+        },
+        {
+            "title": "Real-World Economics Review Blog",
+            "url": "https://rwer.wordpress.com/feed/"
+        },
+        {
+            "title": "New Economic Perspectives",
+            "url": "http://neweconomicperspectives.org/feed"
+        },
+        {
+            "title": "The Slack Wire",
+            "url": "https://jwmason.org/the-slack-wire/feed/"
+        },
+        {
+            "title": "Michael Hudson",
+            "url": "https://michael-hudson.com/feed/"
+        },
+        {
+            "title": "Lars P Syll",
+            "url": "https://larspsyll.wordpress.com/feed/"
+        },
+        {
+            "title": "Thoughts On Economics",
+            "url": "https://robertvienneau.blogspot.com/feeds/posts/default"
+        },
+        {
+            "title": "Armstrong Economics Blog",
+            "url": "https://www.armstrongeconomics.com/feed/"
+        },
+        {
+            "title": "Economic Prism",
+            "url": "https://economicprism.com/rss_feed.xml"
+        },
+        {
+            "title": "Knowledge Problem",
+            "url": "https://knowledgeproblem.com/feed/"
+        },
+        {
+            "title": "Stochastic Trend",
+            "url": "https://stochastictrend.blogspot.com/feeds/posts/default?alt=rss"
+        },
+        {
+            "title": "Barter is Evil",
+            "url": "http://barterisevil.com/feed/"
+        },
+        {
+            "title": "Lectures to Simplify Economics And Economic Analyses",
+            "url": "https://intelligenteconomics.blogspot.com/feeds/posts/default?alt=rss"
+        },
+        {
+            "title": "The Incidental Economist",
+            "url": "https://theincidentaleconomist.com/wordpress/feed/"
+        },
+        {
+            "title": "Environmental Economics",
+            "url": "https://env-econ.net/feed/atom/"
+        },
+        {
+            "title": "An Economic View of the Environment",
+            "url": "http://www.robertstavinsblog.org/feed/"
+        },
+        {
+            "title": "Truth on the Market",
+            "url": "https://truthonthemarket.com/feed/"
+        },
+        {
+            "title": "Peter Gordon's Blog",
+            "url": "http://www.petergordonsblog.com/feeds/posts/default"
+        },
+        {
+            "title": "The Economic Historian",
+            "url": "https://www.economic-historian.com/feed"
+        },
+        {
+            "title": "Economics in the Rear-View Mirror",
+            "url": "https://www.irwincollier.com/feed/"
+        },
+        {
+            "title": "Edward Yardeni",
+            "url": "http://blog.yardeni.com/feeds/posts/default?alt=rss"
+        },
+        {
+            "title": "Nevins Research Blog",
+            "url": "https://nevinsresearch.com/feed/"
+        },
+        {
+            "title": "Daniel Lacalle",
+            "url": "https://www.dlacalle.com/en/feed/"
+        },
+        {
+            "title": "Credit Writedowns Pro",
+            "url": "https://creditwritedowns.com/feed"
+        },
+        {
+            "title": "First Trust Blog \u00bb Economics",
+            "url": "https://www.ftportfolios.com/Common/Rss/EconomicsBlogFeed.aspx"
+        },
+        {
+            "title": "Real Economy Blog",
+            "url": "https://realeconomy.rsmus.com/feed/"
+        },
+        {
+            "title": "ITR Economic Blog",
+            "url": "https://blog.itreconomics.com/blog/rss.xml"
+        },
+        {
+            "title": "BusinessEconomics Blog",
+            "url": "https://www.businesseconomics.com/feed/rss2"
+        },
+        {
+            "title": "FocusEconomics News",
+            "url": "https://www.focus-economics.com/news-search/feed/"
+        },
+        {
+            "title": "Offsetting Behaviour",
+            "url": "http://offsettingbehaviour.blogspot.com/feeds/posts/default"
+        },
+        {
+            "title": "John Quiggin",
+            "url": "https://johnquiggin.com/feed/"
+        },
+        {
+            "title": "Developing Economics",
+            "url": "https://developingeconomics.org/feed/"
+        },
+        {
+            "title": "Roger Farmer's Economic Window Blog",
+            "url": "https://www.rogerfarmer.com/rogerfarmerblog?format=rss"
+        },
+        {
+            "title": "The Conversable Economist",
+            "url": "https://conversableeconomist.com/feed/"
+        },
+        {
+            "title": "Coppola Comment",
+            "url": "https://www.coppolacomment.com/feeds/posts/default?alt=rss"
+        },
+        {
+            "title": "Confessions of a Supply-Side Liberal",
+            "url": "https://blog.supplysideliberal.com/rss"
+        },
+        {
+            "title": "On the Economy",
+            "url": "https://jaredbernsteinblog.com/feed/"
+        },
+        {
+            "title": "Keith Hennessey",
+            "url": "https://www.keithhennessey.com/feed/"
+        },
+        {
+            "title": "The Everyday Economist",
+            "url": "https://everydayecon.wordpress.com/feed/"
+        }
+    ]
+}

@@ -1,0 +1,220 @@
+{
+    "feeds": [
+        {
+            "title": "Business Insider",
+            "url": "https://feeds.businessinsider.com/custom/all"
+        },
+        {
+            "title": "Fast Company",
+            "url": "https://www.fastcompany.com/latest/rss?truncated=true"
+        },
+        {
+            "title": "Inc.",
+            "url": "https://www.inc.com/rss/"
+        },
+        {
+            "title": "Bloomberg Blog",
+            "url": "https://www.bloomberg.com/professional/feed/"
+        },
+        {
+            "title": "Guardian Live Business Blog",
+            "url": "https://www.theguardian.com/business/series/guardian-business-live/rss"
+        },
+        {
+            "title": "Entrepreneur.com",
+            "url": "https://www.entrepreneur.com/latest.rss"
+        },
+        {
+            "title": "TechCrunch",
+            "url": "https://techcrunch.com/feed/"
+        },
+        {
+            "title": "Foundr Blog",
+            "url": "https://foundr.com/articles/feed"
+        },
+        {
+            "title": "Tim Ferriss Blog",
+            "url": "https://tim.blog/feed"
+        },
+        {
+            "title": "Side Hustle Nation Blog",
+            "url": "https://www.sidehustlenation.com/feed/"
+        },
+        {
+            "title": "Fascinating Entrepreneurs",
+            "url": "https://briansolis.com/category/articles/feed/"
+        },
+        {
+            "title": "Chris Ducker Blog",
+            "url": "https://chrisducker.com/feed/"
+        },
+        {
+            "title": "Young Upstarts",
+            "url": "https://www.youngupstarts.com/feed/"
+        },
+        {
+            "title": "Small Business Bonfire",
+            "url": "https://smallbusinessbonfire.com/feed/"
+        },
+        {
+            "title": "Small Biz Survival",
+            "url": "https://smallbizsurvival.com/feed"
+        },
+        {
+            "title": "Success Harbor",
+            "url": "https://www.successharbor.com/feed/"
+        },
+        {
+            "title": "Jeffbullas",
+            "url": "https://www.jeffbullas.com/feed/"
+        },
+        {
+            "title": "Academy of International Business",
+            "url": "https://www.aib.world/feed/"
+        },
+        {
+            "title": "The Business Ethics Blog",
+            "url": "https://businessethicsblog.com/feed/"
+        },
+        {
+            "title": "The Corporate Social Responsibility and Business Ethics Blog",
+            "url": "https://corporatesocialresponsibilityblog.com/feed/"
+        },
+        {
+            "title": "The Great Game of Business Blog",
+            "url": "https://www.greatgame.com/blog/rss.xml"
+        },
+        {
+            "title": "Google Small Business Blog",
+            "url": "https://blog.google/outreach-initiatives/small-business/rss/"
+        },
+        {
+            "title": "Sage Advice UK Blog",
+            "url": "https://www.sage.com/en-gb/blog/feed/"
+        },
+        {
+            "title": "G2 Blog",
+            "url": "https://learn.g2crowd.com/rss.xml"
+        },
+        {
+            "title": "Domosphere Blog",
+            "url": "https://www.domo.com/blog/feed/"
+        },
+        {
+            "title": "FTC Business Blog",
+            "url": "https://www.ftc.gov/feeds/blog-business.xml"
+        },
+        {
+            "title": "Scranton SBDC Blog",
+            "url": "https://www.scrantonsbdc.com/feed/"
+        },
+        {
+            "title": "The Business of Fashion",
+            "url": "https://www.businessoffashion.com/arc/outboundfeeds/rss/?outputType=xml"
+        },
+        {
+            "title": "Food Business News",
+            "url": "https://www.foodbusinessnews.net/rss/articles"
+        },
+        {
+            "title": "Talking Biz News",
+            "url": "http://talkingbiznews.com/feed/"
+        },
+        {
+            "title": "Small Business UK Blog",
+            "url": "https://smallbusiness.co.uk/blog/feed/"
+        },
+        {
+            "title": "The Joy Of Business Blog",
+            "url": "https://www.thejoyofbusiness.co.uk/feed/"
+        },
+        {
+            "title": "Business Chicks Blog",
+            "url": "https://businesschicks.com/blog?format=rss"
+        },
+        {
+            "title": "Naomi Simson Blog",
+            "url": "https://naomisimson.com/feed/"
+        },
+        {
+            "title": "Bluewire Media Blog",
+            "url": "https://www.bluewiremedia.com.au/blog/feed"
+        },
+        {
+            "title": "Providence Business News",
+            "url": "https://pbn.com/feed/"
+        },
+        {
+            "title": "Duct Tape Marketing Blog",
+            "url": "https://ducttapemarketing.com/feed/"
+        },
+        {
+            "title": "Melinda Emerson Blog",
+            "url": "https://succeedasyourownboss.com/feed/"
+        },
+        {
+            "title": "Business Pundit",
+            "url": "https://www.businesspundit.com/feed/"
+        },
+        {
+            "title": "The Global Small Business Blog",
+            "url": "https://www.globalsmallbusinessblog.com/feeds/posts/default"
+        },
+        {
+            "title": "Evergreen Small Business",
+            "url": "https://evergreensmallbusiness.com/feed"
+        },
+        {
+            "title": "BusinessBlogs Hub",
+            "url": "https://www.businessblogshub.com/feed/"
+        },
+        {
+            "title": "IdeasPlusBusiness",
+            "url": "https://ideasplusbusiness.com/feed/"
+        },
+        {
+            "title": "Steve Biz Blog",
+            "url": "https://stevebizblog.com/feed/"
+        },
+        {
+            "title": "OnStrategy Blog",
+            "url": "https://onstrategyhq.com/feed/"
+        },
+        {
+            "title": "Crowdspring Blog",
+            "url": "https://www.crowdspring.com/blog/feed/"
+        },
+        {
+            "title": "Roundpeg Blog",
+            "url": "http://roundpeg.biz/feed/"
+        },
+        {
+            "title": "Millo",
+            "url": "https://millo.co/feed"
+        },
+        {
+            "title": "Derek Cheshire Blog",
+            "url": "https://www.derekcheshire.com/feed/"
+        },
+        {
+            "title": "Thinking Business Blog",
+            "url": "http://www.thinkingbusinessblog.com/feed/"
+        },
+        {
+            "title": "Headway Capital Blog",
+            "url": "https://www.headwaycapital.com/blog/feed/"
+        },
+        {
+            "title": "United Capital Source Blog",
+            "url": "https://www.unitedcapitalsource.com/feed/"
+        },
+        {
+            "title": "The Business Backer Blog",
+            "url": "https://www.businessbacker.com/feed/"
+        },
+        {
+            "title": "CorpNet Blog",
+            "url": "https://blog.corpnet.com/feed"
+        }
+    ]
+}

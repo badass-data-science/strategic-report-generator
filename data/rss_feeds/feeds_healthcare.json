@@ -1,0 +1,232 @@
+{
+    "feeds": [
+        {
+            "title": "Modern Healthcare",
+            "url": "https://www.modernhealthcare.com/section/rss/news?days=7&topics=81631"
+        },
+        {
+            "title": "Healthcare Dive",
+            "url": "https://www.healthcaredive.com/feeds/news/"
+        },
+        {
+            "title": "FierceHealthcare",
+            "url": "https://www.fiercehealthcare.com/rss/xml"
+        },
+        {
+            "title": "MedCity News",
+            "url": "https://medcitynews.com/feed/"
+        },
+        {
+            "title": "The Health Care Blog",
+            "url": "https://thehealthcareblog.com/feed/"
+        },
+        {
+            "title": "Health Care News",
+            "url": "https://healthcarenews.com/feed/"
+        },
+        {
+            "title": "HealthTech Magazine",
+            "url": "https://healthtechmagazine.net/rss.xml?destination=/&_exception_statuscode=404"
+        },
+        {
+            "title": "HIT Consultant",
+            "url": "https://hitconsultant.net/feed/"
+        },
+        {
+            "title": "HIStalk",
+            "url": "https://histalk2.com/feed/"
+        },
+        {
+            "title": "HealthITSecurity",
+            "url": "https://healthitsecurity.com/feed/"
+        },
+        {
+            "title": "healthsystemCIO.com",
+            "url": "https://healthsystemcio.com/feed/"
+        },
+        {
+            "title": "HCITExperts Blog",
+            "url": "https://hcitexpert.com/feed/"
+        },
+        {
+            "title": "Healthcare IT Leaders Blog",
+            "url": "https://www.healthcareitleaders.com/feed/"
+        },
+        {
+            "title": "KFF",
+            "url": "https://www.kff.org/feed/"
+        },
+        {
+            "title": "Health Populi",
+            "url": "https://www.healthpopuli.com/feed/"
+        },
+        {
+            "title": "Health Business Blog",
+            "url": "https://www.healthbusinessgroup.com/blog?format=rss"
+        },
+        {
+            "title": "Health Care Policy and Marketplace Review",
+            "url": "https://healthpolicyandmarket.blogspot.com/feeds/posts/default"
+        },
+        {
+            "title": "Care And Cost | Health Care Essays by Brian Klepper",
+            "url": "https://careandcost.com/feed/"
+        },
+        {
+            "title": "HealthCommentary",
+            "url": "https://www.healthcommentary.org/feed/"
+        },
+        {
+            "title": "HHS Blog",
+            "url": "https://www.hhs.gov/rss/blog.xml?language=es"
+        },
+        {
+            "title": "Healthcare.gov Blog",
+            "url": "https://www.healthcare.gov/blog/blog.rss"
+        },
+        {
+            "title": "Safe Healthcare Blog",
+            "url": "https://blogs.cdc.gov/safehealthcare/feed/"
+        },
+        {
+            "title": "Health IT Buzz Blog",
+            "url": "https://www.healthit.gov/buzz-blog/feed"
+        },
+        {
+            "title": "Get Ready",
+            "url": "https://getreadyforflu.blogspot.com/feeds/posts/default"
+        },
+        {
+            "title": "Robert Pearl, MD",
+            "url": "https://robertpearlmd.com/feed/"
+        },
+        {
+            "title": "Outcomes Rocket",
+            "url": "https://feeds.megaphone.fm/NSSMO9468790350"
+        },
+        {
+            "title": "Dispatch from the Digital Health Frontier",
+            "url": "http://geekdoctor.blogspot.com/feeds/posts/default"
+        },
+        {
+            "title": "The Doctor Weighs In",
+            "url": "https://thedoctorweighsin.com/feed/"
+        },
+        {
+            "title": "OSF HealthCare Blog",
+            "url": "https://www.osfhealthcare.org/blog/feed/"
+        },
+        {
+            "title": "Preventive Medicine Daily",
+            "url": "https://www.preventivemedicinedaily.com/feed/"
+        },
+        {
+            "title": "Hospital Management",
+            "url": "https://www.hospitalmanagement.net/feed/"
+        },
+        {
+            "title": "Hospital + Healthcare",
+            "url": "https://www.hospitalhealth.com.au/feed.rss"
+        },
+        {
+            "title": "Healthcare Construction & Operations News",
+            "url": "https://hconews.com/feed/"
+        },
+        {
+            "title": "The Journal of Healthcare Contracting Blog",
+            "url": "https://www.jhconline.com/feed"
+        },
+        {
+            "title": "CKS Hospitals Blog",
+            "url": "https://ckshospitals.com/feed/"
+        },
+        {
+            "title": "Cotiviti Blog",
+            "url": "https://blog.cotiviti.com/rss.xml"
+        },
+        {
+            "title": "Home Health Care News",
+            "url": "https://homehealthcarenews.com/feed/"
+        },
+        {
+            "title": "EOS Surfaces | An Educational Blog on Healthcare Associated Conditions",
+            "url": "https://blog.eoscu.com/blog/rss.xml"
+        },
+        {
+            "title": "The Medical Care Blog",
+            "url": "https://www.themedicalcareblog.com/feed/"
+        },
+        {
+            "title": "Sheppard Mullin",
+            "url": "https://www.sheppardhealthlaw.com/feed"
+        },
+        {
+            "title": "Rickard & Associates | Healthcare Law Blog",
+            "url": "https://larlegal.com/feed/"
+        },
+        {
+            "title": "Healthcare Standards",
+            "url": "http://motorcycleguy.blogspot.com/feeds/posts/default"
+        },
+        {
+            "title": "Healthcare Success Blog",
+            "url": "http://healthcaresuccess.com/feed"
+        },
+        {
+            "title": "Practice Builders Blog",
+            "url": "https://www.practicebuilders.com/blog/feed/"
+        },
+        {
+            "title": "Experian Health",
+            "url": "https://www.experian.com/blogs/healthcare/feed/"
+        },
+        {
+            "title": "Cisco \u00bb Healthcare",
+            "url": "http://blogs.cisco.com/healthcare/feed"
+        },
+        {
+            "title": "Crothall Healthcare Blog",
+            "url": "https://www.crothall.com/feed/"
+        },
+        {
+            "title": "P3 Healthcare Solutions Blog",
+            "url": "https://www.p3care.com/feed/"
+        },
+        {
+            "title": "GPonline",
+            "url": "https://www.gponline.com/rss/news"
+        },
+        {
+            "title": "Healthcare Asia | Healthcare News and Informattion",
+            "url": "https://www.healthcareasia.org/feed/"
+        },
+        {
+            "title": "HealthCare India | Research & Advisory Services",
+            "url": "https://healthcare-in-india.net/feed/"
+        },
+        {
+            "title": "Healthcare Australia News",
+            "url": "https://healthcareaustralia.com.au/news/feed/"
+        },
+        {
+            "title": "Health Care For All Blog",
+            "url": "https://hcfama.org/blog/feed/"
+        },
+        {
+            "title": "Health Care for All New York Blog",
+            "url": "http://hcfany.org/blog/feed/?x=1"
+        },
+        {
+            "title": "Health Access Blog",
+            "url": "https://health-access.org/feed/"
+        },
+        {
+            "title": "Alabama Rural Health Association Blog",
+            "url": "https://arhaonline.org/feed/"
+        },
+        {
+            "title": "Rants of a Patient Safety Advocate",
+            "url": "https://patientsafetyadvocate.blogspot.com/feeds/posts/default?alt=rss"
+        }
+    ]
+}

@@ -1,0 +1,72 @@
+{
+    "feeds": [
+        {
+            "title": "Strategic Thinking Institute Blog",
+            "url": "https://www.strategyskills.com/blog/feed/"
+        },
+        {
+            "title": "The Strategy Story Blog",
+            "url": "https://thestrategystory.com/feed/"
+        },
+        {
+            "title": "Business Strategy Hub",
+            "url": "https://bstrategyhub.com/feed/"
+        },
+        {
+            "title": "Stratechery by Ben Thompson",
+            "url": "https://stratechery.com/feed/"
+        },
+        {
+            "title": "SME Strategy Management Consulting Blog",
+            "url": "https://www.smestrategy.net/blog/rss.xml"
+        },
+        {
+            "title": "Flevy Blog",
+            "url": "https://flevy.com/blog/feed/"
+        },
+        {
+            "title": "Mark Schaefer \u00bb Business Strategy",
+            "url": "https://businessesgrow.com/category/business-strategy/feed/"
+        },
+        {
+            "title": "Aepiphanni Business Consulting Blog",
+            "url": "https://aepiphanni.com/feed/"
+        },
+        {
+            "title": "Strategy Kiln Blog",
+            "url": "https://www.strategykiln.com/blog-feed.xml"
+        },
+        {
+            "title": "JPAbusiness Blog",
+            "url": "https://blog.jpabusiness.com.au/blog/rss.xml"
+        },
+        {
+            "title": "Tanay\u00e2\u0080\u0099s Newsletter",
+            "url": "https://www.tanayj.com/feed"
+        },
+        {
+            "title": "Wildfire Labs Substack",
+            "url": "https://wildfirelabs.substack.com/feed"
+        },
+        {
+            "title": "Run the Business",
+            "url": "https://runthebusiness.substack.com/feed"
+        },
+        {
+            "title": "Andrew Yeung's Newsletter",
+            "url": "https://www.andrew.today/feed"
+        },
+        {
+            "title": "Category Pirates",
+            "url": "https://www.categorypirates.news/feed"
+        },
+        {
+            "title": "The Inside Man",
+            "url": "https://timtheinsideman.substack.com/feed"
+        },
+        {
+            "title": "The Workaround by Bob Gilbreath",
+            "url": "https://behearty.substack.com/feed"
+        }
+    ]
+}

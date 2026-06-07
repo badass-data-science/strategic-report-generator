@@ -1,0 +1,140 @@
+{
+    "feeds": [
+        {
+            "title": "Fierce Biotech",
+            "url": "https://www.fiercebiotech.com/rss/biotech/xml"
+        },
+        {
+            "title": "Labiotech.eu",
+            "url": "https://www.labiotech.eu/feed/"
+        },
+        {
+            "title": "Bioengineer.org",
+            "url": "https://bioengineer.org/feed/"
+        },
+        {
+            "title": "BiotechBlog",
+            "url": "http://www.biotechblog.com/feed/"
+        },
+        {
+            "title": "BioPharma Dive",
+            "url": "https://www.biopharmadive.com/feeds/news/"
+        },
+        {
+            "title": "Biotech Express Magazine",
+            "url": "https://biotechexpressmag.com/feed/"
+        },
+        {
+            "title": "o2h Group Blog",
+            "url": "https://o2h.com/feed/"
+        },
+        {
+            "title": "ScienceDaily \u00bb Biotechnology",
+            "url": "https://www.sciencedaily.com/rss/plants_animals/biotechnology.xml"
+        },
+        {
+            "title": "Phys.org \u00bb Biotechnology",
+            "url": "https://phys.org/rss-feed/biology-news/biotechnology/"
+        },
+        {
+            "title": "Endpoints News",
+            "url": "https://endpts.com/feed/"
+        },
+        {
+            "title": "BioTecNika \u00bb BioTech",
+            "url": "https://www.biotecnika.org/category/biotech-news/feed/"
+        },
+        {
+            "title": "LifeSciVC",
+            "url": "https://lifescivc.com/feed/"
+        },
+        {
+            "title": "Scaling Biotech",
+            "url": "https://scalingbiotech.com/feed/"
+        },
+        {
+            "title": "Stanford Biotech Insights Blog",
+            "url": "https://www.stanfordbiotechgroup.com/insights?format=rss"
+        },
+        {
+            "title": "BIOTECanada",
+            "url": "https://www.biotech.ca/feed/"
+        },
+        {
+            "title": "UC Davis Biotechnology Program Blog",
+            "url": "https://biotech.ucdavis.edu/blog.rss"
+        },
+        {
+            "title": "Infinita Biotech Blog",
+            "url": "https://infinitabiotech.com/feed/"
+        },
+        {
+            "title": "MIT Technology Review \u00bb Biotechnology",
+            "url": "https://www.technologyreview.com/topic/biotechnology/feed"
+        },
+        {
+            "title": "San Diego Biotechnology Network Blog",
+            "url": "https://sdbn.org/category/blog/feed/"
+        },
+        {
+            "title": "Bio.News",
+            "url": "https://bio.news/feed/"
+        },
+        {
+            "title": "STAT \u00bb Biotech",
+            "url": "https://www.statnews.com/category/biotech/feed/"
+        },
+        {
+            "title": "BioCentury",
+            "url": "https://www.biocentury.com/rss/BioCentury.xml"
+        },
+        {
+            "title": "American Biotech Supply Blog",
+            "url": "https://americanbiotechsupply.com/feed/"
+        },
+        {
+            "title": "Adaptive Biotech Blog",
+            "url": "https://www.adaptivebiotech.com/blog/feed"
+        },
+        {
+            "title": "The SENSible Blog",
+            "url": "https://sens.org/feed/"
+        },
+        {
+            "title": "Decoding Bio",
+            "url": "https://decodingbio.substack.com/feed"
+        },
+        {
+            "title": "Rough Diamonds",
+            "url": "https://sarahconstantin.substack.com/feed"
+        },
+        {
+            "title": "LatchBio",
+            "url": "https://blog.latch.bio/feed"
+        },
+        {
+            "title": "BioTechniques",
+            "url": "https://www.biotechniques.com/feed/"
+        },
+        {
+            "title": "ScienceDaily \u00bb Biotechnology and Bioengineering",
+            "url": "https://www.sciencedaily.com/rss/plants_animals/biotechnology_and_bioengineering.xml"
+        },
+        {
+            "title": "Xtalks Blog \u00bb Biotech",
+            "url": "https://xtalks.com/category/blogs/life-science-blogs/biotech-blogs/feed/"
+        },
+        {
+            "title": "Alex's Blog",
+            "url": "https://atelfo.github.io/feed.xml"
+        },
+        {
+            "title": "Thermo Fisher Scientific Blog \u00bb Biotechnology",
+            "url": "https://www.thermofisher.com/blog/biotechnology/feed/"
+        },
+        {
+            "title": "Biotech Primer Blog",
+            "url": "https://biotechprimer.com/feed/"
+        }
+    ]
+}

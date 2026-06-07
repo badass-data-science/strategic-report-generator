@@ -1,0 +1,520 @@
+{
+    "feeds": [
+        {
+            "title": "Leadership Now Blog",
+            "url": "https://www.leadershipnow.com/leadingblog/atom.xml"
+        },
+        {
+            "title": "Center for Creative Leadership",
+            "url": "https://www.ccl.org/feed/"
+        },
+        {
+            "title": "Knowledge \u00bb Leadership & Organisations",
+            "url": "https://knowledge.insead.edu/rss/articles/66/rss.xml"
+        },
+        {
+            "title": "SmartBrief Leadership Blog",
+            "url": "https://www.smartbrief.com/originals/leadership/feed"
+        },
+        {
+            "title": "The Ritz-Carlton Leadership Center",
+            "url": "https://ritzcarltonleadershipcenter.com/feed/"
+        },
+        {
+            "title": "Michael Hyatt Leadership Blog",
+            "url": "https://fullfocus.co/blog/feed/"
+        },
+        {
+            "title": "Skip Prichard Blog",
+            "url": "https://skipprichard.com/feed/"
+        },
+        {
+            "title": "Mark Sanborn Blog",
+            "url": "https://marksanborn.com/feed/?X=1"
+        },
+        {
+            "title": "Simon Sinek Blog",
+            "url": "https://simonsinek.com/feed/"
+        },
+        {
+            "title": "Tanveer Naseer Blog",
+            "url": "https://www.tanveernaseer.com/feed/"
+        },
+        {
+            "title": "Leadership Freak Blog",
+            "url": "https://leadershipfreak.blog/feed/"
+        },
+        {
+            "title": "Steve Farber Blog",
+            "url": "https://www.stevefarber.com/feed/"
+        },
+        {
+            "title": "John Spence's Blog",
+            "url": "https://blog.johnspence.com/feed/?x=1"
+        },
+        {
+            "title": "N2Growth Blog",
+            "url": "https://www.n2growth.com/feed/"
+        },
+        {
+            "title": "The Eblin Group Blog",
+            "url": "https://eblingroup.com/feed/"
+        },
+        {
+            "title": "gothamCulture",
+            "url": "http://gothamculture.com/feed/"
+        },
+        {
+            "title": "Sonoma Leadership Systems Blog",
+            "url": "https://www.flashpointleadership.com/blog/rss.xml"
+        },
+        {
+            "title": "Voltage Leadership Consulting Blog",
+            "url": "https://www.voltageleadershipconsulting.com/blog?format=RSS"
+        },
+        {
+            "title": "Vantage Leadership Consulting Blog",
+            "url": "https://www.vantageleadership.com/feed/"
+        },
+        {
+            "title": "Lead Star",
+            "url": "https://leadstar.us/feed/"
+        },
+        {
+            "title": "Carey Nieuwhof Blog",
+            "url": "https://careynieuwhof.com/feed/"
+        },
+        {
+            "title": "Lead Like Jesus Blog",
+            "url": "https://leadlikejesus.com/blog/feed/"
+        },
+        {
+            "title": "Healthy Leaders",
+            "url": "https://www.healthyleaders.com/feed"
+        },
+        {
+            "title": "Maxwell Leadership Podcast",
+            "url": "https://johnmaxwellleadershippodcast.libsyn.com/rss"
+        },
+        {
+            "title": "Christian Leadership Alliance (CLA) Blog",
+            "url": "https://christianleadershipalliance.org/blog/feed/"
+        },
+        {
+            "title": "Faith and Leadership",
+            "url": "https://faithandleadership.com/feed"
+        },
+        {
+            "title": "L3 Leadership",
+            "url": "https://l3leadership.org/feed/"
+        },
+        {
+            "title": "Sales Leadership Blog",
+            "url": "http://salesleadershipblog.sellingpower.com/feed/"
+        },
+        {
+            "title": "RedRock Leadership Blog",
+            "url": "https://www.redrockleadership.com/feed/"
+        },
+        {
+            "title": "Gordon Tredgold Blog",
+            "url": "https://gordontredgold.com/feed/"
+        },
+        {
+            "title": "Market Leadership Journal",
+            "url": "https://www.marketleadership.net/feed/"
+        },
+        {
+            "title": "SalesFuel Blog",
+            "url": "http://salesfuel.com/feed/"
+        },
+        {
+            "title": "thoughtLEADERS",
+            "url": "https://www.thoughtleadersllc.com/feed/"
+        },
+        {
+            "title": "The Express Blog",
+            "url": "https://expresspros.blog/feed/"
+        },
+        {
+            "title": "LeaderChat",
+            "url": "https://leaderchat.org/feed/"
+        },
+        {
+            "title": "America's Healthcare Leaders",
+            "url": "https://americashealthcareleaders.com/feed/"
+        },
+        {
+            "title": "Emerging Nurse Leader Blog",
+            "url": "https://emergingrnleader.com/feed/"
+        },
+        {
+            "title": "CTI Blog",
+            "url": "https://www.ctileadership.com/feed/"
+        },
+        {
+            "title": "The Army Leader",
+            "url": "https://thearmyleader.co.uk/feed/"
+        },
+        {
+            "title": "Agile Government Leadership | Agile Leadership Blog",
+            "url": "https://agilegovleaders.org/feed/"
+        },
+        {
+            "title": "Wildland Fire Leadership",
+            "url": "http://wildlandfireleadership.blogspot.com/feeds/posts/default"
+        },
+        {
+            "title": "John W. Carlin and Civic Leadership - Blog",
+            "url": "https://www.johnwcarlin.com/1/feed"
+        },
+        {
+            "title": "Civil Service \u00bb Civil Service Leaders",
+            "url": "https://civilservice.blog.gov.uk/category/civil-service-leaders/feed/"
+        },
+        {
+            "title": "NHS Leadership Academy Blog",
+            "url": "https://www.leadershipacademy.nhs.uk/feed/"
+        },
+        {
+            "title": "A Principal's Reflections",
+            "url": "https://esheninger.blogspot.com/feeds/posts/default?alt=rss"
+        },
+        {
+            "title": "School Leadership 2.0 Blog",
+            "url": "https://schoolleadership20.com/profiles/blog/feed?xn_auth=no"
+        },
+        {
+            "title": "Growing Leaders",
+            "url": "https://growingleaders.com/feed/"
+        },
+        {
+            "title": "McCormick Center for Early Childhood Leadership",
+            "url": "https://mccormickcenter.nl.edu/library/feed/"
+        },
+        {
+            "title": "Character and Leadership Blog",
+            "url": "https://characterandleadership.com/feed/"
+        },
+        {
+            "title": "Youth Leadership Institute Blog",
+            "url": "https://yli.org/feed/"
+        },
+        {
+            "title": "Women in Leadership Foundation Blog",
+            "url": "https://www.womeninleadership.ca/blog-feed.xml"
+        },
+        {
+            "title": "Girls Leadership Blog",
+            "url": "https://girlsleadership.org/feed/"
+        },
+        {
+            "title": "Women In Leadership For Life Blog",
+            "url": "https://womeninleadershipforlife.ca/blog/feed/"
+        },
+        {
+            "title": "Lisa Martin International Blog",
+            "url": "https://www.lisamartininternational.com/blog-feed.xml"
+        },
+        {
+            "title": "Julie Hyde Blog",
+            "url": "https://juliehyde.com.au/feed/"
+        },
+        {
+            "title": "Kathy Archer Blog",
+            "url": "https://www.kathyarcher.com/blog/feed"
+        },
+        {
+            "title": "Step Up Leader with Susan Freeman",
+            "url": "https://susansfreeman.com/new-events/feed/"
+        },
+        {
+            "title": "Julie Winkle Giulioni Blog",
+            "url": "https://www.juliewinklegiulioni.com/feed/"
+        },
+        {
+            "title": "Deliberate Leadership Matters Blog",
+            "url": "https://www.cherylboniniellis.com/blog.rss"
+        },
+        {
+            "title": "CoachStation | Coaching, Leadership & Business Development",
+            "url": "https://coachstation.com.au/feed/"
+        },
+        {
+            "title": "Discovery Church",
+            "url": "https://discoverychurch.com.au/feed/"
+        },
+        {
+            "title": "Leadership HQ Blog",
+            "url": "https://leadershiphq.com.au/feed/"
+        },
+        {
+            "title": "SG Partners - Leadership Blog",
+            "url": "https://www.sgpartners.com.au/blog?format=rss"
+        },
+        {
+            "title": "Integrity and Values Blog",
+            "url": "https://www.integrityandvalues.com/feed/"
+        },
+        {
+            "title": "Jasbindar Singh Blog",
+            "url": "https://jasbindarsingh.com/feed/"
+        },
+        {
+            "title": "Team Leader Blog",
+            "url": "https://www.teamleader.co.nz/team-leader-blog?format=RSS"
+        },
+        {
+            "title": "Corporate Coach Group Blog",
+            "url": "https://corporatecoachgroup.com/blog/rss.ashx"
+        },
+        {
+            "title": "African Leadership Organization Blog",
+            "url": "https://www.africanleadership.co.uk/feed/"
+        },
+        {
+            "title": "Susanne Madsen's Project Management and Leadership Blog",
+            "url": "http://www.susannemadsen.co.uk/1/feed"
+        },
+        {
+            "title": "The Maverick Paradox",
+            "url": "https://themaverickparadox.com/feed/"
+        },
+        {
+            "title": "Quest Leadership Blog",
+            "url": "https://www.questleadership.co.uk/feed/"
+        },
+        {
+            "title": "Servant Leadership Archives - Modern Servant Leader",
+            "url": "https://modernservantleader.com/feed/"
+        },
+        {
+            "title": "Institute for Mindful Leadership Blog",
+            "url": "https://instituteformindfulleadership.org/feed/"
+        },
+        {
+            "title": "Marc Lesser Blog",
+            "url": "https://marclesser.net/feed/"
+        },
+        {
+            "title": "TrueForm Leadership",
+            "url": "https://www.trueformleadership.com/feed/"
+        },
+        {
+            "title": "The LLOYD Consulting Firm",
+            "url": "https://lloydconsultingfirm.com/the-til-journal/f.atom"
+        },
+        {
+            "title": "Sustainability Leaders Blog",
+            "url": "https://sustainability-leaders.com/feed/"
+        },
+        {
+            "title": "Brain Leaders and Learners",
+            "url": "https://brainleadersandlearners.com/feed"
+        },
+        {
+            "title": "Transformational Leadership Blog",
+            "url": "https://transformleaders.tv/feed/"
+        },
+        {
+            "title": "Rockwood Leadership Institute Blog",
+            "url": "https://rockwoodleadership.org/feed/"
+        },
+        {
+            "title": "Leadership in Action Blog",
+            "url": "https://www.groupdynamic.net/feed/"
+        },
+        {
+            "title": "Niagara Institute Blog",
+            "url": "https://www.niagarainstitute.com/blog/rss.xml"
+        },
+        {
+            "title": "The Kannenberg Group",
+            "url": "https://www.thekannenberggroup.org/blog-feed.xml"
+        },
+        {
+            "title": "Leader's Compass Points Blog",
+            "url": "https://dleadershipgroup.com/feed"
+        },
+        {
+            "title": "Humanergy - Transformative Leadership Blog",
+            "url": "https://humanergy.com/feed/"
+        },
+        {
+            "title": "Good Leadership Enterprises Blog",
+            "url": "https://goodleadership.com/feed/"
+        },
+        {
+            "title": "Conant Leadership Blog",
+            "url": "https://conantleadership.com/blog/feed/"
+        },
+        {
+            "title": "15Five Blog",
+            "url": "https://www.15five.com/blog/feed"
+        },
+        {
+            "title": "Browning Leadership Institute Blog",
+            "url": "https://browningleadershipinstitute.com/blog/f.atom"
+        },
+        {
+            "title": "PMO Strategies Blog",
+            "url": "https://pmostrategies.com/blog/feed/"
+        },
+        {
+            "title": "Tandem Coaching Blog",
+            "url": "https://tandemcoach.co/feed/"
+        },
+        {
+            "title": "DEI Pro Finder Blog",
+            "url": "https://www.deiprofinder.com/rss"
+        },
+        {
+            "title": "CultureID Blog",
+            "url": "https://www.cultureid.com/blog-feed.xml"
+        },
+        {
+            "title": "BeLeader Blog",
+            "url": "https://www.be-leader.com/blog-feed.xml"
+        },
+        {
+            "title": "Steve Armstrong",
+            "url": "https://stevenarmstrong.ca/feed/"
+        },
+        {
+            "title": "Robert Murray Blog",
+            "url": "https://robert-murray.com/feed/"
+        },
+        {
+            "title": "CornerStone Dynamics Blog",
+            "url": "https://www.cornerstonedynamics.com/category/blog/feed/"
+        },
+        {
+            "title": "Lead Grow Develop",
+            "url": "https://leadgrowdevelop.com/feed/"
+        },
+        {
+            "title": "Success Reboot Blog",
+            "url": "https://www.incitetoleadership.com/feed/"
+        },
+        {
+            "title": "Leadership Brown Bag",
+            "url": "https://leadershipbrownbag.com/feed/"
+        },
+        {
+            "title": "The Grossman Group Blog",
+            "url": "https://www.yourthoughtpartner.com/blog/rss.xml"
+        },
+        {
+            "title": "Anthony Silard at The Global Leadership Institute",
+            "url": "http://executiveleaders.blogspot.com/feeds/posts/default?alt=rss"
+        },
+        {
+            "title": "Andrew Bryant Blog",
+            "url": "https://www.selfleadership.com/blog.rss"
+        },
+        {
+            "title": "Vince Molinaro Blog",
+            "url": "https://www.leadwithlci.com/feed/"
+        },
+        {
+            "title": "Leading With Trust",
+            "url": "https://leadingwithtrust.com/feed/"
+        },
+        {
+            "title": "How We Lead",
+            "url": "https://howwelead.org/feed/"
+        },
+        {
+            "title": "Lead on Purpose Blog",
+            "url": "https://leadonpurposeblog.com/feed/"
+        },
+        {
+            "title": "Thought Leadership Leverage Blog",
+            "url": "http://thoughtleadershipleverage.com/feed/"
+        },
+        {
+            "title": "Jesse Lyn Stoner ~ Seapoint Center Blog",
+            "url": "https://seapointcenter.com/feed/"
+        },
+        {
+            "title": "Let's Grow Leaders Blog",
+            "url": "https://letsgrowleaders.com/feed"
+        },
+        {
+            "title": "Tune Into Leadership",
+            "url": "https://www.tuneintoleadership.com/newsletter?format=rss"
+        },
+        {
+            "title": "Eric Jacobson On Management And Leadership",
+            "url": "https://ericjacobsononmanagement.blogspot.com/feeds/posts/default"
+        },
+        {
+            "title": "Three Star Leadership By Wally Bock Blog",
+            "url": "https://www.threestarleadership.com/feed"
+        },
+        {
+            "title": "Team Leadership Culture Blog",
+            "url": "http://www.teamleadershipculture.com/feed/"
+        },
+        {
+            "title": "How Effective Leaders Get Things Done",
+            "url": "https://usefulleader.com/feed/"
+        },
+        {
+            "title": "Brett Powell",
+            "url": "https://brettpowell.org/feed/"
+        },
+        {
+            "title": "Doug Dickerson on Leadership",
+            "url": "https://www.dougdickerson.net/feed/"
+        },
+        {
+            "title": "Teamwork and Leadership Bloggings with Michael Rogers",
+            "url": "https://www.teamworkandleadership.com/feed/"
+        },
+        {
+            "title": "QAspire Blog",
+            "url": "https://qaspire.com/feed/"
+        },
+        {
+            "title": "Unfolding Leadership Blog",
+            "url": "https://www.unfoldingleadership.com/blog/?feed=atom"
+        },
+        {
+            "title": "Leadership Perspectives Blog",
+            "url": "https://www.ehstoday.com/__rss/website-scheduled-content.xml?input=%7B%22sectionAlias%22%3A%22safety-leadership%22%7D"
+        },
+        {
+            "title": "Roaming Chaplain",
+            "url": "https://roamingchaplain.com/feed/"
+        },
+        {
+            "title": "Recruiting Awesome Blog",
+            "url": "https://www.recruitingawesome.net/blog-feed.xml"
+        },
+        {
+            "title": "Love & Company Blog",
+            "url": "https://loveandcompany.com/feed/"
+        },
+        {
+            "title": "ZRG Partners",
+            "url": "https://www.zrgpartners.com/blog/rss"
+        },
+        {
+            "title": "Stephen Drain",
+            "url": "https://stephendrain.com/feed/"
+        },
+        {
+            "title": "JeffLockert.com Blog",
+            "url": "https://jefflockert.com/category/blog/feed/"
+        },
+        {
+            "title": "Lee Cockerell - Lessons in Leadership Blog",
+            "url": "https://www.leecockerell.com/feed/"
+        },
+        {
+            "title": "Professor Michael Roberto's Blog",
+            "url": "http://michael-roberto.blogspot.com/feeds/posts/default"
+        }
+    ]
+}

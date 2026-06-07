@@ -1,0 +1,92 @@
+{
+    "feeds": [
+        {
+            "title": "Genomics Education Programme Blog",
+            "url": "https://www.genomicseducation.hee.nhs.uk/feed/"
+        },
+        {
+            "title": "The DNA Universe",
+            "url": "https://the-dna-universe.com/feed/"
+        },
+        {
+            "title": "Genomics and Health Impact Blog \u00bb Genomics",
+            "url": "https://blogs.cdc.gov/genomics/category/genomics/feed/"
+        },
+        {
+            "title": "Bionano Genomics",
+            "url": "https://bionano.com/blogs/feed/"
+        },
+        {
+            "title": "Phase Genomics Blog",
+            "url": "https://phasegenomics.com/feed/"
+        },
+        {
+            "title": "Front Line Genomics Blog",
+            "url": "https://frontlinegenomics.com/category/stories/blog/feed/"
+        },
+        {
+            "title": "Alithea Genomics Blog",
+            "url": "https://alitheagenomics.com/blog/rss.xml"
+        },
+        {
+            "title": "Paragon Genomics Blog",
+            "url": "https://www.paragongenomics.com/category/blog/feed/"
+        },
+        {
+            "title": "Cofactor Genomics",
+            "url": "https://cofactorgenomics.com/feed/"
+        },
+        {
+            "title": "Genome BC Blog",
+            "url": "https://www.genomebc.ca/blog/feed/"
+        },
+        {
+            "title": "Omics! Omics!",
+            "url": "https://omicsomics.blogspot.com/feeds/posts/default?alt=rss"
+        },
+        {
+            "title": "PacBio Blog",
+            "url": "https://www.pacb.com/feed/"
+        },
+        {
+            "title": "Medicinal Genomics Blog",
+            "url": "https://medicinalgenomics.com/feed/"
+        },
+        {
+            "title": "HudsonAlpha Institute for Biotechnology",
+            "url": "https://www.hudsonalpha.org/feed/"
+        },
+        {
+            "title": "NIH Director's Blog \u00bb Genomics",
+            "url": "https://directorsblog.nih.gov/tag/genomics/feed/"
+        },
+        {
+            "title": "Nebula Genomics Blog",
+            "url": "https://nebula.org/blog/feed/"
+        },
+        {
+            "title": "Genes to Genomes \u00bb Genomics",
+            "url": "https://genestogenomes.org/search/genomics/feed/rss2/"
+        },
+        {
+            "title": "GenomEthics Blog",
+            "url": "https://genomethicsblog.org/feed/"
+        },
+        {
+            "title": "GenomeWeb",
+            "url": "https://www.genomeweb.com/section/rss/news"
+        },
+        {
+            "title": "Fios Genomics Blog",
+            "url": "https://www.fiosgenomics.com/feed/"
+        },
+        {
+            "title": "LatchBio",
+            "url": "https://blog.latch.bio/feed"
+        },
+        {
+            "title": "ASeq Newsletter",
+            "url": "https://aseq.substack.com/feed"
+        }
+    ]
+}

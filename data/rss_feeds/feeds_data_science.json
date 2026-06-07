@@ -1,0 +1,252 @@
+{
+    "feeds": [
+        {
+            "title": "KDnuggets",
+            "url": "https://www.kdnuggets.com/feed"
+        },
+        {
+            "title": "Datafloq",
+            "url": "https://datafloq.com/feed/"
+        },
+        {
+            "title": "SmartData Collective",
+            "url": "https://www.smartdatacollective.com/feed/"
+        },
+        {
+            "title": "Kaggle Blog",
+            "url": "https://medium.com/feed/kaggle-blog"
+        },
+        {
+            "title": "Ryan Swanstrom",
+            "url": "https://ryanswanstrom.com/feed/"
+        },
+        {
+            "title": "Towards Data Science",
+            "url": "https://towardsdatascience.com/feed/"
+        },
+        {
+            "title": "Xtract.io Blog",
+            "url": "https://xtract.io/blog/feed/"
+        },
+        {
+            "title": "Statistical Modeling, Causal Inference, and Social Science",
+            "url": "https://statmodeling.stat.columbia.edu/feed/"
+        },
+        {
+            "title": "Dataconomy",
+            "url": "https://dataconomy.com/feed/"
+        },
+        {
+            "title": "Databricks Blog",
+            "url": "https://www.databricks.com/feed"
+        },
+        {
+            "title": "Data Piques",
+            "url": "https://www.ethanrosenthal.com/index.xml"
+        },
+        {
+            "title": "Data Double Confirm",
+            "url": "https://projectosyo.wixsite.com/datadoubleconfirm/blog-feed.xml"
+        },
+        {
+            "title": "Analytics Vidhya Blog \u00bb Prompt Engineering",
+            "url": "https://www.analyticsvidhya.com/feed/"
+        },
+        {
+            "title": "Hevo Blog",
+            "url": "https://hevodata.com/blog/feed/"
+        },
+        {
+            "title": "Codementor \u00bb Data Science Tutorials",
+            "url": "https://www.codementor.io/community/topic/data-science/feed"
+        },
+        {
+            "title": "Analytics India Magazine \u00bb AI News",
+            "url": "https://analyticsindiamag.com/ai-news-updates/feed/"
+        },
+        {
+            "title": "DataFlair",
+            "url": "https://data-flair.training/blogs/feed/"
+        },
+        {
+            "title": "DataRobot Blog",
+            "url": "https://www.datarobot.com/blog/feed/"
+        },
+        {
+            "title": "Command Line Tips",
+            "url": "https://cmdlinetips.com/feed/"
+        },
+        {
+            "title": "9TO5SAS",
+            "url": "https://www.9to5sas.com/feed/"
+        },
+        {
+            "title": "InData Labs Blog",
+            "url": "https://indatalabs.com/blog/feed"
+        },
+        {
+            "title": "Predictive Hacks",
+            "url": "https://predictivehacks.com/feed/"
+        },
+        {
+            "title": "Verra Mobility",
+            "url": "https://www.verramobility.com/feed/"
+        },
+        {
+            "title": "Data Science Blog",
+            "url": "https://data-science-blog.com/en/feed/"
+        },
+        {
+            "title": "NYC Data Science Academy Blog",
+            "url": "https://nycdatascience.com/blog/feed/"
+        },
+        {
+            "title": "Seattle Data Guy Blog",
+            "url": "https://www.theseattledataguy.com/feed/"
+        },
+        {
+            "title": "Blue Orange Blog",
+            "url": "https://blueorange.digital/feed/"
+        },
+        {
+            "title": "Julia Silge Blog",
+            "url": "https://juliasilge.com/blog/index.xml"
+        },
+        {
+            "title": "Little Miss Data",
+            "url": "https://www.littlemissdata.com/blog?format=RSS"
+        },
+        {
+            "title": "AnyInstructor",
+            "url": "https://anyinstructor.com/feed/"
+        },
+        {
+            "title": "Stats and R",
+            "url": "https://statsandr.com/index.xml"
+        },
+        {
+            "title": "Data For Science",
+            "url": "https://medium.data4sci.com/feed"
+        },
+        {
+            "title": "Data Science made in Switzerland",
+            "url": "https://blog.zhaw.ch/datascience/feed/"
+        },
+        {
+            "title": "Mad (Data) Scientist",
+            "url": "https://matloff.wordpress.com/feed/"
+        },
+        {
+            "title": "DATAVERSITY \u00bb Data Science News, Articles, & Education",
+            "url": "https://www.dataversity.net/category/data-topics/data-science-data-topics/feed/"
+        },
+        {
+            "title": "Nina B. Zumel",
+            "url": "https://ninazumel.com/feed.xml"
+        },
+        {
+            "title": "Buck Woody",
+            "url": "https://buckwoody.wordpress.com/feed/"
+        },
+        {
+            "title": "Insight Extractor Blog",
+            "url": "https://insightextractor.com/feed/"
+        },
+        {
+            "title": "Data Plus Science",
+            "url": "https://www.dataplusscience.com/RSSfeed.xml"
+        },
+        {
+            "title": "DSI Analytics",
+            "url": "https://dsianalytics.com/feed/"
+        },
+        {
+            "title": "The Unofficial Google Data Science Blog",
+            "url": "https://www.unofficialgoogledatascience.com/feeds/posts/default?alt=rss"
+        },
+        {
+            "title": "Analyzing Life",
+            "url": "https://algobeans.com/feed/"
+        },
+        {
+            "title": "Renesh Bedre",
+            "url": "https://www.reneshbedre.com/feed.xml"
+        },
+        {
+            "title": "DataScience@SMU Blog",
+            "url": "https://datascience.smu.edu/blog/feed/"
+        },
+        {
+            "title": "Data Science Association blog",
+            "url": "https://www.datascienceassn.org/blog/feed"
+        },
+        {
+            "title": "Data Elixir",
+            "url": "https://dataelixir.com/issues.rss"
+        },
+        {
+            "title": "Win Vector LLC",
+            "url": "https://win-vector.com/feed/"
+        },
+        {
+            "title": "Dataaspirant",
+            "url": "https://dataaspirant.com/feed/"
+        },
+        {
+            "title": "Remix Institute",
+            "url": "https://www.remixinstitute.com/feed/"
+        },
+        {
+            "title": "Ujjwal Karn",
+            "url": "https://ujjwalkarn.me/feed/"
+        },
+        {
+            "title": "SV Data Science Blog",
+            "url": "https://www.svds.com/blog/feed/"
+        },
+        {
+            "title": "Becoming A Data Scientist",
+            "url": "https://www.becomingadatascientist.com/feed/"
+        },
+        {
+            "title": "District Data Labs",
+            "url": "https://districtdatalabs.silvrback.com/feed"
+        },
+        {
+            "title": "The SAS Data Science Blog",
+            "url": "https://blogs.sas.com/content/subconsciousmusings/feed/"
+        },
+        {
+            "title": "Pete Warden's Blog",
+            "url": "https://petewarden.com/feed/"
+        },
+        {
+            "title": "O'Reilly",
+            "url": "https://www.oreilly.com/radar/feed/index.xml"
+        },
+        {
+            "title": "FlowingData",
+            "url": "https://flowingdata.com/feed"
+        },
+        {
+            "title": "Datanami",
+            "url": "https://www.datanami.com/feed/"
+        },
+        {
+            "title": "BAIR Blog",
+            "url": "https://bair.berkeley.edu/blog/feed.xml"
+        },
+        {
+            "title": "Harvard Data Science Initiative",
+            "url": "https://datascience.harvard.edu/feed/"
+        },
+        {
+            "title": "NVIDIA Technical Blog \u00bb Data Science",
+            "url": "https://developer.nvidia.com/blog/category/data-science/feed/"
+        },
+        {
+            "title": "Domino.ai",
+            "url": "https://domino.ai/feed.xml"
+        }
+    ]
+}

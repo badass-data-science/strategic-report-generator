@@ -1,0 +1,128 @@
+{
+    "feeds": [
+        {
+            "title": "Blockchain.News",
+            "url": "https://blockchain.news/rss"
+        },
+        {
+            "title": "Inside Bitcoins",
+            "url": "https://insidebitcoins.com/feed"
+        },
+        {
+            "title": "Bloqtimes | Building Bloq of Blockchain News",
+            "url": "https://bloqtimes.com/feed/"
+        },
+        {
+            "title": "The Crypto Update: Blockchain, NFT, DeFi, Crypto News & Updation",
+            "url": "https://www.thecryptoupdates.com/feed/"
+        },
+        {
+            "title": "Blockchain News Site",
+            "url": "https://www.blockchainnewssite.com/feed/"
+        },
+        {
+            "title": "MultiChain Blog",
+            "url": "https://www.multichain.com/feed/"
+        },
+        {
+            "title": "101 Blockchains Blog",
+            "url": "https://101blockchains.com/feed/"
+        },
+        {
+            "title": "Master The Crypto",
+            "url": "https://masterthecrypto.com/feed/"
+        },
+        {
+            "title": "Moralis Academy Blog",
+            "url": "https://academy.moralis.io/feed"
+        },
+        {
+            "title": "Blockchain Education | Cryptocurrency Education Platform",
+            "url": "https://blockchaineducation.com.au/feed/"
+        },
+        {
+            "title": "Blockchain Research Lab Blog",
+            "url": "https://www.blockchainresearchlab.org/feed/"
+        },
+        {
+            "title": "The Blockchain Investments Blog",
+            "url": "https://blog.coinfund.io/feed"
+        },
+        {
+            "title": "s",
+            "url": "https://medium.com/feed/ae-ventures"
+        },
+        {
+            "title": "Orrick Blog \u00bb Blockchain & Virtual Currency",
+            "url": "https://blogs.orrick.com/blockchain/feed/"
+        },
+        {
+            "title": "PrimaFelicitas",
+            "url": "https://www.primafelicitas.com/feed/"
+        },
+        {
+            "title": "SoluLab Blog",
+            "url": "https://www.solulab.com/feed/"
+        },
+        {
+            "title": "Blockedge Blog",
+            "url": "https://www.blockedge.io/blog/feed/"
+        },
+        {
+            "title": "Antier Solutions Blogs",
+            "url": "https://www.antiersolutions.com/blogs/feed/"
+        },
+        {
+            "title": "Blockchain Firm Blog",
+            "url": "https://blockchainfirm.io/feed/"
+        },
+        {
+            "title": "ix Blog",
+            "url": "https://blog.ionixxtech.com/blog/feed/"
+        },
+        {
+            "title": "Blocktech Brew Blog",
+            "url": "https://blocktechbrew.com/feed/"
+        },
+        {
+            "title": "1inch.exchange",
+            "url": "https://medium.com/feed/@1inch-exchange"
+        },
+        {
+            "title": "Medium \u00bb Blockchain Blog",
+            "url": "https://medium.com/feed/blockchain-blog"
+        },
+        {
+            "title": "DappRadar Blog \u00bb Gambling",
+            "url": "https://dappradar.com/blog/feed"
+        },
+        {
+            "title": "GokuMarket",
+            "url": "https://medium.com/feed/gokumarket"
+        },
+        {
+            "title": "Rahab Punkaholic Girls",
+            "url": "https://rahabpunkaholicgirls.com/feed/"
+        },
+        {
+            "title": "Rare Evo News",
+            "url": "https://rareevo.io/rare-network-news/rss-feed"
+        },
+        {
+            "title": "ChainTechSource Blog",
+            "url": "https://chaintechsource.com/blog/feed/"
+        },
+        {
+            "title": "coinweez",
+            "url": "https://coinweez.com/feed/"
+        },
+        {
+            "title": "Akeo",
+            "url": "https://akeo.tech/feed/"
+        },
+        {
+            "title": "The Blockchain Domain",
+            "url": "https://rss.tmcnet.com/rss/grss.ashx?cnl=413"
+        }
+    ]
+}

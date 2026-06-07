@@ -1,0 +1,18 @@
+{
+    "removed" : {
+	"feeds_healthcare": [
+            {
+		"title": "RamaOnHealthcare",
+		"url": "https://ramaonhealthcare.com/feed/",
+		"exception": "Remote end closed connection without response"
+            }
+	],
+	"feeds_geopolitics": [
+            {
+		"title": "Weekly Geo-Political News and Analysis",
+		"url": "https://benjaminfulford.net/feed/",
+		"reason": "Absurd content."
+            },
+	]
+    }
+}
