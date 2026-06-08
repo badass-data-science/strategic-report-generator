@@ -6,7 +6,13 @@ This AI workflow produces a daily report recommending business, entrepreneurship
 
 Reading hundreds of news articles and mentally synthesizing them into strategic recommendations proves beyond the time constraints of most individuals, who simply have better things to with their time. While LLM-generated strategic summarization is no substitute for human-generated analysis, it helps reduce this burden.
 
+While I cannot put an exact number on the percent increase, using this report every weekday increased my strategic insight substantially. 
+
 I recommend combining the output of this tool with your own analysis and intuition, which is probably what you would do anyway. Also, this pipeline, because of its fundamental dependence on LLM technology, occassionally produces erroneous results. **Caveat emptor!** Please apply judgement and follow-up research before proceding with this tool's recommendations. Use at your own risk. Use your wisdom and judgement; don't hold me liable for anything!
+
+## When to run this
+
+This tool only considers news articles produced in the 24-hours before runtime, though this value is configurable if you want to change it. Because many news sources do not publish on weekends, expect less output value on weekends.
 
 ## How to run this
 
