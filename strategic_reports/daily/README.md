@@ -2,6 +2,12 @@
 
 This AI workflow produces a daily report recommending business, entrepreneurship, and career strategies with respect to several critical operational arenas. It does not cover warfighting strategy despite the inclusion of defense industry recommendations.
 
+## Rationale
+
+Reading hundreds of news articles and mentally synthesizing them into strategic recommendations proves beyond the time constraints of most individuals, who simply have better things to with their time. While LLM-generated strategic summarization is no substitute for human-generated analysis, it helps reduce this burden.
+
+I recommend combining the output of this tool with your own analysis and intuition, which is probably what you would do anyway. Also, this pipeline, because of its fundamental dependence on LLM technology, occassionally produces erroneous results. **Caveat emptor!** Please apply judgement and follow-up research before proceding with this tool's recommendations. Use at your own risk. Use your wisdom and judgement; don't hold me liable for anything!
+
 ## How to run this
 
 I will add a "requirements.txt" file for pip dependencies to this document in the near future.
