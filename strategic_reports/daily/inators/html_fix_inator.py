@@ -92,6 +92,8 @@ def construct_head(
 
     if include_ai_content_attribute:
         html_head += '\t' + '<meta name="ai-content" content="' + ai_content + '">' + '\n'
+
+    html_head += '\t' + '<meta charset="UTF-8">' + '\n'
     
     html_head += '</head>'
     return html_head
