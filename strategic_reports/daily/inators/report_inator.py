@@ -42,14 +42,9 @@ def produce_strategic_markdown_report(
 ):
     report = report_header_level + ' Emily\'s Strategic Review\n'
     report += '\n'
-    report += '**How to use this report:**  This (mostly) daily report recommends business, entrepreneurship, and career strategies with respect to several critical operational arenas. It does not cover warfighting strategy despite the inclusion of defense industry recommendations.\n'
+    report += 'This (mostly) daily report recommends business and career strategies with respect to AI, data science, biotech, and several other critical operational arenas. Generated from recent industry news using thoughtful human/LLM co-intelligence. ***Caveat emptor!***\n'
     report += '\n'
     report += '**Updated:** ' + str(datetime.datetime.now()).split('.')[0] + '\n'
-    report += '\n'
-    report += '*LLM-generated analysis... because it scales. Occasionally human-reviewed.* ***Caveat emptor!***\n'
-    report += '\n'
-
-    report += report_header_level + '# Topics\n'
     report += '\n'
     
     for item in list_directories_and_titles:
@@ -75,7 +70,7 @@ def produce_strategic_markdown_report(
         except:
             continue
 
-        report += report_header_level + '##' + ' ' + title + '\n'
+        report += report_header_level + '#' + ' ' + title + '\n'
         report += '\n'
         report += '\n\n'.join(x.strip() for x in lines_new) + '\n'
         report += '\n'
