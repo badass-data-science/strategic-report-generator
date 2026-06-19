@@ -51,10 +51,6 @@ def construct_title(
         if title == None:
             title = estimate_the_title_from_first_header(html_content)
 
-    # add date
-    if title != None:
-        title += ' - ' + str(datetime.datetime.now().date())
-
     # add tags
     if title != None:
         html_title = '<title>' + title + '</title>'
