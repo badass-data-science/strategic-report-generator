@@ -3,6 +3,7 @@
 #
 import re
 from bs4 import BeautifulSoup
+import datetime
 
 #
 # See if we already have a title in the HTML
@@ -50,6 +51,11 @@ def construct_title(
         if title == None:
             title = estimate_the_title_from_first_header(html_content)
 
+    # add date
+    if title != None:
+        title += ' - ' + str(datetime.datetime.now().date())
+
+    # add tags
     if title != None:
         html_title = '<title>' + title + '</title>'
 
