@@ -11,6 +11,7 @@ def produce_article_summary_markdown_report(dict_summaries_tags, title = None, p
     list_report_summaries = []
     
     if title != None:
+        title += ' - ' + str(datetime.datetime.now().date())
         list_report_summaries.append('# Daily Article Summaries:  *' + title + '*\n')
     
     if preamble:
@@ -40,7 +41,7 @@ def produce_strategic_markdown_report(
     directory_output_root,
     report_header_level = '#',
 ):
-    report = report_header_level + ' Emily\'s Strategic Review\n'
+    report = report_header_level + ' Emily\'s Strategic Review' + ' - ' + str(datetime.datetime.now().date()) + '\n'
     report += '\n'
     report += 'This (mostly) daily report recommends business and career strategies with respect to AI, data science, biotech, and several other critical operational arenas. Generated from recent industry news using thoughtful human/LLM co-intelligence. ***Caveat emptor!***\n'
     report += '\n'
