@@ -1,0 +1,32 @@
+{% extends "base.html.j2" %}
+
+{% block head %}
+<title>{{ result.config.title }} — Article Summaries ({{ date }})</title>
+{% endblock %}
+
+{% block body %}
+<p class="meta"><a href="index.html">← Strategic Report</a></p>
+
+<h1>{{ result.config.title }} — Article Summaries</h1>
+<p class="meta">
+  {{ result.articles | length }} article{% if result.articles | length != 1 %}s{% endif %}
+  summarized on {{ updated }}.
+  <em>Summaries and tags are LLM-generated.</em>
+</p>
+
+{% for article in result.articles %}
+<section>
+  <h3><a href="{{ article.link }}" target="_blank" rel="noopener">{{ article.title }}</a></h3>
+  <p class="meta">Published: {{ article.publish_date }}</p>
+  <ul>
+    {% for bullet in article.summary %}
+    <li>{{ bullet }}</li>
+    {% endfor %}
+  </ul>
+  <p class="tags">
+    <strong>Tags:</strong>
+    {{ article.tags | sort | join(" · ") }}
+  </p>
+</section>
+{% endfor %}
+{% endblock %}

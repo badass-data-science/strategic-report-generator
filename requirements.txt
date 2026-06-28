@@ -1,0 +1,30 @@
+# --- LLM / AI ---
+litellm>=1.80.0          # provider-agnostic LLM calls (Ollama, Claude, OpenAI, ...)
+instructor>=1.15.0       # structured outputs via Pydantic
+tenacity>=9.0.0          # retry with exponential backoff
+
+# --- Data models ---
+pydantic>=2.0.0
+
+# --- Ingestion ---
+feedparser>=6.0.0        # RSS/Atom feed parsing
+html-to-markdown>=1.0.0  # HTML → Markdown conversion for feed content
+
+# --- Observability ---
+structlog>=26.0.0        # structured logging
+
+# --- Rendering ---
+jinja2>=3.1.0            # HTML templating
+
+# --- CLI ---
+typer>=0.16.0
+
+# --- Testing ---
+pytest>=9.0.0
+pytest-asyncio>=1.0.0
+
+# --- Tracing (optional — install to enable) ---
+# Langfuse: no extra package needed; set LANGFUSE_PUBLIC_KEY + LANGFUSE_SECRET_KEY
+# Phoenix (local UI + OTEL):
+#   pip install arize-phoenix openinference-instrumentation-litellm \
+#               opentelemetry-sdk opentelemetry-exporter-otlp-proto-http

@@ -1,0 +1,40 @@
+{% extends "base.html.j2" %}
+
+{% block head %}
+<title>Strategic Review — {{ date }}</title>
+{% endblock %}
+
+{% block body %}
+<h1>Strategic Review — {{ date }}</h1>
+<p class="meta">
+  Updated: {{ updated }}<br>
+  <span class="warn">Generated from recent industry news using LLM analysis.
+  Apply judgement before acting on any recommendation. <strong>Caveat emptor!</strong></span>
+</p>
+
+{% for result in results %}
+<section>
+  <h2>{{ result.config.title }}</h2>
+
+  {% if result.error %}
+  <p class="error-note">Pipeline error for this topic: {{ result.error }}</p>
+
+  {% elif result.strategy %}
+  <ul>
+    {% for bullet in result.strategy.bullets %}
+    <li>{{ bullet }}</li>
+    {% endfor %}
+  </ul>
+  <p class="source-link">
+    <a href="{{ result.config.slug | replace('feeds_', '') }}_summaries.html">Source material →</a>
+  </p>
+
+  {% else %}
+  <p class="meta">No articles found in the past {{ hours_cutoff }} hours.</p>
+  {% endif %}
+</section>
+{% endfor %}
+
+<hr style="margin-top:3rem; border:none; border-top:1px solid #ddd;">
+<p class="meta">Total tokens used: {{ total_tokens | default(0) }}</p>
+{% endblock %}
