@@ -97,9 +97,12 @@ pip install -r requirements.txt
 Set your model and credentials:
 
 ```bash
-# Ollama (local or hosted)
+# Ollama (local)
 export LLM_MODEL="ollama_chat/llama3.1:70b"
-export OLLAMA_API_KEY="..."           # if using a hosted Ollama provider
+
+# Ollama (hosted on a remote server)
+export LLM_MODEL="ollama_chat/llama3.1:70b"
+export OLLAMA_API_BASE="http://your-server-ip:11434"
 
 # or Claude
 export LLM_MODEL="anthropic/claude-sonnet-4-6"
