@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Output (generated at runtime)
+output/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment
+.env
+*.egg-info/
+dist/
+build/
