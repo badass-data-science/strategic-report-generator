@@ -74,6 +74,15 @@ class LLMClient:
                                    raw JSON back. Works with most Ollama models
                                    that don't support tool calling.
       - instructor.Mode.MD_JSON  — like JSON but extracts from ```json``` fences.
+
+    api_base and api_key are forwarded directly to litellm on every call:
+      - api_base overrides the endpoint URL (e.g. "http://my-server:11434").
+        litellm also reads OLLAMA_API_BASE from the environment automatically,
+        but passing it explicitly here ensures it applies to every call even if
+        the env var isn't set in the worker process.
+      - api_key sets the Authorization header. Standard Ollama doesn't require
+        one, but hosted or proxied instances (e.g. behind nginx with basic auth,
+        or a gateway like LiteLLM proxy) typically do.
     """
 
     def __init__(
@@ -82,6 +91,8 @@ class LLMClient:
         temperature: float = 0.1,
         run_metadata: dict | None = None,
         instructor_mode: instructor.Mode = instructor.Mode.TOOLS,
+        api_base: str | None = None,
+        api_key: str | None = None,
     ) -> None:
         self.model = model
         self.temperature = temperature
@@ -90,6 +101,12 @@ class LLMClient:
         # Langfuse reads it to group calls from one pipeline run under a
         # single trace. Keys "trace_id" and "trace_name" are Langfuse-specific.
         self._run_metadata = run_metadata or {}
+
+        # Only store non-None values; we spread these into every litellm call
+        # below using conditional ** unpacking so we never send api_base=None
+        # to a provider that doesn't expect it.
+        self._api_base = api_base
+        self._api_key = api_key
 
         # instructor.from_litellm patches litellm.acompletion so that the
         # normal chat.completions.create() call also accepts a response_model
@@ -174,10 +191,10 @@ class LLMClient:
             response_model=response_model,
             messages=messages,
             temperature=self.temperature,
-            # Only include metadata kwarg if we have metadata to send.
-            # The ** unpacking spreads the dict as keyword arguments.
-            # This avoids sending an empty metadata={} to providers that
-            # don't support it.
+            # Spread optional kwargs only when set — avoids sending api_base=None
+            # or api_key=None to providers that don't expect them.
+            **({"api_base": self._api_base} if self._api_base else {}),
+            **({"api_key": self._api_key} if self._api_key else {}),
             **({"metadata": self._run_metadata} if self._run_metadata else {}),
         )
 
@@ -224,6 +241,8 @@ class LLMClient:
             model=self.model,
             messages=messages,
             temperature=self.temperature,
+            **({"api_base": self._api_base} if self._api_base else {}),
+            **({"api_key": self._api_key} if self._api_key else {}),
             **({"metadata": self._run_metadata} if self._run_metadata else {}),
         )
 

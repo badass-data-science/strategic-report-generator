@@ -149,6 +149,18 @@ def run(
         help="Structured output mode: TOOLS (default, requires tool-calling support), "
              "JSON (for Ollama models without tool calling), MD_JSON (JSON in markdown fences)",
     ),
+    ollama_api_base: str | None = typer.Option(
+        None,
+        envvar="OLLAMA_API_BASE",
+        help="Ollama server base URL (e.g. http://my-server:11434). "
+             "Also read from OLLAMA_API_BASE env var.",
+    ),
+    ollama_api_key: str | None = typer.Option(
+        None,
+        envvar="OLLAMA_API_KEY",
+        help="API key for authenticated Ollama instances. "
+             "Also read from OLLAMA_API_KEY env var.",
+    ),
     log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR)"),
 ) -> None:
     """Run the daily strategic report pipeline and write results to output_dir."""
@@ -203,6 +215,8 @@ def run(
         temperature=temperature,
         run_metadata={"trace_id": run_id, "trace_name": "strategic-report-daily"},
         instructor_mode=resolved_mode,
+        api_base=ollama_api_base,
+        api_key=ollama_api_key,
     )
 
     # asyncio.run() is the sync→async bridge:

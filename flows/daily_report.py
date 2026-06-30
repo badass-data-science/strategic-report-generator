@@ -1,53 +1,59 @@
 """
 Prefect flow for the daily strategic report pipeline.
 
+This flow is configured for a hosted Ollama instance running gpt-oss:120b.
+instructor_mode defaults to JSON because gpt-oss:120b does not support the
+tool-calling API that TOOLS mode requires.
+
 WHY PREFECT?
 ------------
 The CLI (cli.py) is fine for running the pipeline manually. Prefect adds:
   - Scheduling: define the cron once, Prefect triggers it automatically
-  - Run history: every run is recorded in Prefect Cloud with status, duration,
-    and logs — you can see at a glance that the 2am run succeeded
-  - Retries: transient LLM API failures are retried automatically at the task
-    level, not by wrapping everything in a try/except loop
-  - Observability: each task shows its own status in the UI, so when something
-    goes wrong you can see immediately whether it was the config load, the LLM
-    pipeline, or the renderer that failed
+  - Run history: every run is recorded with status, duration, and logs
+  - Retries: transient LLM API failures are retried automatically at the
+    task level, not by wrapping everything in a try/except loop
+  - Observability: each task shows its own status in the UI
 
 PREFECT'S TWO DECORATORS
 --------------------------
 @flow   — the top-level unit. One flow = one entry in the run history.
-          Prefect Cloud shows the flow name, status, start/end time, and
-          a graph of which tasks ran inside it.
+@task   — a step within a flow. Tasks get independent status, retry
+          configuration, and their own log view.
 
-@task   — a step within a flow. Tasks get independent status (succeeded /
-          failed / retrying), retry configuration, and their own log view.
-          If a task fails, you can see exactly which step without reading
-          through combined logs.
+RUNNING WITH LOCAL PREFECT (no cloud account required)
+-------------------------------------------------------
+1. Start the local Prefect server (keep this terminal open):
 
-The flow calls tasks sequentially here (not with .submit(), which would run
-them in parallel). These three steps are inherently sequential — you can't
-process topics before loading their configs.
+       prefect server start
 
-RUNNING
---------
-Start the scheduler (long-running process — keep it alive with systemd or tmux):
+   The UI is available at http://localhost:4200
 
-    cd <project-root>
-    python flows/daily_report.py
+2. Point the client at the local server:
 
-This registers the deployment in Prefect Cloud and polls for scheduled runs.
-The schedule is 00:30 America/Los_Angeles daily.
+       prefect config set PREFECT_API_URL=http://localhost:4200/api
 
-Trigger a one-off run immediately (in a separate terminal):
+3. Set required environment variables (add to .env or export in shell):
 
-    prefect deployment run 'daily-strategic-report/daily-strategic-report'
+       export OLLAMA_API_BASE=http://your-ollama-server:11434
+       export OLLAMA_API_KEY=your-key-if-required
+       export LLM_MODEL=ollama_chat/gpt-oss:120b
 
-Override parameters for a one-off run:
+4. Start the scheduler (keep this terminal open):
 
-    prefect deployment run 'daily-strategic-report/daily-strategic-report' \\
-        --param model=anthropic/claude-sonnet-4-6 \\
-        --param instructor_mode=TOOLS \\
-        --param hours_cutoff=48
+       cd <project-root>
+       python flows/daily_report.py
+
+   The flow registers with the local server and polls for scheduled runs.
+   The schedule is 00:30 America/Los_Angeles daily.
+
+5. Trigger a one-off run immediately (in a separate terminal):
+
+       prefect deployment run 'daily-strategic-report/daily-strategic-report'
+
+   Override parameters for a one-off run:
+
+       prefect deployment run 'daily-strategic-report/daily-strategic-report' \\
+           --param hours_cutoff=48
 """
 
 import os
@@ -136,6 +142,8 @@ async def run_llm_pipeline(
     temperature: float,
     instructor_mode_str: str,
     run_id: str,
+    api_base: str | None = None,
+    api_key: str | None = None,
 ) -> list[TopicResult]:
     """Run RSS ingestion and LLM summarization + synthesis for all topics."""
     logger = get_run_logger()
@@ -146,6 +154,8 @@ async def run_llm_pipeline(
         temperature=temperature,
         run_metadata={"trace_id": run_id, "trace_name": "strategic-report-daily"},
         instructor_mode=mode,
+        api_base=api_base,
+        api_key=api_key,
     )
 
     logger.info(f"Pipeline starting: {len(topics)} topics, model={model}, instructor_mode={instructor_mode_str}")
@@ -215,7 +225,12 @@ async def daily_report_flow(
     batch_size: int = 50,
     max_concurrent: int = 3,
     temperature: float = 0.1,
-    instructor_mode: str = "TOOLS",
+    # JSON mode is the default here because this flow is configured for
+    # gpt-oss:120b, which does not support the tool-calling API.
+    # The CLI (cli.py) retains TOOLS as its default for general use.
+    instructor_mode: str = "JSON",
+    ollama_api_base: str | None = os.environ.get("OLLAMA_API_BASE"),
+    ollama_api_key: str | None = os.environ.get("OLLAMA_API_KEY"),
     log_level: str = "INFO",
 ) -> None:
     """Daily strategic report: ingest RSS feeds, summarize, synthesize, render HTML."""
@@ -239,6 +254,8 @@ async def daily_report_flow(
         temperature=temperature,
         instructor_mode_str=instructor_mode,
         run_id=run_id,
+        api_base=ollama_api_base,
+        api_key=ollama_api_key,
     )
 
     render_html_report(results, output_dir, hours_cutoff)
