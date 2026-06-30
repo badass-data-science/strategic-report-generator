@@ -137,7 +137,20 @@ All options have defaults and can be set via CLI flag or environment variable.
 | `--batch-size` | — | `50` | Articles per LLM summarization call |
 | `--max-concurrent` | — | `3` | Max topics hitting the LLM API simultaneously |
 | `--temperature` | — | `0.1` | LLM sampling temperature |
+| `--instructor-mode` | — | `TOOLS` | Structured output mode (see below) |
 | `--log-level` | — | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
+
+### `--instructor-mode`
+
+Controls how [instructor](https://github.com/jxnl/instructor) requests structured JSON output from the model:
+
+| Mode | When to use |
+|------|-------------|
+| `TOOLS` (default) | Models with native tool/function-calling support — OpenAI, Anthropic, and most capable Ollama models |
+| `JSON` | Ollama models that **don't** support tool calling (e.g. `gpt-oss:120b`). Instructor injects the schema into the system prompt and expects raw JSON back. |
+| `MD_JSON` | Models that wrap their JSON output in ` ```json ``` ` fences instead of returning it bare. |
+
+If you see the error `No tool calls or function call found in response (mode: TOOLS)`, switch to `--instructor-mode JSON`.
 
 Example — run against Claude with higher concurrency and debug logging:
 
@@ -146,6 +159,14 @@ python -m strategic_reports.daily.cli \
   --model anthropic/claude-sonnet-4-6 \
   --max-concurrent 5 \
   --log-level DEBUG
+```
+
+Example — run against an Ollama model without tool-calling support:
+
+```bash
+python -m strategic_reports.daily.cli \
+  --model ollama_chat/gpt-oss:120b \
+  --instructor-mode JSON
 ```
 
 ---
