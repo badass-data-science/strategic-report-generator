@@ -57,6 +57,7 @@ import asyncio
 import os
 from pathlib import Path
 
+import instructor
 import typer
 
 from strategic_reports.daily.config.topic_order import list_directories_and_titles
@@ -64,6 +65,15 @@ from strategic_reports.daily.core import configure_logging, LLMClient, run_pipel
 from strategic_reports.daily.core.models import TopicConfig
 from strategic_reports.daily.core.renderer import render_report
 from strategic_reports.daily.core.tracing import generate_run_id, setup_tracing
+
+# Maps CLI string → instructor.Mode enum value.
+# TOOLS requires model-level function-calling support (OpenAI, Anthropic, capable Ollama).
+# JSON works with most Ollama models that lack tool-call support.
+_INSTRUCTOR_MODES: dict[str, instructor.Mode] = {
+    "TOOLS": instructor.Mode.TOOLS,
+    "JSON": instructor.Mode.JSON,
+    "MD_JSON": instructor.Mode.MD_JSON,
+}
 
 # typer.Typer() creates the CLI application.
 # add_completion=False disables shell completion setup — optional feature we don't need.
@@ -134,9 +144,25 @@ def run(
     batch_size: int = typer.Option(50, help="Max articles per LLM summarization call"),
     max_concurrent: int = typer.Option(3, help="Max topics hitting the LLM API simultaneously"),
     temperature: float = typer.Option(0.1, help="LLM sampling temperature"),
+    instructor_mode: str = typer.Option(
+        "TOOLS",
+        help="Structured output mode: TOOLS (default, requires tool-calling support), "
+             "JSON (for Ollama models without tool calling), MD_JSON (JSON in markdown fences)",
+    ),
     log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR)"),
 ) -> None:
     """Run the daily strategic report pipeline and write results to output_dir."""
+
+    # Validate --instructor-mode before doing any real work.
+    mode_upper = instructor_mode.upper()
+    if mode_upper not in _INSTRUCTOR_MODES:
+        typer.echo(
+            f"Invalid --instructor-mode '{instructor_mode}'. "
+            f"Valid options: {', '.join(_INSTRUCTOR_MODES)}",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    resolved_mode = _INSTRUCTOR_MODES[mode_upper]
 
     # Configure logging FIRST so that all subsequent code produces structured output.
     configure_logging(log_level)
@@ -158,11 +184,12 @@ def run(
         raise typer.Exit(code=1)
 
     # Print a startup summary to stdout so the user knows what's running.
-    typer.echo(f"Model:        {model}")
-    typer.echo(f"Topics:       {len(topics)}")
-    typer.echo(f"Hours cutoff: {hours_cutoff}h")
-    typer.echo(f"Output:       {output_dir}")
-    typer.echo(f"Run ID:       {run_id}")
+    typer.echo(f"Model:            {model}")
+    typer.echo(f"Instructor mode:  {mode_upper}")
+    typer.echo(f"Topics:           {len(topics)}")
+    typer.echo(f"Hours cutoff:     {hours_cutoff}h")
+    typer.echo(f"Output:           {output_dir}")
+    typer.echo(f"Run ID:           {run_id}")
     if any(active_backends.values()):
         active = [k for k, v in active_backends.items() if v]
         typer.echo(f"Tracing:      {', '.join(active)}")
@@ -174,9 +201,8 @@ def run(
     client = LLMClient(
         model=model,
         temperature=temperature,
-        # run_metadata is forwarded to Langfuse via litellm's metadata kwarg.
-        # trace_id groups calls; trace_name labels the trace in the Langfuse UI.
         run_metadata={"trace_id": run_id, "trace_name": "strategic-report-daily"},
+        instructor_mode=resolved_mode,
     )
 
     # asyncio.run() is the sync→async bridge:

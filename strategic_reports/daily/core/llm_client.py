@@ -64,6 +64,16 @@ class LLMClient:
 
     Both methods are async so they can be awaited directly inside an
     asyncio pipeline without blocking the event loop.
+
+    instructor_mode controls how structured output is requested:
+      - instructor.Mode.TOOLS    (default) — uses function/tool calling API.
+                                             Requires model support. Best for
+                                             OpenAI, Anthropic, and Ollama models
+                                             that advertise tool use.
+      - instructor.Mode.JSON     — injects schema into system prompt; expects
+                                   raw JSON back. Works with most Ollama models
+                                   that don't support tool calling.
+      - instructor.Mode.MD_JSON  — like JSON but extracts from ```json``` fences.
     """
 
     def __init__(
@@ -71,6 +81,7 @@ class LLMClient:
         model: str,
         temperature: float = 0.1,
         run_metadata: dict | None = None,
+        instructor_mode: instructor.Mode = instructor.Mode.TOOLS,
     ) -> None:
         self.model = model
         self.temperature = temperature
@@ -83,7 +94,7 @@ class LLMClient:
         # instructor.from_litellm patches litellm.acompletion so that the
         # normal chat.completions.create() call also accepts a response_model
         # argument and returns a parsed Pydantic instance.
-        self._instructor = instructor.from_litellm(litellm.acompletion)
+        self._instructor = instructor.from_litellm(litellm.acompletion, mode=instructor_mode)
 
         # Accumulates token usage across all calls on this client instance.
         self._total_usage = TokenUsage()
