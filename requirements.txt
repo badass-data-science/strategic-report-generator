@@ -19,6 +19,9 @@ jinja2>=3.1.0            # HTML templating
 # --- CLI ---
 typer>=0.16.0
 
+# --- Orchestration ---
+prefect>=3.0.0           # flow scheduling, run history, Prefect Cloud UI
+
 # --- Testing ---
 pytest>=9.0.0
 pytest-asyncio>=1.0.0

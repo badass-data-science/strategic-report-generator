@@ -171,6 +171,85 @@ python -m strategic_reports.daily.cli \
 
 ---
 
+## Scheduling with Prefect
+
+The pipeline ships with a [Prefect](https://www.prefect.io) flow that runs automatically at **00:30 America/Los_Angeles** daily and records every run in Prefect Cloud.
+
+### Why Prefect?
+
+| Capability | What it gives you |
+|------------|------------------|
+| Scheduled runs | Set the cron once; Prefect triggers it automatically |
+| Run history | Every run is recorded — status, duration, logs, token counts |
+| Task-level status | See whether a failure was in config load, LLM pipeline, or rendering |
+| Automatic retries | Transient LLM API errors are retried (2×, 60s apart) without any extra code |
+| Parameter overrides | Trigger a one-off run with a different model or hours cutoff from the UI or CLI |
+
+### Setup
+
+**1. Create a free Prefect Cloud account** at [app.prefect.cloud](https://app.prefect.cloud) and log in:
+
+```bash
+prefect cloud login
+```
+
+**2. Start the scheduler process:**
+
+```bash
+cd <project-root>
+python flows/daily_report.py
+```
+
+This registers the deployment in Prefect Cloud and starts polling for scheduled runs. The process must stay alive — run it under `systemd` or in a `tmux`/`screen` session.
+
+Example `systemd` unit (`/etc/systemd/system/strategic-reports.service`):
+
+```ini
+[Unit]
+Description=Strategic Reports Prefect scheduler
+After=network.target
+
+[Service]
+User=<your-user>
+WorkingDirectory=<project-root>
+EnvironmentFile=<project-root>/.env
+ExecStart=/path/to/venv/bin/python flows/daily_report.py
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**3. Trigger a one-off run immediately** (optional, from a separate terminal):
+
+```bash
+prefect deployment run 'daily-strategic-report/daily-strategic-report'
+```
+
+**4. Override parameters** for a one-off run:
+
+```bash
+prefect deployment run 'daily-strategic-report/daily-strategic-report' \
+    --param model=anthropic/claude-sonnet-4-6 \
+    --param instructor_mode=TOOLS \
+    --param hours_cutoff=48
+```
+
+### Flow structure
+
+The flow contains three tasks, each tracked independently in the Prefect UI:
+
+```
+daily_report_flow
+  ├── build-topic-configs    (sync)   load feed JSON configs from data_dir
+  ├── run-llm-pipeline       (async)  RSS ingestion + LLM summarization + synthesis
+  │                                   retries=2, retry_delay=60s
+  └── render-html-report     (sync)   Jinja2 → HTML output files
+```
+
+---
+
 ## Tracing
 
 Neither backend is required. The pipeline runs normally without them.
