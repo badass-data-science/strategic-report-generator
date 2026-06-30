@@ -138,6 +138,8 @@ All options have defaults and can be set via CLI flag or environment variable.
 | `--max-concurrent` | — | `3` | Max topics hitting the LLM API simultaneously |
 | `--temperature` | — | `0.1` | LLM sampling temperature |
 | `--instructor-mode` | — | `TOOLS` | Structured output mode (see below) |
+| `--ollama-api-base` | `OLLAMA_API_BASE` | — | Ollama server URL (e.g. `http://my-server:11434`) |
+| `--ollama-api-key` | `OLLAMA_API_KEY` | — | API key for authenticated Ollama instances |
 | `--log-level` | — | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
 
 ### `--instructor-mode`
@@ -173,7 +175,7 @@ python -m strategic_reports.daily.cli \
 
 ## Scheduling with Prefect
 
-The pipeline ships with a [Prefect](https://www.prefect.io) flow that runs automatically at **00:30 America/Los_Angeles** daily and records every run in Prefect Cloud.
+The pipeline ships with a [Prefect](https://www.prefect.io) flow that runs automatically at **00:30 America/Los_Angeles** daily. It uses a local Prefect server — no cloud account required.
 
 ### Why Prefect?
 
@@ -187,20 +189,42 @@ The pipeline ships with a [Prefect](https://www.prefect.io) flow that runs autom
 
 ### Setup
 
-**1. Create a free Prefect Cloud account** at [app.prefect.cloud](https://app.prefect.cloud) and log in:
+**1. Start the local Prefect server** (keep this terminal open):
 
 ```bash
-prefect cloud login
+prefect server start
 ```
 
-**2. Start the scheduler process:**
+The UI is available at **http://localhost:4200**.
+
+**2. Point the Prefect client at the local server:**
+
+```bash
+prefect config set PREFECT_API_URL=http://localhost:4200/api
+```
+
+This only needs to be run once — the setting is persisted in your Prefect profile.
+
+**3. Set environment variables** for your Ollama instance and model:
+
+```bash
+export LLM_MODEL="ollama_chat/gpt-oss:120b"
+export OLLAMA_API_BASE="http://your-ollama-server:11434"
+export OLLAMA_API_KEY="your-key-if-required"   # omit if not needed
+```
+
+These can also be placed in a `.env` file and loaded with `source .env`, or referenced via the `EnvironmentFile` directive in the systemd unit below.
+
+**4. Start the scheduler** (keep this terminal open):
 
 ```bash
 cd <project-root>
 python flows/daily_report.py
 ```
 
-This registers the deployment in Prefect Cloud and starts polling for scheduled runs. The process must stay alive — run it under `systemd` or in a `tmux`/`screen` session.
+This registers the deployment with the local server and polls for scheduled runs. The flow defaults to `instructor_mode=JSON` and reads `OLLAMA_API_BASE` / `OLLAMA_API_KEY` from the environment automatically.
+
+The process must stay alive — run it under `systemd` or in a `tmux`/`screen` session.
 
 Example `systemd` unit (`/etc/systemd/system/strategic-reports.service`):
 
@@ -221,19 +245,19 @@ RestartSec=30
 WantedBy=multi-user.target
 ```
 
-**3. Trigger a one-off run immediately** (optional, from a separate terminal):
+**5. Trigger a one-off run immediately** (optional, from a separate terminal):
 
 ```bash
 prefect deployment run 'daily-strategic-report/daily-strategic-report'
 ```
 
-**4. Override parameters** for a one-off run:
+**6. Override parameters** for a one-off run:
 
 ```bash
 prefect deployment run 'daily-strategic-report/daily-strategic-report' \
+    --param hours_cutoff=48 \
     --param model=anthropic/claude-sonnet-4-6 \
-    --param instructor_mode=TOOLS \
-    --param hours_cutoff=48
+    --param instructor_mode=TOOLS
 ```
 
 ### Flow structure
