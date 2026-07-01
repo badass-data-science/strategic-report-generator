@@ -26,7 +26,9 @@ Data flow through the pipeline:
 from datetime import datetime
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from .tag_normalizer import normalize_tags
 
 
 # ---------------------------------------------------------------------------
@@ -105,10 +107,19 @@ class ArticleSummary(BaseModel):
         max_length=3,  # Pydantic rejects more than 3 items
     )
     tags: list[str] = Field(
-        description="5 to 20 descriptive tags. Spell words out; no abbreviations.",
+        description=(
+            "5 to 20 descriptive tags. Lowercase. Singular nouns. "
+            "Spell out all words — no abbreviations or acronyms. "
+            "Use spaces not hyphens for multi-word tags."
+        ),
         min_length=5,
         max_length=20,
     )
+
+    @field_validator("tags", mode="after")
+    @classmethod
+    def normalize_tag_list(cls, v: list[str]) -> list[str]:
+        return normalize_tags(v)
 
 
 class ArticleSummaryBatch(BaseModel):

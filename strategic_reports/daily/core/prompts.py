@@ -48,7 +48,11 @@ from .models import ArticleSummary, RawArticle
 SYSTEM_SUMMARIZER = """\
 You are an expert at reading news articles and extracting their key points.
 For every article you receive, produce a concise 3-bullet summary and a set
-of descriptive tags. Spell out all words in tags — no abbreviations.\
+of descriptive tags. Tags must follow these rules exactly:
+- Lowercase (e.g. "artificial intelligence", not "AI" or "Artificial Intelligence")
+- Singular nouns (e.g. "strategy" not "strategies", "market" not "markets")
+- Spell out all words — no abbreviations or acronyms (e.g. "artificial intelligence" not "AI", "machine learning" not "ML")
+- Use spaces not hyphens for multi-word tags (e.g. "supply chain" not "supply-chain")\
 """
 
 SYSTEM_STRATEGIST = """\
