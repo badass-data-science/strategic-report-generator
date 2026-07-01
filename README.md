@@ -314,7 +314,7 @@ The upload step is enabled by default. All connection details have env-var-backe
 | `remote_host` | `REMOTE_HOST` | `badassdatascience.com` | Hostname of the web server |
 | `remote_user` | `REMOTE_USER` | `ubuntu` | SSH login user |
 | `remote_staging_dir` | `REMOTE_STAGING_DIR` | `/home/ubuntu` | Writable landing directory on the remote; `output_dir` is SCP'd here recursively (e.g. `/home/ubuntu/strategic-report/`) |
-| `remote_web_dir` | `REMOTE_WEB_DIR` | `/var/www/html/strategic-review-daily` | Web root directory; HTML files are sudo-copied here from the staged subdirectory |
+| `remote_web_dir` | `REMOTE_WEB_DIR` | `/var/www/html/strategic-review-daily` | Web root directory; HTML and JSON files are sudo-copied here from the staged subdirectory |
 
 To skip the upload on a one-off run:
 
@@ -437,7 +437,7 @@ The pipeline writes the following files to `--output-dir`:
 
 - **`index.html`** — the main report. Opens with a highlighted **Strategic Overview** section (3–4 cross-cutting bullets synthesized across all topics), followed by one section per topic with 3–5 strategic bullet points. On runs after the first, each topic also shows a **Since yesterday** annotation: new bullets highlighted in green, dropped bullets in muted strikethrough. Errors and empty topics are surfaced inline rather than hidden.
 - **`{topic}_summaries.html`** — per-article summaries and tags for every article that fed into that topic's strategic synthesis.
-- **`tag_graph.html`** — interactive D3.js force-directed graph of tag co-occurrences. Loads the pruned display graph; node color = Louvain community cluster; node size = article count; edge thickness = co-occurrence count. Sliders allow further filtering by minimum co-occurrence and minimum article count. Hovering a node shows its community label (named after the highest-count tag in that cluster).
+- **`tag_graph.html`** — interactive D3.js force-directed graph of tag co-occurrences. Self-contained: graph data is inlined at build time so it opens directly from the filesystem (`file://`) without a web server. Node color = Louvain community cluster; node size = article count; edge thickness = co-occurrence count. Sliders allow further filtering by minimum co-occurrence and minimum article count. Hovering a node shows its community label (named after the highest-count tag in that cluster).
 - **`tag_graph_display.json`** — pruned and community-annotated graph consumed by `tag_graph.html`. Nodes with fewer than 3 article appearances and edges with fewer than 2 co-occurrences are dropped before Louvain community detection runs. Typically ~200 nodes and ~800 edges.
 - **`tag_graph.json`** — full graph (all tags and co-occurrence edges, unfiltered) for downstream data science use.
 
