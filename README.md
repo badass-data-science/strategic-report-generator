@@ -262,14 +262,56 @@ prefect deployment run 'daily-strategic-report/daily-strategic-report' \
 
 ### Flow structure
 
-The flow contains three tasks, each tracked independently in the Prefect UI:
+The flow contains four tasks, each tracked independently in the Prefect UI:
 
 ```
 daily_report_flow
   ├── build-topic-configs    (sync)   load feed JSON configs from data_dir
   ├── run-llm-pipeline       (async)  RSS ingestion + LLM summarization + synthesis
   │                                   retries=2, retry_delay=60s
-  └── render-html-report     (sync)   Jinja2 → HTML output files
+  ├── render-html-report     (sync)   Jinja2 → HTML output files
+  └── upload-to-web-server   (sync)   SCP output to remote host; SSH to move into web root
+                                      skipped if upload_enabled=false
+```
+
+### Upload parameters
+
+The upload step is enabled by default. All connection details have env-var-backed defaults and can be overridden from the Prefect UI or via `--param`.
+
+| Flow parameter | Env var | Default | Description |
+|---|---|---|---|
+| `upload_enabled` | — | `true` | Set to `false` to skip the upload entirely |
+| `ssh_key_path` | `SSH_KEY_PATH` | `~/api_keys/keys/emily-bds-key.pem` | Path to the SSH private key |
+| `remote_host` | `REMOTE_HOST` | `badassdatascience.com` | Hostname of the web server |
+| `remote_user` | `REMOTE_USER` | `ubuntu` | SSH login user |
+| `remote_staging_dir` | `REMOTE_STAGING_DIR` | `/home/ubuntu` | Writable landing directory on the remote (files are SCP'd here first) |
+| `remote_web_dir` | `REMOTE_WEB_DIR` | `/var/www/html/strategic-review-daily` | Web root directory (files are sudo-copied here after staging) |
+
+To skip the upload on a one-off run:
+
+```bash
+prefect deployment run 'daily-strategic-report/daily-strategic-report' \
+    --param upload_enabled=false
+```
+
+To point at a different server:
+
+```bash
+prefect deployment run 'daily-strategic-report/daily-strategic-report' \
+    --param remote_host=myserver.example.com \
+    --param remote_user=deploy \
+    --param ssh_key_path=/home/emily/.ssh/mykey.pem \
+    --param remote_web_dir=/var/www/html/reports
+```
+
+To set the defaults permanently via env vars, add them to your `.env` file or the `EnvironmentFile` in the systemd unit:
+
+```bash
+export SSH_KEY_PATH=/home/emily/api_keys/keys/emily-bds-key.pem
+export REMOTE_HOST=badassdatascience.com
+export REMOTE_USER=ubuntu
+export REMOTE_STAGING_DIR=/home/ubuntu
+export REMOTE_WEB_DIR=/var/www/html/strategic-review-daily
 ```
 
 ---
