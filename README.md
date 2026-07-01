@@ -25,10 +25,20 @@ Phase 2 — LLM Processing  [concurrent, rate-limited by Semaphore]
   list[ArticleSummary] ──────────────────────► StrategicInsight
                                                (packaged as TopicResult)
 
-Phase 3 — Rendering  [Jinja2 templates]
+Phase 3 — Cross-topic Synthesis  [single LLM call]
 
-  list[TopicResult] ──► index.html
-                    ──► {topic}_summaries.html  (one per topic)
+  list[TopicResult] ──► CrossTopicSynthesis  (3–4 cross-cutting bullets)
+
+Phase 4 — Rendering  [Jinja2 templates]
+
+  CrossTopicSynthesis ──► Strategic Overview section (top of index.html)
+  list[TopicResult]   ──► index.html  (per-topic sections)
+                      ──► {topic}_summaries.html  (one per topic)
+                      ──► tag_graph.html + tag_graph.json  (D3.js tag network)
+
+Phase 5 — Upload  [SCP + SSH]
+
+  output_dir/ ──► remote staging dir ──► web root
 ```
 
 The pipeline is provider-agnostic: swap the model string to run against
@@ -377,38 +387,38 @@ tests/test_pipeline.py    Async orchestration with mocked LLMClient
 ```
 strategic_reports/daily/
   core/
-    models.py       Pydantic data models (RawArticle → ArticleSummary → TopicResult)
-    llm_client.py   Async LLMClient: litellm + instructor + tenacity retry
-    ingestion.py    Async RSS fetching; returns list[RawArticle]
-    prompts.py      System messages and user-message builder functions
-    pipeline.py     Two-phase async orchestrator
-    renderer.py     Jinja2 HTML rendering
-    tracing.py      Langfuse and Phoenix setup (opt-in)
+    models.py          Pydantic data models (RawArticle → ArticleSummary → TopicResult → CrossTopicSynthesis)
+    llm_client.py      Async LLMClient: litellm + instructor + tenacity retry
+    ingestion.py       Async RSS fetching; returns list[RawArticle]
+    prompts.py         System messages and user-message builder functions
+    pipeline.py        Two-phase async orchestrator + cross-topic synthesis
+    renderer.py        Jinja2 HTML rendering
+    tag_normalizer.py  Tag synonym map and normalize_tags(); applied via Pydantic validator
+    tag_graph.py       Tag co-occurrence graph builder; writes tag_graph.json + tag_graph.html
+    tracing.py         Langfuse and Phoenix setup (opt-in)
   templates/
-    base.html.j2    Shared layout and styles
-    index.html.j2   Main strategic report
-    topic.html.j2   Per-topic article summaries
-  cli.py            typer CLI entrypoint
+    base.html.j2       Shared layout and styles
+    index.html.j2      Main strategic report (Strategic Overview + per-topic sections)
+    topic.html.j2      Per-topic article summaries
+  cli.py               typer CLI entrypoint
   config/
-    topic_order.py  Ordered list of topic slugs and display titles
+    topic_order.py     Ordered list of topic slugs and display titles
 data/
-  rss_feeds/        One JSON file per topic listing RSS feed URLs
+  rss_feeds/           One JSON file per topic listing RSS feed URLs
 tests/
-  conftest.py       Shared fixtures and feedparser mock helpers
-  test_*.py         Per-module test files
+  conftest.py          Shared fixtures and feedparser mock helpers
+  test_*.py            Per-module test files
 ```
 
 ---
 
 ## Output
 
-The report writes two types of HTML file to `--output-dir`:
+The pipeline writes the following files to `--output-dir`:
 
-- **`index.html`** — one section per topic with 3–5 strategic bullet points
-  and a link to the source material. Errors and empty topics are surfaced
-  inline rather than hidden.
-- **`{topic}_summaries.html`** — per-article summaries and tags for every
-  article that fed into that topic's strategic synthesis.
+- **`index.html`** — the main report. Opens with a highlighted **Strategic Overview** section (3–4 cross-cutting bullets synthesized across all topics), followed by one section per topic with 3–5 strategic bullet points and a link to the source material. Errors and empty topics are surfaced inline rather than hidden.
+- **`{topic}_summaries.html`** — per-article summaries and tags for every article that fed into that topic's strategic synthesis.
+- **`tag_graph.html`** — interactive D3.js force-directed graph of tag co-occurrences. Node size = article count; edge thickness = co-occurrence count. Sliders filter by minimum co-occurrence and minimum article count.
+- **`tag_graph.json`** — raw graph data (nodes + links with weights) consumed by `tag_graph.html`.
 
-Weekend runs will produce thinner output — most news sources don't publish on
-weekends.
+Weekend runs will produce thinner output — most news sources don't publish on weekends.
