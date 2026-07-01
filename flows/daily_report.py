@@ -57,6 +57,7 @@ RUNNING WITH LOCAL PREFECT (no cloud account required)
 """
 
 import os
+import subprocess
 from pathlib import Path
 
 import instructor
@@ -195,6 +196,56 @@ def render_html_report(results: list[TopicResult], output_dir: Path, hours_cutof
 
 
 # ---------------------------------------------------------------------------
+# Task 4: Upload HTML output to web server
+# ---------------------------------------------------------------------------
+# Two steps mirror the manual workflow:
+#   1. scp: copy all HTML files from output_dir to remote_staging_dir
+#   2. ssh: sudo-move them from the staging dir into the web root
+#
+# subprocess.run with a list (not shell=True) avoids shell-injection risk and
+# makes each argument explicitly visible.
+#
+# -o BatchMode=yes: fail immediately rather than hanging on an interactive
+# password or host-key prompt — critical for unattended scheduled runs.
+# -o StrictHostKeyChecking=yes: don't silently accept unknown host keys.
+
+@task(name="upload-to-web-server")
+def upload_to_web_server(
+    output_dir: Path,
+    ssh_key_path: str,
+    remote_host: str,
+    remote_user: str,
+    remote_staging_dir: str,
+    remote_web_dir: str,
+) -> None:
+    """SCP HTML files to the remote staging directory, then SSH to move them into the web root."""
+    logger = get_run_logger()
+
+    html_files = sorted(output_dir.glob("*.html"))
+    if not html_files:
+        logger.warning(f"No HTML files found in {output_dir} — skipping upload")
+        return
+
+    remote_target = f"{remote_user}@{remote_host}:{remote_staging_dir}"
+    ssh_opts = ["-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes"]
+
+    logger.info(f"Uploading {len(html_files)} HTML file(s) to {remote_target}")
+    subprocess.run(
+        ["scp", "-i", ssh_key_path, *ssh_opts, *[str(f) for f in html_files], remote_target],
+        check=True,
+    )
+
+    remote_cp_cmd = f"sudo cp {remote_staging_dir}/*.html {remote_web_dir}"
+    logger.info(f"Moving files on remote: {remote_cp_cmd}")
+    subprocess.run(
+        ["ssh", "-i", ssh_key_path, *ssh_opts, f"{remote_user}@{remote_host}", remote_cp_cmd],
+        check=True,
+    )
+
+    logger.info(f"Upload complete — files live at {remote_host}:{remote_web_dir}")
+
+
+# ---------------------------------------------------------------------------
 # Flow — the top-level unit that Prefect schedules and tracks
 # ---------------------------------------------------------------------------
 # async def flow: Prefect fully supports async flows. The async keyword is
@@ -232,6 +283,15 @@ async def daily_report_flow(
     ollama_api_base: str | None = os.environ.get("OLLAMA_API_BASE"),
     ollama_api_key: str | None = os.environ.get("OLLAMA_API_KEY"),
     log_level: str = "INFO",
+    upload_enabled: bool = True,
+    ssh_key_path: str = os.environ.get(
+        "SSH_KEY_PATH",
+        str(Path.home() / "api_keys" / "keys" / "emily-bds-key.pem"),
+    ),
+    remote_host: str = os.environ.get("REMOTE_HOST", "badassdatascience.com"),
+    remote_user: str = os.environ.get("REMOTE_USER", "ubuntu"),
+    remote_staging_dir: str = os.environ.get("REMOTE_STAGING_DIR", "/home/ubuntu"),
+    remote_web_dir: str = os.environ.get("REMOTE_WEB_DIR", "/var/www/html/strategic-review-daily"),
 ) -> None:
     """Daily strategic report: ingest RSS feeds, summarize, synthesize, render HTML."""
     # configure_logging sets up structlog for the pipeline's internal logging.
@@ -259,6 +319,16 @@ async def daily_report_flow(
     )
 
     render_html_report(results, output_dir, hours_cutoff)
+
+    if upload_enabled:
+        upload_to_web_server(
+            output_dir=output_dir,
+            ssh_key_path=ssh_key_path,
+            remote_host=remote_host,
+            remote_user=remote_user,
+            remote_staging_dir=remote_staging_dir,
+            remote_web_dir=remote_web_dir,
+        )
 
 
 # ---------------------------------------------------------------------------
