@@ -397,7 +397,7 @@ def upload_to_web_server(
     )
 
     remote_uploaded_dir = f"{remote_staging_dir}/{output_dir.name}"
-    remote_cp_cmd = f"sudo cp {remote_uploaded_dir}/*.html {remote_web_dir}"
+    remote_cp_cmd = f"sudo cp {remote_uploaded_dir}/*.html {remote_uploaded_dir}/*.json {remote_web_dir}"
     logger.info(f"Moving files on remote: {remote_cp_cmd}")
     subprocess.run(
         ["ssh", "-i", ssh_key_path, *ssh_opts, f"{remote_user}@{remote_host}", remote_cp_cmd],
