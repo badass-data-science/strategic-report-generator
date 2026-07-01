@@ -16,6 +16,10 @@
     color: #2a3eb1;
   }
   .overview ul { margin: .4rem 0 0; }
+  .bullet-diff { margin-top: .75rem; padding: .6rem .9rem; background: #f9f9f9; border-radius: 4px; font-size: .9rem; }
+  .diff-label { margin: .4rem 0 .2rem; font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: #666; }
+  .diff-new { margin: 0 0 .5rem 1.2rem; padding: 0; color: #1a7a3c; }
+  .diff-dropped { margin: 0 0 0 1.2rem; padding: 0; color: #999; text-decoration: line-through; }
 </style>
 {% endblock %}
 
@@ -51,6 +55,23 @@
     <li>{{ bullet }}</li>
     {% endfor %}
   </ul>
+  {% set diff = diffs.get(result.config.title) %}
+  {% if diff and (diff.new or diff.dropped) %}
+  <div class="bullet-diff">
+    {% if diff.new %}
+    <p class="diff-label">New since yesterday</p>
+    <ul class="diff-new">
+      {% for b in diff.new %}<li>{{ b }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% if diff.dropped %}
+    <p class="diff-label">No longer in focus</p>
+    <ul class="diff-dropped">
+      {% for b in diff.dropped %}<li>{{ b }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+  {% endif %}
   <p class="source-link">
     <a href="{{ result.config.slug | replace('feeds_', '') }}_summaries.html">Source material →</a>
   </p>

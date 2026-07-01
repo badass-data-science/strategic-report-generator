@@ -104,6 +104,7 @@ def configure_logging(level: str = "INFO") -> None:
 from .models import (
     ArticleSummary,
     ArticleSummaryBatch,
+    BulletDiff,
     CrossTopicSynthesis,
     FeedConfig,
     RawArticle,
@@ -118,6 +119,7 @@ from .pipeline import run_pipeline
 from .renderer import render_report
 from .tag_graph import write_tag_graph
 from .urgency import UrgencyAlert, append_run, check_alerts, load_history
+from .bullet_diff import append_bullet_run, diff_all_topics, load_bullet_history
 from .prompts import (
     SYSTEM_SUMMARIZER,
     SYSTEM_STRATEGIST,
@@ -133,6 +135,7 @@ __all__ = [
     # Data models
     "ArticleSummary",
     "ArticleSummaryBatch",
+    "BulletDiff",
     "CrossTopicSynthesis",
     "FeedConfig",
     "RawArticle",

@@ -37,7 +37,7 @@ A plain f-string template would require string formatting at call time with
 no structure, making it hard to add per-article formatting logic later.
 """
 
-from .models import ArticleSummary, RawArticle, TopicResult
+from .models import ArticleSummary, BulletDiff, RawArticle, TopicResult  # noqa: F401 (BulletDiff used by callers)
 
 # ---------------------------------------------------------------------------
 # System messages — define the LLM's role for each stage
@@ -61,6 +61,13 @@ entrepreneurship, and career strategy for senior technical professionals.
 You read article summaries and extract the highest-leverage strategic
 insights — opportunities, threats, and actionable positioning moves.
 Do not quote source material directly; abstract and generalize.\
+"""
+
+SYSTEM_DIFF = """\
+You compare two sets of strategic bullet points — yesterday's and today's — for the same topic area.
+Classify each of today's bullets as either new (not present yesterday) or continued (semantically similar to a bullet from yesterday, even if worded differently).
+Also identify any bullets from yesterday that no longer appear in today's output.
+Be semantic, not literal: a bullet that makes the same strategic point with different wording counts as continued, not new.\
 """
 
 SYSTEM_CROSS_TOPIC = """\
@@ -128,6 +135,21 @@ def build_cross_topic_prompt(results: list[TopicResult]) -> str:
             parts.append(f"- {bullet}")
         parts.append("")
     return "\n".join(parts)
+
+
+def build_diff_prompt(topic: str, today: list[str], yesterday: list[str]) -> str:
+    """
+    Format today's and yesterday's strategic bullets for the diff LLM call.
+    """
+    today_lines = "\n".join(f"- {b}" for b in today)
+    yesterday_lines = "\n".join(f"- {b}" for b in yesterday)
+    return (
+        f"Topic: {topic}\n\n"
+        f"Yesterday's strategic bullets:\n{yesterday_lines}\n\n"
+        f"Today's strategic bullets:\n{today_lines}\n\n"
+        f"Classify today's bullets as new or continued relative to yesterday's, "
+        f"and list any bullets from yesterday that dropped out today."
+    )
 
 
 def build_strategy_prompt(topic_title: str, summaries: list[ArticleSummary]) -> str:

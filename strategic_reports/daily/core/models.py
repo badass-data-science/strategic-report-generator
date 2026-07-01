@@ -178,6 +178,39 @@ class StrategicInsight(BaseModel):
     )
 
 
+class BulletDiff(BaseModel):
+    """
+    LLM-classified diff between today's and yesterday's strategic bullets for one topic.
+
+    The LLM reads both sets and semantically classifies each bullet — a bullet
+    that makes the same point with different wording counts as continued, not new.
+    All three lists use text copied from the source bullets (today's for new/continued,
+    yesterday's for dropped).
+    """
+    new: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Today's bullets that represent genuinely new insights not present yesterday. "
+            "Copy the exact text from today's bullets. Empty list if nothing is new."
+        ),
+    )
+    continued: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Today's bullets that carry over a theme or insight from yesterday, "
+            "possibly with updated details. Copy the exact text from today's bullets. "
+            "Empty list if nothing continued."
+        ),
+    )
+    dropped: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Yesterday's bullets that no longer appear in today's output. "
+            "Copy the exact text from yesterday's bullets. Empty list if nothing dropped."
+        ),
+    )
+
+
 class CrossTopicSynthesis(BaseModel):
     """
     LLM-generated strategic overview that synthesizes insights across all topics.

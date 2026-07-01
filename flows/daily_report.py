@@ -66,13 +66,18 @@ from prefect.client.schemas.schedules import CronSchedule
 
 from strategic_reports.daily.config.topic_order import list_directories_and_titles
 from strategic_reports.daily.core import configure_logging, LLMClient, run_pipeline
-from strategic_reports.daily.core.models import CrossTopicSynthesis, TopicConfig, TopicResult
+from strategic_reports.daily.core.models import BulletDiff, CrossTopicSynthesis, TopicConfig, TopicResult
 from strategic_reports.daily.core.pipeline import synthesize_cross_topic
 from strategic_reports.daily.core.urgency import (
     UrgencyAlert,
     append_run,
     check_alerts,
     load_history,
+)
+from strategic_reports.daily.core.bullet_diff import (
+    append_bullet_run,
+    diff_all_topics,
+    load_bullet_history,
 )
 from strategic_reports.daily.core.renderer import render_report
 from strategic_reports.daily.core.tag_graph import write_tag_graph
@@ -202,10 +207,11 @@ def render_html_report(
     output_dir: Path,
     hours_cutoff: int,
     overview: CrossTopicSynthesis | None = None,
+    diffs: dict[str, BulletDiff] | None = None,
 ) -> None:
     """Render TopicResults into the HTML report using Jinja2 templates."""
     logger = get_run_logger()
-    render_report(results, output_dir=output_dir, hours_cutoff=hours_cutoff, overview=overview)
+    render_report(results, output_dir=output_dir, hours_cutoff=hours_cutoff, overview=overview, diffs=diffs)
     logger.info(f"Report written to {output_dir / 'index.html'}")
 
 
@@ -286,7 +292,61 @@ def check_urgency_alerts(
 
 
 # ---------------------------------------------------------------------------
-# Task 6: Build tag co-occurrence network graph
+# Task 6: Historical bullet diffing
+# ---------------------------------------------------------------------------
+# Compares today's strategic bullets against yesterday's using an LLM to
+# classify changes as new / continued / dropped.
+# Order: load history → diff → append (current run never biases itself).
+# Fails gracefully to empty dict; the renderer omits diff sections when
+# diffs={}, so the rest of the report is unaffected.
+
+@task(name="run-bullet-diff", retries=2, retry_delay_seconds=60)
+async def run_bullet_diff(
+    results: list[TopicResult],
+    history_path: Path,
+    model: str,
+    temperature: float,
+    instructor_mode_str: str,
+    run_id: str,
+    api_base: str | None = None,
+    api_key: str | None = None,
+) -> dict[str, BulletDiff]:
+    """Diff today's strategic bullets against yesterday's and return per-topic results."""
+    logger = get_run_logger()
+    try:
+        history = load_bullet_history(history_path)
+        if not history:
+            logger.info("No bullet history yet — skipping diff on first run")
+            append_bullet_run(history_path, results, run_id)
+            return {}
+
+        yesterday = history[-1]["topics"]
+        mode = _INSTRUCTOR_MODES.get(instructor_mode_str.upper(), instructor.Mode.TOOLS)
+        client = LLMClient(
+            model=model,
+            temperature=temperature,
+            run_metadata={"trace_id": run_id, "trace_name": "strategic-report-bullet-diff"},
+            instructor_mode=mode,
+            api_base=api_base,
+            api_key=api_key,
+        )
+        diffs = await diff_all_topics(results, yesterday, client)
+        append_bullet_run(history_path, results, run_id)
+
+        new_count = sum(len(d.new) for d in diffs.values())
+        dropped_count = sum(len(d.dropped) for d in diffs.values())
+        logger.info(
+            f"Bullet diff complete: {new_count} new, {dropped_count} dropped "
+            f"across {len(diffs)} topics"
+        )
+        return diffs
+    except Exception as exc:
+        logger.warning(f"Bullet diff failed: {exc} — report will render without diffs")
+        return {}
+
+
+# ---------------------------------------------------------------------------
+# Task 7: Build tag co-occurrence network graph
 # ---------------------------------------------------------------------------
 
 @task(name="build-tag-graph")
@@ -440,7 +500,18 @@ async def daily_report_flow(
         z_score_threshold=z_score_threshold,
     )
 
-    render_html_report(results, output_dir, hours_cutoff, overview)
+    diffs = await run_bullet_diff(
+        results=results,
+        history_path=_DEFAULT_HOME / "output" / "daily" / "bullet_history.json",
+        model=model,
+        temperature=temperature,
+        instructor_mode_str=instructor_mode,
+        run_id=run_id,
+        api_base=ollama_api_base,
+        api_key=ollama_api_key,
+    )
+
+    render_html_report(results, output_dir, hours_cutoff, overview, diffs)
     build_tag_graph(results, output_dir)
 
     if upload_enabled:
