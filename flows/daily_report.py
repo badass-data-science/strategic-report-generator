@@ -68,6 +68,7 @@ from strategic_reports.daily.config.topic_order import list_directories_and_titl
 from strategic_reports.daily.core import configure_logging, LLMClient, run_pipeline
 from strategic_reports.daily.core.models import TopicConfig, TopicResult
 from strategic_reports.daily.core.renderer import render_report
+from strategic_reports.daily.core.tag_graph import write_tag_graph
 from strategic_reports.daily.core.tracing import generate_run_id, setup_tracing
 
 # Anchor defaults to the project root (flows/../) regardless of the working
@@ -186,6 +187,7 @@ async def run_llm_pipeline(
 # Separated from the LLM task so that a rendering failure (template error,
 # disk full, permissions problem) appears as "render-html-report FAILED" in
 # the UI, clearly distinct from an LLM pipeline failure.
+#
 
 @task(name="render-html-report")
 def render_html_report(results: list[TopicResult], output_dir: Path, hours_cutoff: int) -> None:
@@ -196,7 +198,19 @@ def render_html_report(results: list[TopicResult], output_dir: Path, hours_cutof
 
 
 # ---------------------------------------------------------------------------
-# Task 4: Upload HTML output to web server
+# Task 4: Build tag co-occurrence network graph
+# ---------------------------------------------------------------------------
+
+@task(name="build-tag-graph")
+def build_tag_graph(results: list[TopicResult], output_dir: Path) -> None:
+    """Build tag co-occurrence graph and write tag_graph.json + tag_graph.html."""
+    logger = get_run_logger()
+    write_tag_graph(results, output_dir)
+    logger.info(f"Tag graph written to {output_dir / 'tag_graph.html'}")
+
+
+# ---------------------------------------------------------------------------
+# Task 5: Upload HTML output to web server
 # ---------------------------------------------------------------------------
 # Two steps mirror the manual workflow:
 #   1. scp: copy all HTML files from output_dir to remote_staging_dir
@@ -319,6 +333,7 @@ async def daily_report_flow(
     )
 
     render_html_report(results, output_dir, hours_cutoff)
+    build_tag_graph(results, output_dir)
 
     if upload_enabled:
         upload_to_web_server(

@@ -115,6 +115,7 @@ from .llm_client import LLMClient
 from .ingestion import fetch_topic_articles
 from .pipeline import run_pipeline
 from .renderer import render_report
+from .tag_graph import write_tag_graph
 from .prompts import (
     SYSTEM_SUMMARIZER,
     SYSTEM_STRATEGIST,
@@ -141,6 +142,7 @@ __all__ = [
     "fetch_topic_articles",
     "run_pipeline",
     "render_report",
+    "write_tag_graph",
     # Prompt components
     "SYSTEM_SUMMARIZER",
     "SYSTEM_STRATEGIST",
