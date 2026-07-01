@@ -197,10 +197,15 @@ async def run_llm_pipeline(
 #
 
 @task(name="render-html-report")
-def render_html_report(results: list[TopicResult], output_dir: Path, hours_cutoff: int) -> None:
+def render_html_report(
+    results: list[TopicResult],
+    output_dir: Path,
+    hours_cutoff: int,
+    overview: CrossTopicSynthesis | None = None,
+) -> None:
     """Render TopicResults into the HTML report using Jinja2 templates."""
     logger = get_run_logger()
-    render_report(results, output_dir=output_dir, hours_cutoff=hours_cutoff)
+    render_report(results, output_dir=output_dir, hours_cutoff=hours_cutoff, overview=overview)
     logger.info(f"Report written to {output_dir / 'index.html'}")
 
 
