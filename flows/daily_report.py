@@ -221,21 +221,21 @@ def upload_to_web_server(
     """SCP HTML files to the remote staging directory, then SSH to move them into the web root."""
     logger = get_run_logger()
 
-    html_files = sorted(output_dir.glob("*.html"))
-    if not html_files:
-        logger.warning(f"No HTML files found in {output_dir} — skipping upload")
+    if not output_dir.is_dir():
+        logger.warning(f"Output directory not found: {output_dir} — skipping upload")
         return
 
     remote_target = f"{remote_user}@{remote_host}:{remote_staging_dir}"
     ssh_opts = ["-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes"]
 
-    logger.info(f"Uploading {len(html_files)} HTML file(s) to {remote_target}")
+    logger.info(f"Uploading {output_dir} recursively to {remote_target}")
     subprocess.run(
-        ["scp", "-i", ssh_key_path, *ssh_opts, *[str(f) for f in html_files], remote_target],
+        ["scp", "-r", "-i", ssh_key_path, *ssh_opts, str(output_dir), remote_target],
         check=True,
     )
 
-    remote_cp_cmd = f"sudo cp {remote_staging_dir}/*.html {remote_web_dir}"
+    remote_uploaded_dir = f"{remote_staging_dir}/{output_dir.name}"
+    remote_cp_cmd = f"sudo cp {remote_uploaded_dir}/*.html {remote_web_dir}"
     logger.info(f"Moving files on remote: {remote_cp_cmd}")
     subprocess.run(
         ["ssh", "-i", ssh_key_path, *ssh_opts, f"{remote_user}@{remote_host}", remote_cp_cmd],

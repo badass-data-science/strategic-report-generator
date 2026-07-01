@@ -284,8 +284,8 @@ The upload step is enabled by default. All connection details have env-var-backe
 | `ssh_key_path` | `SSH_KEY_PATH` | `~/api_keys/keys/emily-bds-key.pem` | Path to the SSH private key |
 | `remote_host` | `REMOTE_HOST` | `badassdatascience.com` | Hostname of the web server |
 | `remote_user` | `REMOTE_USER` | `ubuntu` | SSH login user |
-| `remote_staging_dir` | `REMOTE_STAGING_DIR` | `/home/ubuntu` | Writable landing directory on the remote (files are SCP'd here first) |
-| `remote_web_dir` | `REMOTE_WEB_DIR` | `/var/www/html/strategic-review-daily` | Web root directory (files are sudo-copied here after staging) |
+| `remote_staging_dir` | `REMOTE_STAGING_DIR` | `/home/ubuntu` | Writable landing directory on the remote; `output_dir` is SCP'd here recursively (e.g. `/home/ubuntu/strategic-report/`) |
+| `remote_web_dir` | `REMOTE_WEB_DIR` | `/var/www/html/strategic-review-daily` | Web root directory; HTML files are sudo-copied here from the staged subdirectory |
 
 To skip the upload on a one-off run:
 
