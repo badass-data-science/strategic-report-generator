@@ -175,7 +175,7 @@ class TestIndexPage:
         result = TopicResult(
             config=sample_topic_config,
             articles=[malicious],
-            strategy=StrategicInsight(bullets=["Insight 1.", "Insight 2.", "Insight 3."]),
+            strategy=StrategicInsight(bullets=["Insight 1.", "Insight 2.", "Insight 3."], urgency_score=0.4),
         )
         render_report([result], output_dir=tmp_path)
         topic_html = (tmp_path / "ai_summaries.html").read_text()
@@ -267,7 +267,7 @@ class TestTopicSummaryPage:
                     tags=["a", "b", "c", "d", "e"],
                 )
             ],
-            strategy=StrategicInsight(bullets=["X.", "Y.", "Z."]),
+            strategy=StrategicInsight(bullets=["X.", "Y.", "Z."], urgency_score=0.4),
         )
         render_report([result], output_dir=tmp_path)
         assert (tmp_path / "data_science_summaries.html").exists()

@@ -117,11 +117,14 @@ def sample_strategy() -> StrategicInsight:
     """
     A valid StrategicInsight with 3 bullets (minimum allowed by Pydantic).
     """
-    return StrategicInsight(bullets=[
-        "Invest in LLM tooling now while costs drop.",
-        "Target applied-AI roles over pure research positions.",
-        "Build a portfolio of small, deployed LLM projects.",
-    ])
+    return StrategicInsight(
+        bullets=[
+            "Invest in LLM tooling now while costs drop.",
+            "Target applied-AI roles over pure research positions.",
+            "Build a portfolio of small, deployed LLM projects.",
+        ],
+        urgency_score=0.3,
+    )
 
 
 @pytest.fixture

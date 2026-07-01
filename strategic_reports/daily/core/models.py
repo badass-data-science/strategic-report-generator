@@ -150,6 +150,20 @@ class StrategicInsight(BaseModel):
         min_length=3,
         max_length=5,
     )
+    urgency_score: float = Field(
+        description=(
+            "A score from 0.0 to 1.0 indicating how urgently this topic requires attention today. "
+            "0.0 = routine background noise with nothing time-sensitive; "
+            "0.5 = noteworthy developments worth monitoring; "
+            "0.8 = significant developments requiring near-term attention; "
+            "1.0 = requires immediate attention (imminent regulatory action, market crisis, "
+            "major geopolitical escalation, critical technology disruption). "
+            "Score relative to what is typical for this domain — a routine defense budget "
+            "update should score lower than an unexpected military escalation."
+        ),
+        ge=0.0,
+        le=1.0,
+    )
 
 
 class CrossTopicSynthesis(BaseModel):

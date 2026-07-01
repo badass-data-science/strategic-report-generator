@@ -117,6 +117,7 @@ from .ingestion import fetch_topic_articles
 from .pipeline import run_pipeline
 from .renderer import render_report
 from .tag_graph import write_tag_graph
+from .urgency import UrgencyAlert, append_run, check_alerts, load_history
 from .prompts import (
     SYSTEM_SUMMARIZER,
     SYSTEM_STRATEGIST,

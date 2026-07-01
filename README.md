@@ -281,6 +281,8 @@ daily_report_flow
   │                                        retries=2, retry_delay=60s
   ├── run-cross-topic-synthesis   (async)  single LLM call across all topic insights
   │                                        retries=2; fails gracefully to None
+  ├── check-urgency-alerts        (sync)   score each topic; alert if above threshold
+  │                                        appends to output/daily/urgency_history.json
   ├── render-html-report          (sync)   Jinja2 → HTML output files
   ├── build-tag-graph             (sync)   tag co-occurrence graph → tag_graph.json + tag_graph.html
   └── upload-to-web-server        (sync)   SCP output to remote host; SSH to move into web root
@@ -293,6 +295,8 @@ The upload step is enabled by default. All connection details have env-var-backe
 
 | Flow parameter | Env var | Default | Description |
 |---|---|---|---|
+| `absolute_threshold` | — | `0.8` | Urgency score (0–1) above which an alert fires unconditionally |
+| `z_score_threshold` | — | `2.0` | Standard deviations above a topic's historical mean that triggers a statistical alert (requires ≥7 prior runs for that topic) |
 | `upload_enabled` | — | `true` | Set to `false` to skip the upload entirely |
 | `ssh_key_path` | `SSH_KEY_PATH` | `~/api_keys/keys/emily-bds-key.pem` | Path to the SSH private key |
 | `remote_host` | `REMOTE_HOST` | `badassdatascience.com` | Hostname of the web server |
@@ -395,6 +399,7 @@ strategic_reports/daily/
     renderer.py        Jinja2 HTML rendering
     tag_normalizer.py  Tag synonym map and normalize_tags(); applied via Pydantic validator
     tag_graph.py       Tag co-occurrence graph builder; writes tag_graph.json + tag_graph.html
+    urgency.py         Urgency alert logic: absolute threshold + z-score baseline
     tracing.py         Langfuse and Phoenix setup (opt-in)
   templates/
     base.html.j2       Shared layout and styles

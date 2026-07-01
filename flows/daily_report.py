@@ -68,6 +68,12 @@ from strategic_reports.daily.config.topic_order import list_directories_and_titl
 from strategic_reports.daily.core import configure_logging, LLMClient, run_pipeline
 from strategic_reports.daily.core.models import CrossTopicSynthesis, TopicConfig, TopicResult
 from strategic_reports.daily.core.pipeline import synthesize_cross_topic
+from strategic_reports.daily.core.urgency import (
+    UrgencyAlert,
+    append_run,
+    check_alerts,
+    load_history,
+)
 from strategic_reports.daily.core.renderer import render_report
 from strategic_reports.daily.core.tag_graph import write_tag_graph
 from strategic_reports.daily.core.tracing import generate_run_id, setup_tracing
@@ -236,7 +242,46 @@ async def run_cross_topic_synthesis(
 
 
 # ---------------------------------------------------------------------------
-# Task 5: Build tag co-occurrence network graph
+# Task 5: Urgency alert check
+# ---------------------------------------------------------------------------
+# Runs after the LLM pipeline so all urgency scores are available.
+# Order within each run: load history → check alerts → append run → save.
+# The current run is never part of its own baseline.
+#
+# Fails gracefully: a failure here logs a warning but does not prevent
+# rendering or upload.
+
+@task(name="check-urgency-alerts")
+def check_urgency_alerts(
+    results: list[TopicResult],
+    run_id: str,
+    history_path: Path,
+    absolute_threshold: float,
+    z_score_threshold: float,
+) -> None:
+    """Check per-topic urgency scores against history; log alerts and update history."""
+    logger = get_run_logger()
+    try:
+        history = load_history(history_path)
+        alerts = check_alerts(results, history, absolute_threshold, z_score_threshold)
+        append_run(history_path, results, run_id)
+
+        if alerts:
+            logger.warning(f"URGENCY ALERTS ({len(alerts)} topic(s)):")
+            for alert in alerts:
+                logger.warning(f"  *** {alert.summary()}")
+        else:
+            logger.info("Urgency check: no alerts")
+
+        scored = [(r.config.title, r.strategy.urgency_score) for r in results if r.strategy]
+        scored.sort(key=lambda x: -x[1])
+        logger.info("Urgency scores: " + ", ".join(f"{t}={s:.2f}" for t, s in scored))
+    except Exception as exc:
+        logger.warning(f"Urgency check failed: {exc} — continuing without alert check")
+
+
+# ---------------------------------------------------------------------------
+# Task 6: Build tag co-occurrence network graph
 # ---------------------------------------------------------------------------
 
 @task(name="build-tag-graph")
@@ -335,6 +380,8 @@ async def daily_report_flow(
     ollama_api_base: str | None = os.environ.get("OLLAMA_API_BASE"),
     ollama_api_key: str | None = os.environ.get("OLLAMA_API_KEY"),
     log_level: str = "INFO",
+    absolute_threshold: float = 0.8,
+    z_score_threshold: float = 2.0,
     upload_enabled: bool = True,
     ssh_key_path: str = os.environ.get(
         "SSH_KEY_PATH",
@@ -378,6 +425,14 @@ async def daily_report_flow(
         run_id=run_id,
         api_base=ollama_api_base,
         api_key=ollama_api_key,
+    )
+
+    check_urgency_alerts(
+        results=results,
+        run_id=run_id,
+        history_path=_DEFAULT_HOME / "output" / "daily" / "urgency_history.json",
+        absolute_threshold=absolute_threshold,
+        z_score_threshold=z_score_threshold,
     )
 
     render_html_report(results, output_dir, hours_cutoff, overview)

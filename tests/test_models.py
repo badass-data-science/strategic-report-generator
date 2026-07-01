@@ -124,12 +124,12 @@ class TestStrategicInsight:
 
     def test_valid_three_bullets(self):
         """3 bullets — at the minimum."""
-        s = StrategicInsight(bullets=["A.", "B.", "C."])
+        s = StrategicInsight(bullets=["A.", "B.", "C."], urgency_score=0.5)
         assert len(s.bullets) == 3
 
     def test_valid_five_bullets(self):
         """5 bullets — at the maximum."""
-        s = StrategicInsight(bullets=["A.", "B.", "C.", "D.", "E."])
+        s = StrategicInsight(bullets=["A.", "B.", "C.", "D.", "E."], urgency_score=0.5)
         assert len(s.bullets) == 5
 
     def test_too_few_bullets(self):

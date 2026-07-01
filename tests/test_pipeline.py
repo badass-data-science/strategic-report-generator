@@ -109,9 +109,10 @@ def make_mock_client(
             tags=["mock", "test", "article", "fake", "data"],
         )
     ])
-    strategy = strategy or StrategicInsight(bullets=[
-        "Mock insight one.", "Mock insight two.", "Mock insight three."
-    ])
+    strategy = strategy or StrategicInsight(
+        bullets=["Mock insight one.", "Mock insight two.", "Mock insight three."],
+        urgency_score=0.3,
+    )
     summary_usage = summary_usage or TokenUsage(total_tokens=100)
     strategy_usage = strategy_usage or TokenUsage(total_tokens=50)
 
@@ -331,7 +332,7 @@ class TestRunPipeline:
                         tags=["a", "b", "c", "d", "e"],
                     )
                 ]), TokenUsage()
-            return StrategicInsight(bullets=["A.", "B.", "C."]), TokenUsage()
+            return StrategicInsight(bullets=["A.", "B.", "C."], urgency_score=0.3), TokenUsage()
 
         client = MagicMock(spec=LLMClient)
         client.complete_structured = counting_complete
