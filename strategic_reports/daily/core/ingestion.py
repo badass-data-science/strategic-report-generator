@@ -93,11 +93,15 @@ async def _fetch_one_feed(feed: FeedConfig, hours_cutoff: int) -> list[RawArticl
             # Entry has no content field at all — skip it.
             continue
 
+        link = getattr(entry, "link", None)
+        if not link:
+            continue
+
         articles.append(
             RawArticle(
                 title=entry.title.strip(),
                 content=raw.strip(),
-                link=entry.link.strip(),
+                link=link.strip(),
                 publish_date=dt,
                 # getattr with a default handles feeds that omit the summary field.
                 summary_from_feed=getattr(entry, "summary", "").strip(),
