@@ -152,14 +152,26 @@ class StrategicInsight(BaseModel):
     )
     urgency_score: float = Field(
         description=(
-            "A score from 0.0 to 1.0 indicating how urgently this topic requires attention today. "
-            "0.0 = routine background noise with nothing time-sensitive; "
-            "0.5 = noteworthy developments worth monitoring; "
-            "0.8 = significant developments requiring near-term attention; "
-            "1.0 = requires immediate attention (imminent regulatory action, market crisis, "
-            "major geopolitical escalation, critical technology disruption). "
-            "Score relative to what is typical for this domain — a routine defense budget "
-            "update should score lower than an unexpected military escalation."
+            "A score from 0.0 to 1.0 indicating how urgently this topic requires attention TODAY "
+            "relative to a typical day in this domain. Most days should score between 0.2 and 0.6. "
+            "Scores above 0.75 should be uncommon; above 0.85 should be genuinely rare. "
+            "Use the full range — do not cluster near 0.8. "
+            "Scale: "
+            "0.0–0.15 = nothing happening, purely routine or recycled content; "
+            "0.2–0.35 = normal background activity, worth a glance but no action needed; "
+            "0.4–0.55 = a few noteworthy developments, monitor but no urgency; "
+            "0.6–0.70 = meaningful news requiring attention this week; "
+            "0.75–0.84 = significant developments requiring attention in the next day or two "
+            "(e.g. a surprise earnings miss, a court ruling, a major product launch); "
+            "0.85–0.94 = high-impact event requiring near-immediate attention "
+            "(e.g. central bank emergency rate move, unexpected military escalation, "
+            "major data breach at a systemically important company); "
+            "0.95–1.0 = crisis-level, drop everything "
+            "(e.g. market circuit breaker triggered, armed conflict outbreak, "
+            "imminent catastrophic regulatory action). "
+            "Score relative to domain norms: a routine defense budget update is 0.2 for Defense; "
+            "an unexpected troop mobilization is 0.9. A new AI paper is 0.3 for AI; "
+            "a surprise frontier model release is 0.75."
         ),
         ge=0.0,
         le=1.0,
