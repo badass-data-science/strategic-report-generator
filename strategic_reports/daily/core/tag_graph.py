@@ -1,18 +1,20 @@
 """
 Tag co-occurrence network graph generator.
 
-Builds a graph where:
-  - Nodes  = normalized tags; sized by article count
-  - Edges  = pairs of tags that co-appear on the same article; weighted by
-             co-occurrence count
+Two outputs:
+  tag_graph.json         — full graph (all tags/edges); kept for downstream data science
+  tag_graph_display.json — pruned + Louvain-community-annotated graph for the HTML viewer
+  tag_graph.html         — D3.js force-directed graph; loads tag_graph_display.json
 
-Output:
-  tag_graph.json  — raw graph data (nodes + links) consumed by the HTML file
-  tag_graph.html  — self-contained D3.js force-directed interactive graph
+The full graph is typically 1000+ nodes and 10000+ edges — far too large for a
+browser force simulation. The display graph is pruned to nodes with count >=
+min_count and edges with weight >= min_weight (defaults: 3 / 2), giving a
+manageable ~100-300 node graph. Louvain community detection then assigns each
+node a cluster ID, which the HTML viewer uses for color coding.
 
-The HTML loads tag_graph.json via fetch(), so both files must be served from
-the same directory (which they are — both land in output_dir and are uploaded
-together by the SCP step).
+Graph definitions:
+  Nodes  = normalized tags; sized by article count; colored by community
+  Edges  = pairs of tags that co-appear on the same article; weighted by count
 """
 
 import json
@@ -20,12 +22,14 @@ from collections import defaultdict
 from itertools import combinations
 from pathlib import Path
 
+import networkx as nx
+
 from .models import TopicResult
 
 
 def build_graph_data(results: list[TopicResult]) -> dict:
     """
-    Build nodes and weighted edges from tag co-occurrence across all articles.
+    Build the full node/edge graph from tag co-occurrence across all articles.
 
     Two tags are connected when they appear together on the same article.
     Edge weight = number of articles on which that pair co-occurs.
@@ -38,30 +42,93 @@ def build_graph_data(results: list[TopicResult]) -> dict:
     for result in results:
         topic_title = result.config.title
         for article in result.articles:
-            tags = list(dict.fromkeys(article.tags))  # deduplicate, preserve order
+            tags = list(dict.fromkeys(article.tags))
             for tag in tags:
                 node_counts[tag] += 1
                 node_topics[tag].add(topic_title)
-            # All unique tag pairs within this article contribute one co-occurrence.
             for tag_a, tag_b in combinations(sorted(tags), 2):
                 edge_weights[(tag_a, tag_b)] += 1
 
     nodes = [
-        {
-            "id": tag,
-            "count": count,
-            "topics": sorted(node_topics[tag]),
-        }
+        {"id": tag, "count": count, "topics": sorted(node_topics[tag])}
         for tag, count in sorted(node_counts.items(), key=lambda x: -x[1])
     ]
-
     links = [
         {"source": src, "target": tgt, "weight": w}
         for (src, tgt), w in sorted(edge_weights.items(), key=lambda x: -x[1])
     ]
-
     return {"nodes": nodes, "links": links}
 
+
+def build_display_graph(
+    full_data: dict,
+    min_count: int = 3,
+    min_weight: int = 2,
+) -> dict:
+    """
+    Prune the full graph and annotate nodes with Louvain community IDs.
+
+    Steps:
+      1. Drop edges below min_weight or whose endpoints are below min_count.
+      2. Drop nodes with no surviving edges (isolates after pruning).
+      3. Run Louvain community detection on the pruned graph.
+      4. Label each community by its highest-count member tag.
+      5. Return display-ready dicts with community + community_label on each node.
+    """
+    node_meta = {n["id"]: n for n in full_data["nodes"]}
+
+    kept_links = [
+        l for l in full_data["links"]
+        if l["weight"] >= min_weight
+        and node_meta.get(l["source"], {}).get("count", 0) >= min_count
+        and node_meta.get(l["target"], {}).get("count", 0) >= min_count
+    ]
+
+    G = nx.Graph()
+    for l in kept_links:
+        G.add_edge(l["source"], l["target"], weight=l["weight"])
+
+    # Louvain communities, sorted largest-first so community 0 is the biggest.
+    raw_communities = nx.community.louvain_communities(G, seed=42)
+    raw_communities = sorted(raw_communities, key=len, reverse=True)
+    community_map: dict[str, int] = {
+        node: i for i, comm in enumerate(raw_communities) for node in comm
+    }
+
+    # Name each community by its highest-count member (for tooltip display).
+    community_top: dict[int, str] = {}
+    for node_id, comm_id in community_map.items():
+        top = community_top.get(comm_id)
+        if top is None or node_meta[node_id]["count"] > node_meta[top]["count"]:
+            community_top[comm_id] = node_id
+
+    display_nodes = sorted(
+        [
+            {
+                **node_meta[node_id],
+                "community": community_map[node_id],
+                "community_label": community_top.get(community_map[node_id], ""),
+            }
+            for node_id in G.nodes()
+            if node_id in node_meta
+        ],
+        key=lambda n: -n["count"],
+    )
+
+    return {
+        "nodes": display_nodes,
+        "links": kept_links,
+        "n_communities": len(raw_communities),
+        "min_count": min_count,
+        "min_weight": min_weight,
+        "full_node_count": len(full_data["nodes"]),
+        "full_edge_count": len(full_data["links"]),
+    }
+
+
+# ---------------------------------------------------------------------------
+# D3.js HTML viewer — loads tag_graph_display.json, colors by community
+# ---------------------------------------------------------------------------
 
 _HTML = """\
 <!DOCTYPE html>
@@ -92,18 +159,19 @@ _HTML = """\
     svg { width: 100%; height: 100%; cursor: grab; }
     svg:active { cursor: grabbing; }
 
-    .link { stroke: #bbb; stroke-opacity: 0.55; }
-    .node circle { stroke: #fff; stroke-width: 1.5px; cursor: pointer; transition: opacity 0.15s; }
+    .link { stroke: #bbb; stroke-opacity: 0.45; }
+    .node circle { stroke: #fff; stroke-width: 1.5px; cursor: pointer; }
     .node circle:hover { stroke: #333; stroke-width: 2px; }
     .node text { font-size: 11px; fill: #333; pointer-events: none; }
 
     #tooltip {
       position: fixed; background: rgba(20,20,20,0.88); color: #fff;
-      padding: 8px 12px; border-radius: 6px; font-size: 12px; line-height: 1.6;
+      padding: 8px 12px; border-radius: 6px; font-size: 12px; line-height: 1.7;
       pointer-events: none; opacity: 0; transition: opacity 0.12s;
-      max-width: 240px; z-index: 10;
+      max-width: 260px; z-index: 10;
     }
     #tooltip strong { display: block; margin-bottom: 2px; font-size: 13px; }
+    #tooltip .comm { font-style: italic; color: #ccc; }
   </style>
 </head>
 <body>
@@ -111,7 +179,7 @@ _HTML = """\
 <div id="header">
   <h1>Tag Network Graph</h1>
   <p>
-    Tags co-occurring in the same article are connected.
+    Tags co-occurring in the same article are connected. Node color = Louvain community cluster.
     Node size = article count &nbsp;·&nbsp; Edge thickness = co-occurrence count.
     Scroll to zoom &nbsp;·&nbsp; Drag to pan &nbsp;·&nbsp; Drag nodes to reposition.
   </p>
@@ -125,8 +193,8 @@ _HTML = """\
   </div>
   <div class="control-group">
     <label for="count-filter">Min article count</label>
-    <input type="range" id="count-filter" min="1" value="2">
-    <span class="val" id="count-val">2</span>
+    <input type="range" id="count-filter" min="1" value="3">
+    <span class="val" id="count-val">3</span>
   </div>
   <div id="stats"></div>
 </div>
@@ -137,23 +205,28 @@ _HTML = """\
 <div id="tooltip"></div>
 
 <script>
-// One color per topic (Tableau10 + two extras for up to 12 topics).
-const topicColor = d3.scaleOrdinal(
-  d3.schemeTableau10.concat(["#9467bd", "#8c564b"])
-);
+// Color palette: Tableau10 + Set3 covers up to 22 communities.
+const palette = d3.schemeTableau10.concat(d3.schemeSet3);
+const communityColor = d => palette[d.community % palette.length];
 const tooltip = d3.select("#tooltip");
 
 let allData = null;
 
-fetch("tag_graph.json")
+fetch("tag_graph_display.json")
   .then(r => r.json())
   .then(data => {
     allData = data;
-    // Set slider maxes from actual data ranges.
     const maxWeight = d3.max(data.links, d => d.weight) || 20;
     const maxCount  = d3.max(data.nodes, d => d.count)  || 30;
     document.getElementById("weight-filter").max = Math.max(20, maxWeight);
     document.getElementById("count-filter").max  = Math.max(30, maxCount);
+
+    // Set slider defaults to the thresholds used at build time.
+    document.getElementById("weight-filter").value = data.min_weight ?? 2;
+    document.getElementById("weight-val").textContent = data.min_weight ?? 2;
+    document.getElementById("count-filter").value = data.min_count ?? 3;
+    document.getElementById("count-val").textContent = data.min_count ?? 3;
+
     render();
   });
 
@@ -167,53 +240,48 @@ function filters() {
 function render() {
   const { minWeight, minCount } = filters();
 
-  // Filter nodes by article count.
   const nodes = allData.nodes.filter(n => n.count >= minCount);
   const nodeIds = new Set(nodes.map(n => n.id));
 
-  // Filter links: both endpoints must survive the node filter and meet weight threshold.
   const links = allData.links.filter(l =>
     l.weight >= minWeight &&
     nodeIds.has(l.source.id ?? l.source) &&
     nodeIds.has(l.target.id ?? l.target)
   );
 
-  // Drop isolated nodes (no surviving edges).
   const connected = new Set(
     links.flatMap(l => [l.source.id ?? l.source, l.target.id ?? l.target])
   );
   const visNodes = nodes.filter(n => connected.has(n.id));
 
+  const nComm = new Set(visNodes.map(n => n.community)).size;
   document.getElementById("stats").textContent =
-    `${visNodes.length} tags · ${links.length} connections`;
+    `${visNodes.length} tags · ${links.length} connections · ${nComm} communities`;
 
-  // --- Build the SVG ---
   const svg = d3.select("#graph");
   svg.selectAll("*").remove();
 
   const { width, height } = svg.node().getBoundingClientRect();
-
   const g = svg.append("g");
   svg.call(
-    d3.zoom().scaleExtent([0.08, 8])
+    d3.zoom().scaleExtent([0.05, 10])
       .on("zoom", e => g.attr("transform", e.transform))
   );
 
-  const r     = d => Math.max(5, Math.sqrt(d.count) * 5);
-  const lw    = d => Math.max(0.8, Math.sqrt(d.weight) * 1.6);
+  const r  = d => Math.max(5, Math.sqrt(d.count) * 5);
+  const lw = d => Math.max(0.6, Math.sqrt(d.weight) * 1.4);
 
-  // Deep-copy so D3 can mutate x/y freely without corrupting allData.
   const simNodes = visNodes.map(n => ({ ...n }));
   const simLinks = links.map(l => ({ ...l }));
 
   const sim = d3.forceSimulation(simNodes)
     .force("link", d3.forceLink(simLinks)
       .id(d => d.id)
-      .distance(d => Math.max(40, 100 / Math.sqrt(d.weight)))
+      .distance(d => Math.max(40, 90 / Math.sqrt(d.weight)))
     )
-    .force("charge", d3.forceManyBody().strength(-150))
+    .force("charge", d3.forceManyBody().strength(-180))
     .force("center", d3.forceCenter(width / 2, height / 2))
-    .force("collide", d3.forceCollide().radius(d => r(d) + 5));
+    .force("collide", d3.forceCollide().radius(d => r(d) + 4));
 
   const linkSel = g.append("g")
     .selectAll("line")
@@ -237,21 +305,19 @@ function render() {
         tooltip.style("opacity", 1).html(
           `<strong>${d.id}</strong>` +
           `Articles: ${d.count}<br>` +
-          `Topics: ${d.topics.join(", ")}`
+          `Topics: ${d.topics.join(", ")}<br>` +
+          `<span class="comm">Cluster: ${d.community_label} (${d.community})</span>`
         );
       })
       .on("mousemove", e => {
-        tooltip
-          .style("left", (e.clientX + 14) + "px")
-          .style("top",  (e.clientY - 36) + "px");
+        tooltip.style("left", (e.clientX + 14) + "px").style("top", (e.clientY - 42) + "px");
       })
       .on("mouseout", () => tooltip.style("opacity", 0));
 
   nodeSel.append("circle")
     .attr("r", r)
-    .attr("fill", d => topicColor(d.topics[0] ?? "unknown"));
+    .attr("fill", communityColor);
 
-  // Label nodes that appear in enough articles; others show only on hover via tooltip.
   nodeSel.append("text")
     .attr("x", d => r(d) + 3)
     .attr("y", "0.35em")
@@ -266,7 +332,6 @@ function render() {
   });
 }
 
-// Wire up sliders.
 ["weight-filter", "count-filter"].forEach(id => {
   const slider = document.getElementById(id);
   const valEl  = document.getElementById(id.replace("filter", "val"));
@@ -281,13 +346,25 @@ function render() {
 """
 
 
-def write_tag_graph(results: list[TopicResult], output_dir: Path) -> None:
-    """Write tag_graph.json and tag_graph.html into output_dir."""
+def write_tag_graph(
+    results: list[TopicResult],
+    output_dir: Path,
+    min_count: int = 3,
+    min_weight: int = 2,
+) -> None:
+    """
+    Write tag_graph.json (full), tag_graph_display.json (pruned+communities),
+    and tag_graph.html into output_dir.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    graph_data = build_graph_data(results)
+    full_data = build_graph_data(results)
+    display_data = build_display_graph(full_data, min_count=min_count, min_weight=min_weight)
 
     (output_dir / "tag_graph.json").write_text(
-        json.dumps(graph_data, indent=2, ensure_ascii=False)
+        json.dumps(full_data, indent=2, ensure_ascii=False)
+    )
+    (output_dir / "tag_graph_display.json").write_text(
+        json.dumps(display_data, indent=2, ensure_ascii=False)
     )
     (output_dir / "tag_graph.html").write_text(_HTML)

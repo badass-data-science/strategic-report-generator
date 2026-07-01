@@ -411,7 +411,7 @@ strategic_reports/daily/
     pipeline.py        Two-phase async orchestrator + cross-topic synthesis
     renderer.py        Jinja2 HTML rendering
     tag_normalizer.py  Tag synonym map and normalize_tags(); applied via Pydantic validator
-    tag_graph.py       Tag co-occurrence graph builder; writes tag_graph.json + tag_graph.html
+    tag_graph.py       Tag co-occurrence graph builder; full tag_graph.json + pruned/community tag_graph_display.json + tag_graph.html
     urgency.py         Urgency alert logic: absolute threshold + z-score baseline
     bullet_diff.py     Historical bullet diffing: load/append history, concurrent per-topic LLM diff
     tracing.py         Langfuse and Phoenix setup (opt-in)
@@ -437,8 +437,9 @@ The pipeline writes the following files to `--output-dir`:
 
 - **`index.html`** — the main report. Opens with a highlighted **Strategic Overview** section (3–4 cross-cutting bullets synthesized across all topics), followed by one section per topic with 3–5 strategic bullet points. On runs after the first, each topic also shows a **Since yesterday** annotation: new bullets highlighted in green, dropped bullets in muted strikethrough. Errors and empty topics are surfaced inline rather than hidden.
 - **`{topic}_summaries.html`** — per-article summaries and tags for every article that fed into that topic's strategic synthesis.
-- **`tag_graph.html`** — interactive D3.js force-directed graph of tag co-occurrences. Node size = article count; edge thickness = co-occurrence count. Sliders filter by minimum co-occurrence and minimum article count.
-- **`tag_graph.json`** — raw graph data (nodes + links with weights) consumed by `tag_graph.html`.
+- **`tag_graph.html`** — interactive D3.js force-directed graph of tag co-occurrences. Loads the pruned display graph; node color = Louvain community cluster; node size = article count; edge thickness = co-occurrence count. Sliders allow further filtering by minimum co-occurrence and minimum article count. Hovering a node shows its community label (named after the highest-count tag in that cluster).
+- **`tag_graph_display.json`** — pruned and community-annotated graph consumed by `tag_graph.html`. Nodes with fewer than 3 article appearances and edges with fewer than 2 co-occurrences are dropped before Louvain community detection runs. Typically ~200 nodes and ~800 edges.
+- **`tag_graph.json`** — full graph (all tags and co-occurrence edges, unfiltered) for downstream data science use.
 
 Two history files are maintained outside the upload directory (`output/daily/`):
 
