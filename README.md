@@ -29,14 +29,22 @@ Phase 3 — Cross-topic Synthesis  [single LLM call]
 
   list[TopicResult] ──► CrossTopicSynthesis  (3–4 cross-cutting bullets)
 
-Phase 4 — Rendering  [Jinja2 templates]
+Phase 4 — Historical Diffing  [concurrent per-topic LLM calls]
+
+  bullet_history.json ──► yesterday's bullets (per topic)
+  list[TopicResult]   ──► diff vs. yesterday ──► dict[topic, BulletDiff]
+                                                  (new / continued / dropped)
+  (skipped on first run; bullet_history.json written after diff)
+
+Phase 5 — Rendering  [Jinja2 templates]
 
   CrossTopicSynthesis ──► Strategic Overview section (top of index.html)
+  dict[topic, BulletDiff] ──► "Since yesterday" annotations per topic
   list[TopicResult]   ──► index.html  (per-topic sections)
                       ──► {topic}_summaries.html  (one per topic)
                       ──► tag_graph.html + tag_graph.json  (D3.js tag network)
 
-Phase 5 — Upload  [SCP + SSH]
+Phase 6 — Upload  [SCP + SSH]
 
   output_dir/ ──► remote staging dir ──► web root
 ```
@@ -272,7 +280,7 @@ prefect deployment run 'daily-strategic-report/daily-strategic-report' \
 
 ### Flow structure
 
-The flow contains seven tasks, each tracked independently in the Prefect UI:
+The flow contains eight tasks, each tracked independently in the Prefect UI:
 
 ```
 daily_report_flow
@@ -283,6 +291,10 @@ daily_report_flow
   │                                        retries=2; fails gracefully to None
   ├── check-urgency-alerts        (sync)   score each topic; alert if above threshold
   │                                        appends to output/daily/urgency_history.json
+  ├── run-bullet-diff             (async)  diff today's bullets vs. yesterday's per topic
+  │                                        retries=2; fails gracefully to {}
+  │                                        skipped (no diff) on first run
+  │                                        appends to output/daily/bullet_history.json
   ├── render-html-report          (sync)   Jinja2 → HTML output files
   ├── build-tag-graph             (sync)   tag co-occurrence graph → tag_graph.json + tag_graph.html
   └── upload-to-web-server        (sync)   SCP output to remote host; SSH to move into web root
@@ -392,7 +404,7 @@ tests/test_urgency.py     Urgency alerting: absolute threshold, z-score, std==0 
 ```
 strategic_reports/daily/
   core/
-    models.py          Pydantic data models (RawArticle → ArticleSummary → TopicResult → CrossTopicSynthesis)
+    models.py          Pydantic data models (RawArticle → ArticleSummary → TopicResult → CrossTopicSynthesis → BulletDiff)
     llm_client.py      Async LLMClient: litellm + instructor + tenacity retry
     ingestion.py       Async RSS fetching; returns list[RawArticle]
     prompts.py         System messages and user-message builder functions
@@ -401,6 +413,7 @@ strategic_reports/daily/
     tag_normalizer.py  Tag synonym map and normalize_tags(); applied via Pydantic validator
     tag_graph.py       Tag co-occurrence graph builder; writes tag_graph.json + tag_graph.html
     urgency.py         Urgency alert logic: absolute threshold + z-score baseline
+    bullet_diff.py     Historical bullet diffing: load/append history, concurrent per-topic LLM diff
     tracing.py         Langfuse and Phoenix setup (opt-in)
   templates/
     base.html.j2       Shared layout and styles
@@ -422,9 +435,14 @@ tests/
 
 The pipeline writes the following files to `--output-dir`:
 
-- **`index.html`** — the main report. Opens with a highlighted **Strategic Overview** section (3–4 cross-cutting bullets synthesized across all topics), followed by one section per topic with 3–5 strategic bullet points and a link to the source material. Errors and empty topics are surfaced inline rather than hidden.
+- **`index.html`** — the main report. Opens with a highlighted **Strategic Overview** section (3–4 cross-cutting bullets synthesized across all topics), followed by one section per topic with 3–5 strategic bullet points. On runs after the first, each topic also shows a **Since yesterday** annotation: new bullets highlighted in green, dropped bullets in muted strikethrough. Errors and empty topics are surfaced inline rather than hidden.
 - **`{topic}_summaries.html`** — per-article summaries and tags for every article that fed into that topic's strategic synthesis.
 - **`tag_graph.html`** — interactive D3.js force-directed graph of tag co-occurrences. Node size = article count; edge thickness = co-occurrence count. Sliders filter by minimum co-occurrence and minimum article count.
 - **`tag_graph.json`** — raw graph data (nodes + links with weights) consumed by `tag_graph.html`.
+
+Two history files are maintained outside the upload directory (`output/daily/`):
+
+- **`urgency_history.json`** — per-topic urgency scores from each run; used by the z-score baseline after 7 runs per topic.
+- **`bullet_history.json`** — per-topic strategic bullets from each run (last 7 kept); used by the bullet diff to identify what changed since yesterday.
 
 Weekend runs will produce thinner output — most news sources don't publish on weekends.
