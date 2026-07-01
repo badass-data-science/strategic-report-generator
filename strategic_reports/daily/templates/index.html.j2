@@ -2,6 +2,21 @@
 
 {% block head %}
 <title>Strategic Review — {{ date }}</title>
+<style>
+  .overview {
+    background: #f0f4ff;
+    border-left: 4px solid #4a6cf7;
+    border-radius: 4px;
+    padding: 1rem 1.25rem;
+    margin: 1.5rem 0 2rem;
+  }
+  .overview h2 {
+    margin-top: 0;
+    font-size: 1.1rem;
+    color: #2a3eb1;
+  }
+  .overview ul { margin: .4rem 0 0; }
+</style>
 {% endblock %}
 
 {% block body %}
@@ -11,6 +26,17 @@
   <span class="warn">Generated from recent industry news using LLM analysis.
   Apply judgement before acting on any recommendation. <strong>Caveat emptor!</strong></span>
 </p>
+
+{% if overview %}
+<div class="overview">
+  <h2>Strategic Overview</h2>
+  <ul>
+    {% for bullet in overview.bullets %}
+    <li>{{ bullet }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
 
 {% for result in results %}
 <section>

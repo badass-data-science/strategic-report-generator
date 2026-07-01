@@ -262,17 +262,19 @@ prefect deployment run 'daily-strategic-report/daily-strategic-report' \
 
 ### Flow structure
 
-The flow contains five tasks, each tracked independently in the Prefect UI:
+The flow contains six tasks, each tracked independently in the Prefect UI:
 
 ```
 daily_report_flow
-  ├── build-topic-configs    (sync)   load feed JSON configs from data_dir
-  ├── run-llm-pipeline       (async)  RSS ingestion + LLM summarization + synthesis
-  │                                   retries=2, retry_delay=60s
-  ├── render-html-report     (sync)   Jinja2 → HTML output files
-  ├── build-tag-graph        (sync)   tag co-occurrence graph → tag_graph.json + tag_graph.html
-  └── upload-to-web-server   (sync)   SCP output to remote host; SSH to move into web root
-                                      skipped if upload_enabled=false
+  ├── build-topic-configs         (sync)   load feed JSON configs from data_dir
+  ├── run-llm-pipeline            (async)  RSS ingestion + LLM summarization + synthesis
+  │                                        retries=2, retry_delay=60s
+  ├── run-cross-topic-synthesis   (async)  single LLM call across all topic insights
+  │                                        retries=2; fails gracefully to None
+  ├── render-html-report          (sync)   Jinja2 → HTML output files
+  ├── build-tag-graph             (sync)   tag co-occurrence graph → tag_graph.json + tag_graph.html
+  └── upload-to-web-server        (sync)   SCP output to remote host; SSH to move into web root
+                                           skipped if upload_enabled=false
 ```
 
 ### Upload parameters

@@ -152,6 +152,26 @@ class StrategicInsight(BaseModel):
     )
 
 
+class CrossTopicSynthesis(BaseModel):
+    """
+    LLM-generated strategic overview that synthesizes insights across all topics.
+
+    This is produced by a single LLM call that reads all per-topic StrategicInsight
+    bullets together and identifies overarching themes, cross-domain connections,
+    and emergent patterns that are not visible from any single topic alone.
+    """
+    bullets: list[str] = Field(
+        description=(
+            "3 to 4 strategic insights that cut across multiple topics. "
+            "Each bullet identifies a cross-cutting theme, emergent connection, or pattern "
+            "spanning two or more domains — something not visible from any single topic alone. "
+            "Be specific about which domains connect. 1–3 sentences each."
+        ),
+        min_length=3,
+        max_length=4,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Observability model — tracks API cost across calls
 # ---------------------------------------------------------------------------

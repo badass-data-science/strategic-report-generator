@@ -32,7 +32,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
-from .models import TokenUsage, TopicResult
+from .models import CrossTopicSynthesis, TokenUsage, TopicResult
 
 # Resolve the templates directory relative to THIS file's location.
 # Path(__file__) is the path to renderer.py.
@@ -66,6 +66,7 @@ def render_report(
     results: list[TopicResult],
     output_dir: Path,
     hours_cutoff: int = 24,
+    overview: CrossTopicSynthesis | None = None,
 ) -> None:
     """
     Render all pipeline results to HTML files in output_dir.
@@ -103,6 +104,7 @@ def render_report(
     (output_dir / "index.html").write_text(
         index_tmpl.render(
             results=results,
+            overview=overview,
             date=date_str,
             updated=updated_str,
             hours_cutoff=hours_cutoff,

@@ -66,7 +66,8 @@ from prefect.client.schemas.schedules import CronSchedule
 
 from strategic_reports.daily.config.topic_order import list_directories_and_titles
 from strategic_reports.daily.core import configure_logging, LLMClient, run_pipeline
-from strategic_reports.daily.core.models import TopicConfig, TopicResult
+from strategic_reports.daily.core.models import CrossTopicSynthesis, TopicConfig, TopicResult
+from strategic_reports.daily.core.pipeline import synthesize_cross_topic
 from strategic_reports.daily.core.renderer import render_report
 from strategic_reports.daily.core.tag_graph import write_tag_graph
 from strategic_reports.daily.core.tracing import generate_run_id, setup_tracing
@@ -198,7 +199,44 @@ def render_html_report(results: list[TopicResult], output_dir: Path, hours_cutof
 
 
 # ---------------------------------------------------------------------------
-# Task 4: Build tag co-occurrence network graph
+# Task 4: Cross-topic strategic synthesis
+# ---------------------------------------------------------------------------
+# Fails gracefully: a synthesis failure returns None rather than crashing the
+# flow. The renderer omits the overview section when overview is None, so the
+# rest of the report is unaffected.
+
+@task(name="run-cross-topic-synthesis", retries=2, retry_delay_seconds=60)
+async def run_cross_topic_synthesis(
+    results: list[TopicResult],
+    model: str,
+    temperature: float,
+    instructor_mode_str: str,
+    run_id: str,
+    api_base: str | None = None,
+    api_key: str | None = None,
+) -> CrossTopicSynthesis | None:
+    """Synthesize cross-cutting strategic themes across all topic results."""
+    logger = get_run_logger()
+    mode = _INSTRUCTOR_MODES.get(instructor_mode_str.upper(), instructor.Mode.TOOLS)
+    client = LLMClient(
+        model=model,
+        temperature=temperature,
+        run_metadata={"trace_id": run_id, "trace_name": "strategic-report-cross-topic"},
+        instructor_mode=mode,
+        api_base=api_base,
+        api_key=api_key,
+    )
+    try:
+        synthesis = await synthesize_cross_topic(results, client)
+        logger.info("Cross-topic synthesis complete")
+        return synthesis
+    except Exception as exc:
+        logger.warning(f"Cross-topic synthesis failed: {exc} — report will render without overview")
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Task 5: Build tag co-occurrence network graph
 # ---------------------------------------------------------------------------
 
 @task(name="build-tag-graph")
@@ -332,7 +370,17 @@ async def daily_report_flow(
         api_key=ollama_api_key,
     )
 
-    render_html_report(results, output_dir, hours_cutoff)
+    overview = await run_cross_topic_synthesis(
+        results=results,
+        model=model,
+        temperature=temperature,
+        instructor_mode_str=instructor_mode,
+        run_id=run_id,
+        api_base=ollama_api_base,
+        api_key=ollama_api_key,
+    )
+
+    render_html_report(results, output_dir, hours_cutoff, overview)
     build_tag_graph(results, output_dir)
 
     if upload_enabled:

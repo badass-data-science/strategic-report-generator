@@ -51,6 +51,7 @@ from .llm_client import LLMClient
 from .models import (
     ArticleSummary,
     ArticleSummaryBatch,
+    CrossTopicSynthesis,
     RawArticle,
     StrategicInsight,
     TokenUsage,
@@ -58,8 +59,10 @@ from .models import (
     TopicResult,
 )
 from .prompts import (
+    SYSTEM_CROSS_TOPIC,
     SYSTEM_STRATEGIST,
     SYSTEM_SUMMARIZER,
+    build_cross_topic_prompt,
     build_strategy_prompt,
     build_summarize_prompt,
 )
@@ -204,6 +207,26 @@ async def _process_topic(
             # so the other topics' results are not lost.
             log.error("topic_llm_failed", topic=topic.title, error=str(exc))
             return TopicResult(config=topic, error=str(exc))
+
+
+async def synthesize_cross_topic(
+    results: list[TopicResult],
+    client: LLMClient,
+) -> CrossTopicSynthesis:
+    """
+    Make a single LLM call to synthesize cross-cutting themes across all topics.
+
+    Only topics with a successful StrategicInsight are included in the prompt.
+    Raises if the LLM call fails — the caller (Prefect task) handles that.
+    """
+    successful = [r for r in results if r.strategy is not None]
+    log.info("synthesizing_cross_topic", topics=len(successful))
+    synthesis, _ = await client.complete_structured(
+        prompt=build_cross_topic_prompt(results),
+        response_model=CrossTopicSynthesis,
+        system=SYSTEM_CROSS_TOPIC,
+    )
+    return synthesis
 
 
 async def run_pipeline(

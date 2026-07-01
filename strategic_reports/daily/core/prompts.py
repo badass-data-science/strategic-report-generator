@@ -37,7 +37,7 @@ A plain f-string template would require string formatting at call time with
 no structure, making it hard to add per-article formatting logic later.
 """
 
-from .models import ArticleSummary, RawArticle
+from .models import ArticleSummary, RawArticle, TopicResult
 
 # ---------------------------------------------------------------------------
 # System messages — define the LLM's role for each stage
@@ -61,6 +61,14 @@ entrepreneurship, and career strategy for senior technical professionals.
 You read article summaries and extract the highest-leverage strategic
 insights — opportunities, threats, and actionable positioning moves.
 Do not quote source material directly; abstract and generalize.\
+"""
+
+SYSTEM_CROSS_TOPIC = """\
+You are a senior strategic analyst with broad expertise across technology, economics,
+geopolitics, healthcare, defense, and business. You read strategic insights drawn from
+multiple domains and identify overarching themes, cross-domain connections, and emergent
+patterns that would not be visible from any single domain alone. You think in systems
+and surface the second-order implications of how trends in one domain affect another.\
 """
 
 
@@ -98,6 +106,27 @@ def build_summarize_prompt(articles: list[RawArticle]) -> str:
         )
     # "\n".join(parts) is more efficient than repeated += on strings,
     # because strings are immutable in Python — += creates a new string each time.
+    return "\n".join(parts)
+
+
+def build_cross_topic_prompt(results: list[TopicResult]) -> str:
+    """
+    Format all per-topic strategic insights into the user message for cross-topic synthesis.
+
+    Only topics that produced a strategy (no error, not empty) are included —
+    error and empty topics have nothing to contribute to the synthesis.
+    """
+    successful = [r for r in results if r.strategy is not None]
+    parts = [
+        f"The following strategic insights were drawn from today's news across "
+        f"{len(successful)} domains. Identify 3–4 high-level themes or connections "
+        f"that cut across these domains.\n"
+    ]
+    for result in successful:
+        parts.append(f"## {result.config.title}")
+        for bullet in result.strategy.bullets:
+            parts.append(f"- {bullet}")
+        parts.append("")
     return "\n".join(parts)
 
 

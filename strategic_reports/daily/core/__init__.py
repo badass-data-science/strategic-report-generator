@@ -104,6 +104,7 @@ def configure_logging(level: str = "INFO") -> None:
 from .models import (
     ArticleSummary,
     ArticleSummaryBatch,
+    CrossTopicSynthesis,
     FeedConfig,
     RawArticle,
     StrategicInsight,
@@ -131,6 +132,7 @@ __all__ = [
     # Data models
     "ArticleSummary",
     "ArticleSummaryBatch",
+    "CrossTopicSynthesis",
     "FeedConfig",
     "RawArticle",
     "StrategicInsight",
