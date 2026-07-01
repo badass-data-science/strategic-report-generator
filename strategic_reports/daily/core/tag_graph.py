@@ -210,25 +210,22 @@ const palette = d3.schemeTableau10.concat(d3.schemeSet3);
 const communityColor = d => palette[d.community % palette.length];
 const tooltip = d3.select("#tooltip");
 
-let allData = null;
+const allData = __GRAPH_DATA__;
 
-fetch("tag_graph_display.json")
-  .then(r => r.json())
-  .then(data => {
-    allData = data;
-    const maxWeight = d3.max(data.links, d => d.weight) || 20;
-    const maxCount  = d3.max(data.nodes, d => d.count)  || 30;
-    document.getElementById("weight-filter").max = Math.max(20, maxWeight);
-    document.getElementById("count-filter").max  = Math.max(30, maxCount);
+(function init() {
+  const maxWeight = d3.max(allData.links, d => d.weight) || 20;
+  const maxCount  = d3.max(allData.nodes, d => d.count)  || 30;
+  document.getElementById("weight-filter").max = Math.max(20, maxWeight);
+  document.getElementById("count-filter").max  = Math.max(30, maxCount);
 
-    // Set slider defaults to the thresholds used at build time.
-    document.getElementById("weight-filter").value = data.min_weight ?? 2;
-    document.getElementById("weight-val").textContent = data.min_weight ?? 2;
-    document.getElementById("count-filter").value = data.min_count ?? 3;
-    document.getElementById("count-val").textContent = data.min_count ?? 3;
+  // Set slider defaults to the thresholds used at build time.
+  document.getElementById("weight-filter").value = allData.min_weight ?? 2;
+  document.getElementById("weight-val").textContent = allData.min_weight ?? 2;
+  document.getElementById("count-filter").value = allData.min_count ?? 3;
+  document.getElementById("count-val").textContent = allData.min_count ?? 3;
 
-    render();
-  });
+  render();
+})();
 
 function filters() {
   return {
@@ -364,7 +361,10 @@ def write_tag_graph(
     (output_dir / "tag_graph.json").write_text(
         json.dumps(full_data, indent=2, ensure_ascii=False)
     )
+    display_json = json.dumps(display_data, ensure_ascii=False)
     (output_dir / "tag_graph_display.json").write_text(
         json.dumps(display_data, indent=2, ensure_ascii=False)
     )
-    (output_dir / "tag_graph.html").write_text(_HTML)
+    (output_dir / "tag_graph.html").write_text(
+        _HTML.replace("__GRAPH_DATA__", display_json)
+    )
