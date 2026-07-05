@@ -3,7 +3,7 @@ Prefect flow for the daily strategic report pipeline.
 
 This flow is configured for a hosted Ollama instance. instructor_mode
 defaults to TOOLS, which requires the configured model (via LLM_MODEL) to
-support tool/function calling — e.g. llama3.3:70b. If you switch to a model
+support tool/function calling — e.g. glm-5.2:cloud. If you switch to a model
 without tool-calling support, override instructor_mode to JSON instead.
 
 WHY PREFECT?
@@ -37,7 +37,7 @@ RUNNING WITH LOCAL PREFECT (no cloud account required)
 
        export OLLAMA_API_BASE=http://your-ollama-server:11434
        export OLLAMA_API_KEY=your-key-if-required
-       export LLM_MODEL=ollama_chat/llama3.3:70b
+       export LLM_MODEL=ollama_chat/glm-5.2:cloud
 
 4. Start the scheduler (keep this terminal open):
 
@@ -440,7 +440,7 @@ async def daily_report_flow(
     max_concurrent: int = 3,
     temperature: float = 0.1,
     # TOOLS mode requires the configured model to support tool/function
-    # calling (llama3.3:70b does; gpt-oss:120b did not — see LLM_MODEL).
+    # calling (glm-5.2:cloud does; gpt-oss:120b did not — see LLM_MODEL).
     instructor_mode: str = "TOOLS",
     ollama_api_base: str | None = os.environ.get("OLLAMA_API_BASE"),
     ollama_api_key: str | None = os.environ.get("OLLAMA_API_KEY"),
