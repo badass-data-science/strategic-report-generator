@@ -89,7 +89,7 @@ from strategic_reports.daily.core.tracing import generate_run_id, setup_tracing
 # `python flows/daily_report.py` from outside the project root.
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _DEFAULT_HOME = Path(os.environ.get("STRATEGIC_REPORTS_HOME", _PROJECT_ROOT))
-_DEFAULT_MODEL = os.environ.get("LLM_MODEL", "ollama_chat/llama3.1:70b")
+_DEFAULT_MODEL = os.environ.get("LLM_MODEL", "ollama_chat/glm-5.2:cloud")
 
 _INSTRUCTOR_MODES: dict[str, instructor.Mode] = {
     "TOOLS": instructor.Mode.TOOLS,

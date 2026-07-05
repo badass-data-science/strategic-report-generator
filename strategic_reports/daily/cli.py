@@ -5,7 +5,7 @@ Usage:
     python -m strategic_reports.daily.cli run
 
 Key options (all have sensible defaults):
-    --model             litellm model string  (default: env LLM_MODEL or ollama_chat/llama3.1:70b)
+    --model             litellm model string  (default: env LLM_MODEL or ollama_chat/glm-5.2:cloud)
     --hours-cutoff      Article age window in hours (default: 24)
     --output-dir        Where to write HTML output
     --data-dir          Where to find rss_feeds/*.json files
@@ -83,7 +83,7 @@ app = typer.Typer(add_completion=False)
 # This lets users set project-wide defaults via a .env file or CI secrets
 # rather than passing flags on every invocation.
 _DEFAULT_HOME = Path(os.environ.get("STRATEGIC_REPORTS_HOME", Path.cwd()))
-_DEFAULT_MODEL = os.environ.get("LLM_MODEL", "ollama_chat/llama3.1:70b")
+_DEFAULT_MODEL = os.environ.get("LLM_MODEL", "ollama_chat/glm-5.2:cloud")
 
 
 def _build_topic_configs(data_dir: Path) -> list[TopicConfig]:

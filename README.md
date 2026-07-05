@@ -148,7 +148,7 @@ All options have defaults and can be set via CLI flag or environment variable.
 
 | Flag | Env var | Default | Description |
 |------|---------|---------|-------------|
-| `--model` | `LLM_MODEL` | `ollama_chat/llama3.1:70b` | litellm model string |
+| `--model` | `LLM_MODEL` | `ollama_chat/glm-5.2:cloud` | litellm model string |
 | `--hours-cutoff` | — | `24` | Article age window in hours |
 | `--output-dir` | `STRATEGIC_REPORTS_OUTPUT_DIR` | `output/daily/strategic-report` | HTML output directory |
 | `--data-dir` | `STRATEGIC_REPORTS_DATA_DIR` | `data/rss_feeds` | RSS feed config directory |
