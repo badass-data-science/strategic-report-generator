@@ -110,7 +110,8 @@ class ArticleSummary(BaseModel):
         description=(
             "5 to 20 descriptive tags. Lowercase. Singular nouns. "
             "Spell out all words — no abbreviations or acronyms. "
-            "Use spaces not hyphens for multi-word tags."
+            "Use spaces not hyphens for multi-word tags. "
+            "Use American spelling (e.g. 'defense' not 'defence')."
         ),
         min_length=5,
         max_length=20,

@@ -52,7 +52,8 @@ of descriptive tags. Tags must follow these rules exactly:
 - Lowercase (e.g. "artificial intelligence", not "AI" or "Artificial Intelligence")
 - Singular nouns (e.g. "strategy" not "strategies", "market" not "markets")
 - Spell out all words — no abbreviations or acronyms (e.g. "artificial intelligence" not "AI", "machine learning" not "ML")
-- Use spaces not hyphens for multi-word tags (e.g. "supply chain" not "supply-chain")\
+- Use spaces not hyphens for multi-word tags (e.g. "supply chain" not "supply-chain")
+- Use American spelling (e.g. "defense" not "defence", "color" not "colour")\
 """
 
 SYSTEM_STRATEGIST = """\

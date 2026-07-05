@@ -1,14 +1,107 @@
 """
 Tag normalization for article summary tags.
 
-Normalization runs in two passes:
+Normalization runs in three passes:
   1. Programmatic: lowercase, strip, collapse whitespace, replace hyphens with spaces.
-  2. Synonym map: map known variants (abbreviations, plurals, alternate forms) to a
+  2. Spelling: rewrite British spelling variants to American, word by word (e.g.
+     "defence" -> "defense", "organisation" -> "organization"). The LLM is asked
+     for American spelling in the prompt, but that's not reliable enough on its
+     own to keep the tag graph from splitting "defense" and "defence" into two
+     nodes, so it's enforced here too.
+  3. Synonym map: map known variants (abbreviations, plurals, alternate forms) to a
      canonical spelled-out singular form.
 
 This runs as a Pydantic field_validator on ArticleSummary.tags, so every tag that
 comes out of the LLM is normalized before it reaches the rest of the pipeline.
 """
+
+# Maps British spelling variants to their American equivalents. Keyed by
+# individual word (not full tag phrase) and applied word-by-word, so a variant
+# is caught anywhere it appears in a multi-word tag, e.g. "defence budget" ->
+# "defense budget", without needing an entry for every phrase it could appear in.
+_BRITISH_TO_AMERICAN: dict[str, str] = {
+    "defence": "defense",
+    "defences": "defenses",
+    "offence": "offense",
+    "offences": "offenses",
+    "licence": "license",
+    "licences": "licenses",
+    "colour": "color",
+    "colours": "colors",
+    "favour": "favor",
+    "favours": "favors",
+    "favourite": "favorite",
+    "favourites": "favorites",
+    "honour": "honor",
+    "honours": "honors",
+    "humour": "humor",
+    "neighbour": "neighbor",
+    "neighbours": "neighbors",
+    "behaviour": "behavior",
+    "behaviours": "behaviors",
+    "labour": "labor",
+    "labours": "labors",
+    "rumour": "rumor",
+    "rumours": "rumors",
+    "armour": "armor",
+    "endeavour": "endeavor",
+    "endeavours": "endeavors",
+    "organisation": "organization",
+    "organisations": "organizations",
+    "organise": "organize",
+    "organised": "organized",
+    "organising": "organizing",
+    "realise": "realize",
+    "realised": "realized",
+    "realising": "realizing",
+    "recognise": "recognize",
+    "recognised": "recognized",
+    "recognising": "recognizing",
+    "analyse": "analyze",
+    "analysed": "analyzed",
+    "analysing": "analyzing",
+    "mobilise": "mobilize",
+    "mobilised": "mobilized",
+    "mobilisation": "mobilization",
+    "modernise": "modernize",
+    "modernised": "modernized",
+    "modernisation": "modernization",
+    "globalise": "globalize",
+    "globalisation": "globalization",
+    "privatise": "privatize",
+    "privatisation": "privatization",
+    "centre": "center",
+    "centres": "centers",
+    "metre": "meter",
+    "metres": "meters",
+    "litre": "liter",
+    "litres": "liters",
+    "theatre": "theater",
+    "theatres": "theaters",
+    "fibre": "fiber",
+    "fibres": "fibers",
+    "programme": "program",
+    "programmes": "programs",
+    "catalogue": "catalog",
+    "catalogues": "catalogs",
+    "dialogue": "dialog",
+    "dialogues": "dialogs",
+    "travelling": "traveling",
+    "traveller": "traveler",
+    "travellers": "travelers",
+    "modelling": "modeling",
+    "labelling": "labeling",
+    "cancelled": "canceled",
+    "cancelling": "canceling",
+    "counsellor": "counselor",
+    "counsellors": "counselors",
+    "jewellery": "jewelry",
+    "tyre": "tire",
+    "tyres": "tires",
+    "aeroplane": "airplane",
+    "aeroplanes": "airplanes",
+    "aluminium": "aluminum",
+}
 
 # Maps lowercased, hyphen-collapsed variants to their canonical form.
 # Keys should already be in the programmatically normalized form (lowercase,
@@ -125,7 +218,10 @@ def normalize_tag(tag: str) -> str:
     tag = tag.lower().strip().replace("-", " ")
     tag = " ".join(tag.split())  # collapse internal whitespace
 
-    # Pass 2: synonym lookup
+    # Pass 2: British -> American spelling, word by word
+    tag = " ".join(_BRITISH_TO_AMERICAN.get(word, word) for word in tag.split(" "))
+
+    # Pass 3: synonym lookup
     return _SYNONYMS.get(tag, tag)
 
 
