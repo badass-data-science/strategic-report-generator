@@ -1,9 +1,10 @@
 """
 Prefect flow for the daily strategic report pipeline.
 
-This flow is configured for a hosted Ollama instance running gpt-oss:120b.
-instructor_mode defaults to JSON because gpt-oss:120b does not support the
-tool-calling API that TOOLS mode requires.
+This flow is configured for a hosted Ollama instance. instructor_mode
+defaults to TOOLS, which requires the configured model (via LLM_MODEL) to
+support tool/function calling — e.g. llama3.3:70b. If you switch to a model
+without tool-calling support, override instructor_mode to JSON instead.
 
 WHY PREFECT?
 ------------
@@ -36,7 +37,7 @@ RUNNING WITH LOCAL PREFECT (no cloud account required)
 
        export OLLAMA_API_BASE=http://your-ollama-server:11434
        export OLLAMA_API_KEY=your-key-if-required
-       export LLM_MODEL=ollama_chat/gpt-oss:120b
+       export LLM_MODEL=ollama_chat/llama3.3:70b
 
 4. Start the scheduler (keep this terminal open):
 
@@ -438,10 +439,9 @@ async def daily_report_flow(
     batch_size: int = 50,
     max_concurrent: int = 3,
     temperature: float = 0.1,
-    # JSON mode is the default here because this flow is configured for
-    # gpt-oss:120b, which does not support the tool-calling API.
-    # The CLI (cli.py) retains TOOLS as its default for general use.
-    instructor_mode: str = "JSON",
+    # TOOLS mode requires the configured model to support tool/function
+    # calling (llama3.3:70b does; gpt-oss:120b did not — see LLM_MODEL).
+    instructor_mode: str = "TOOLS",
     ollama_api_base: str | None = os.environ.get("OLLAMA_API_BASE"),
     ollama_api_key: str | None = os.environ.get("OLLAMA_API_KEY"),
     log_level: str = "INFO",
