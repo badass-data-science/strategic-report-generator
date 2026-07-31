@@ -75,6 +75,7 @@ from strategic_reports.daily.core import (
     load_history,
     load_tag_rate_history,
     LLMClient,
+    record_emerging_tag_alerts,
     record_tags,
     run_pipeline,
     write_tag_graph,
@@ -310,6 +311,7 @@ def run(
         tag_rate_history = load_tag_rate_history(db_path)
         tag_alerts = check_emerging_tags(graph_data, article_count, tag_rate_history, tag_z_score_threshold)
         record_tags(db_path, run_id, graph_data)
+        record_emerging_tag_alerts(db_path, run_id, tag_alerts)
         if tag_alerts:
             typer.echo(f"EMERGING TAG ALERTS ({len(tag_alerts)} tag(s)):")
             for alert in tag_alerts:

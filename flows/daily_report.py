@@ -88,6 +88,7 @@ from strategic_reports.daily.core.db import (
 from strategic_reports.daily.core.tag_tracking import (
     check_emerging_tags,
     load_tag_rate_history,
+    record_emerging_tag_alerts,
     record_tags,
 )
 from strategic_reports.daily.core.renderer import render_report
@@ -327,6 +328,7 @@ def check_emerging_tag_alerts(
         history = load_tag_rate_history(db_path)
         alerts = check_emerging_tags(graph_data, article_count, history, tag_z_score_threshold)
         record_tags(db_path, run_id, graph_data)
+        record_emerging_tag_alerts(db_path, run_id, alerts)
 
         if alerts:
             logger.warning(f"EMERGING TAG ALERTS ({len(alerts)} tag(s)):")

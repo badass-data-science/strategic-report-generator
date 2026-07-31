@@ -86,6 +86,25 @@ CREATE TABLE IF NOT EXISTS tag_edges (
     weight INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_tag_edges_run ON tag_edges(run_id);
+
+-- Audit trail of emerging-tag alerts that actually fired (not every tag's
+-- rate/z-score every run — those are always recomputable from tag_counts +
+-- runs.article_count via tag_tracking.load_tag_rate_history). Lets "what
+-- was tag X's z-score on day N" be answered without redoing the historical
+-- window calculation.
+CREATE TABLE IF NOT EXISTS emerging_tag_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL REFERENCES runs(run_id),
+    created_at TEXT NOT NULL,
+    tag TEXT NOT NULL,
+    count INTEGER NOT NULL,
+    rate REAL NOT NULL,
+    mean REAL NOT NULL,
+    std REAL NOT NULL,
+    z_score REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_emerging_tag_alerts_tag ON emerging_tag_alerts(tag, created_at);
+CREATE INDEX IF NOT EXISTS idx_emerging_tag_alerts_run ON emerging_tag_alerts(run_id);
 """
 
 

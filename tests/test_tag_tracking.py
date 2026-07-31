@@ -7,17 +7,19 @@ Covers:
   - load_tag_rate_history normalizing by each run's article_count
   - check_emerging_tags: thin-history skip, std==0 skip, statistical alert,
     no-alert-within-band, zero-article-count guard
+  - record_emerging_tag_alerts: audit-trail persistence of fired alerts
 """
 
 import pytest
 
-from strategic_reports.daily.core.db import record_run
+from strategic_reports.daily.core.db import connect, record_run
 from strategic_reports.daily.core.models import ArticleSummary, TopicConfig, TopicResult
 from strategic_reports.daily.core.tag_graph import build_graph_data
 from strategic_reports.daily.core.tag_tracking import (
     EmergingTagAlert,
     check_emerging_tags,
     load_tag_rate_history,
+    record_emerging_tag_alerts,
     rebuild_graph_data,
     record_tags,
 )
@@ -182,3 +184,50 @@ class TestEmergingTagAlertSummary:
         assert "count=60" in s
         assert "0.6000" in s
         assert "z=50.0" in s
+
+
+class TestRecordEmergingTagAlerts:
+    def test_noop_on_empty_alerts(self, db_path):
+        record_run(db_path, "run-0", article_count=100)
+        record_emerging_tag_alerts(db_path, "run-0", [])
+        conn = connect(db_path)
+        count = conn.execute("SELECT COUNT(*) FROM emerging_tag_alerts").fetchone()[0]
+        conn.close()
+        assert count == 0
+
+    def test_persists_fired_alerts(self, db_path):
+        record_run(db_path, "run-0", article_count=100)
+        alert = EmergingTagAlert(tag="ai", count=60, rate=0.6, mean=0.1, std=0.05, z_score=10.0)
+        record_emerging_tag_alerts(db_path, "run-0", [alert])
+
+        conn = connect(db_path)
+        row = conn.execute(
+            "SELECT run_id, tag, count, rate, mean, std, z_score FROM emerging_tag_alerts WHERE tag = 'ai'"
+        ).fetchone()
+        conn.close()
+        assert row == ("run-0", "ai", 60, 0.6, 0.1, 0.05, 10.0)
+
+    def test_persists_own_timestamp(self, db_path):
+        record_run(db_path, "run-0", article_count=100)
+        alert = EmergingTagAlert(tag="ai", count=60, rate=0.6, mean=0.1, std=0.05, z_score=10.0)
+        record_emerging_tag_alerts(db_path, "run-0", [alert])
+
+        conn = connect(db_path)
+        created_at = conn.execute(
+            "SELECT created_at FROM emerging_tag_alerts WHERE tag = 'ai'"
+        ).fetchone()[0]
+        conn.close()
+        assert created_at  # non-empty timestamp string
+
+    def test_multiple_alerts_same_run(self, db_path):
+        record_run(db_path, "run-0", article_count=100)
+        alerts = [
+            EmergingTagAlert(tag="ai", count=60, rate=0.6, mean=0.1, std=0.05, z_score=10.0),
+            EmergingTagAlert(tag="biotech", count=40, rate=0.4, mean=0.05, std=0.02, z_score=17.5),
+        ]
+        record_emerging_tag_alerts(db_path, "run-0", alerts)
+
+        conn = connect(db_path)
+        tags = {row[0] for row in conn.execute("SELECT tag FROM emerging_tag_alerts").fetchall()}
+        conn.close()
+        assert tags == {"ai", "biotech"}

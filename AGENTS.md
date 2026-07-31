@@ -38,7 +38,7 @@ matching provider credentials (see README's Quick Start).
 pytest
 ```
 
-- 128 tests across `tests/test_*.py`, no real network or LLM calls, runs in
+- 132 tests across `tests/test_*.py`, no real network or LLM calls, runs in
   under a second. CI (`.github/workflows/tests.yml`) runs the same suite on
   every push/PR to `main`, no credentials needed there either.
 - `pytest.ini` sets `asyncio_mode = auto` — async test functions don't need

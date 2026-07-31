@@ -13,11 +13,17 @@ that tag's own historical rate, mirroring urgency.py's z-score pattern.
 Rate, not raw count, is what's compared: a count of 20 means something
 different on a 400-article news day than a 50-article one.
 
+record_emerging_tag_alerts() persists the alerts that fired (not every
+tag's rate/z-score — those stay always recomputable from tag_counts +
+runs.article_count), as an audit trail: "what was tag X's z-score on day
+N" is then answerable directly.
+
 Call order per run (same pattern as urgency.py/bullet_diff.py):
   0. db.record_run(db_path, run_id, article_count) — once per run
-  1. load_tag_rate_history  (reads only, does not include the current run)
-  2. check_emerging_tags     (current rates vs. historical baseline)
-  3. record_tags             (writes current run's tag graph for future runs)
+  1. load_tag_rate_history      (reads only, does not include the current run)
+  2. check_emerging_tags         (current rates vs. historical baseline)
+  3. record_tags                 (writes current run's tag graph for future runs)
+  4. record_emerging_tag_alerts   (writes the alerts from step 2, if any)
 
 Unlike urgency scores (a bounded, LLM-scored 0-1 value where an absolute
 cutoff like 0.8 is meaningful), tag rates have no obvious absolute
@@ -195,3 +201,35 @@ def check_emerging_tags(
             ))
 
     return alerts
+
+
+def record_emerging_tag_alerts(db_path: Path, run_id: str, alerts: list[EmergingTagAlert]) -> None:
+    """
+    Persist the emerging-tag alerts that fired this run, as an audit trail —
+    "what was tag X's z-score on day N" is then answerable directly, without
+    redoing the historical-window calculation. Only fired alerts are stored
+    here, not every tag's rate/z-score every run; those remain always
+    recomputable from tag_counts + runs.article_count via
+    load_tag_rate_history(), so nothing is lost by not storing them all.
+
+    Assumes db.record_run(db_path, run_id, ...) has already been called
+    this run, so the run_id foreign key exists. A no-op if alerts is empty.
+    """
+    if not alerts:
+        return
+
+    now = datetime.now(timezone.utc).isoformat()
+    conn = connect(db_path)
+    try:
+        conn.executemany(
+            "INSERT INTO emerging_tag_alerts "
+            "(run_id, created_at, tag, count, rate, mean, std, z_score) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (run_id, now, a.tag, a.count, a.rate, a.mean, a.std, a.z_score)
+                for a in alerts
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()

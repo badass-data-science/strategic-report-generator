@@ -415,7 +415,7 @@ python -m strategic_reports.daily.cli \
 pytest
 ```
 
-128 tests across 10 files. No real API calls — the LLM client is fully mocked.
+132 tests across 10 files. No real API calls — the LLM client is fully mocked.
 Runs in under a second. A GitHub Actions workflow
 (`.github/workflows/tests.yml`) runs the same suite on every push and pull
 request to `main` — no LLM credentials needed there either.
@@ -492,6 +492,7 @@ Cross-run history is kept separately, in the SQLite database at `--db-path`
 - **`urgency_scores`** — one row per topic per run; used by the z-score baseline after 7 runs per topic.
 - **`bullets`** — one row per strategic bullet per topic per run; used by the bullet diff to identify what changed since the most recent prior run.
 - **`tag_counts`**, **`tag_topics`**, **`tag_edges`** — one run's tag graph (per-tag counts, per-tag topic membership, and tag-pair co-occurrence edges), linked to `run_id`. Together these let `tag_graph.json` be reconstructed for any past run directly from the database. `tag_counts` also backs the emerging-tag z-score alert: a tag's rate (count ÷ that run's `article_count`) is compared against its own historical rate once it has 7+ prior runs; tags with less history (including brand-new tags) are skipped rather than guessed at, since — unlike urgency scores — tag rates have no meaningful absolute cutoff to fall back on.
+- **`emerging_tag_alerts`** — an audit trail of the alerts that actually fired: `tag`, `count`, `rate`, `mean`, `std`, `z_score`, linked to `run_id`. Only fired alerts are stored here, not every tag's rate/z-score every run — those stay recomputable on demand from `tag_counts` + `runs.article_count`.
 
 Every row carries its own `created_at` timestamp in addition to `run_id`, and
 nothing is pruned — unlike the JSON files this replaced, which capped bullet
