@@ -8,6 +8,9 @@ recommendations into a linked HTML report.
 > a substitute for human judgment. Apply your own reasoning and follow-up
 > research before acting on any recommendation.
 
+> Working on this repo with an AI coding agent? See [`AGENTS.md`](AGENTS.md)
+> for setup, test commands, and code conventions.
+
 ---
 
 ## How it works
