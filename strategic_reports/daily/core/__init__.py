@@ -117,10 +117,17 @@ from .llm_client import LLMClient
 from .ingestion import fetch_topic_articles
 from .pipeline import run_pipeline
 from .renderer import render_report
-from .tag_graph import write_tag_graph
+from .tag_graph import build_graph_data, write_tag_graph
 from .urgency import UrgencyAlert, append_run, check_alerts, load_history
 from .bullet_diff import append_bullet_run, diff_all_topics, load_bullet_history
 from .db import connect as connect_db, ensure_safe_db_path, record_run
+from .tag_tracking import (
+    EmergingTagAlert,
+    check_emerging_tags,
+    load_tag_rate_history,
+    rebuild_graph_data,
+    record_tags,
+)
 from .prompts import (
     SYSTEM_SUMMARIZER,
     SYSTEM_STRATEGIST,
@@ -149,10 +156,16 @@ __all__ = [
     "fetch_topic_articles",
     "run_pipeline",
     "render_report",
+    "build_graph_data",
     "write_tag_graph",
     "connect_db",
     "ensure_safe_db_path",
     "record_run",
+    "EmergingTagAlert",
+    "check_emerging_tags",
+    "load_tag_rate_history",
+    "rebuild_graph_data",
+    "record_tags",
     # Prompt components
     "SYSTEM_SUMMARIZER",
     "SYSTEM_STRATEGIST",

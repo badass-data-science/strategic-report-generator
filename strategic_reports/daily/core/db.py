@@ -52,6 +52,40 @@ CREATE TABLE IF NOT EXISTS bullets (
     bullet_text TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_bullets_topic ON bullets(topic, created_at);
+
+-- The three tables below let a given run's tag_graph.json be reconstructed
+-- from the database (see tag_tracking.rebuild_graph_data) and let a tag's
+-- rate (count / that run's article_count) be tracked over time for
+-- emerging-tag z-score alerts (see tag_tracking.check_emerging_tags).
+
+CREATE TABLE IF NOT EXISTS tag_counts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL REFERENCES runs(run_id),
+    created_at TEXT NOT NULL,
+    tag TEXT NOT NULL,
+    count INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_tag_counts_tag ON tag_counts(tag, created_at);
+CREATE INDEX IF NOT EXISTS idx_tag_counts_run ON tag_counts(run_id);
+
+CREATE TABLE IF NOT EXISTS tag_topics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL REFERENCES runs(run_id),
+    created_at TEXT NOT NULL,
+    tag TEXT NOT NULL,
+    topic TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_tag_topics_run_tag ON tag_topics(run_id, tag);
+
+CREATE TABLE IF NOT EXISTS tag_edges (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL REFERENCES runs(run_id),
+    created_at TEXT NOT NULL,
+    tag_a TEXT NOT NULL,
+    tag_b TEXT NOT NULL,
+    weight INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_tag_edges_run ON tag_edges(run_id);
 """
 
 

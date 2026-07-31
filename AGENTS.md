@@ -38,7 +38,7 @@ matching provider credentials (see README's Quick Start).
 pytest
 ```
 
-- 115 tests across `tests/test_*.py`, no real network or LLM calls, runs in
+- 128 tests across `tests/test_*.py`, no real network or LLM calls, runs in
   under a second. CI (`.github/workflows/tests.yml`) runs the same suite on
   every push/PR to `main`, no credentials needed there either.
 - `pytest.ini` sets `asyncio_mode = auto` — async test functions don't need
@@ -65,11 +65,12 @@ strategic_reports/daily/
     urgency.py          Urgency alerting: absolute threshold + z-score (SQLite-backed)
     bullet_diff.py      Historical diffing vs. yesterday's bullets (SQLite-backed)
     db.py               SQLite tracking db: schema, connection helper, output_dir/db_path safety guard, run registration
+    tag_tracking.py     Per-run tag-graph persistence (linked to run_id) + emerging-tag z-score (SQLite-backed)
     tracing.py          Langfuse / Phoenix instrumentation (opt-in)
   templates/            Jinja2 templates (base, index, topic)
   cli.py                typer CLI entrypoint
   config/topic_order.py Ordered topic slugs + display titles
-flows/daily_report.py   Prefect flow (8 tasks) for scheduled runs
+flows/daily_report.py   Prefect flow (9 tasks) for scheduled runs
 data/rss_feeds/         One JSON file per topic listing feed URLs
 tests/                  Per-module test files + conftest.py fixtures
 LICENSE                 MIT
@@ -104,9 +105,18 @@ LICENSE                 MIT
   point that touches the tracking db.
 - **Tracking-db functions take `db_path: Path`, not a live `sqlite3.Connection`.**
   Each call (`load_history`, `append_run`, `load_bullet_history`,
-  `append_bullet_run`, `record_run`) opens and closes its own short
-  connection. This is deliberate: a `sqlite3.Connection` isn't picklable, so
-  a shared one can't safely cross a Prefect task boundary.
+  `append_bullet_run`, `record_run`, `record_tags`, `load_tag_rate_history`,
+  `rebuild_graph_data`) opens and closes its own short connection. This is
+  deliberate: a `sqlite3.Connection` isn't picklable, so a shared one can't
+  safely cross a Prefect task boundary.
+- **Tag rates, not raw counts, are what gets compared across runs**
+  (`tag_tracking.check_emerging_tags`) — a raw tag count means something
+  different on a big-news-volume day than a quiet one. There's no absolute-
+  threshold fallback for thin-history tags the way `urgency.check_alerts`
+  has one for topics: tags are an open, growing vocabulary, so a tag with
+  fewer than 7 prior runs (including a brand-new tag) is silently skipped
+  rather than guessed at. Don't add one without discussing the threshold —
+  it was a deliberate omission, not an oversight.
 - **Every tracking-db row gets its own timestamp**, in addition to `run_id` —
   not just a `date`. Needed for precise ordering/change-tracking queries
   (z-score baselines, future drift detection), not just row-insertion order.
