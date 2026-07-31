@@ -134,26 +134,32 @@ export LLM_MODEL="gpt-4o"
 export OPENAI_API_KEY="..."
 ```
 
+Set where the report gets written (required):
+
+```bash
+export STRATEGIC_REPORTS_OUTPUT_DIR="output/daily/strategic-report"
+```
+
 Run:
 
 ```bash
-python -m strategic_reports.daily.cli
+python -m strategic_reports.daily.cli --output-dir output/daily/strategic-report
 ```
 
-Output is written to `output/daily/strategic-report/`. Open `index.html` in a
-browser to read the report.
+Open `index.html` in the output directory in a browser to read the report.
 
 ---
 
 ## Configuration
 
-All options have defaults and can be set via CLI flag or environment variable.
+All options can be set via CLI flag or environment variable; `--output-dir` is
+required (via flag or env var), everything else has a default.
 
 | Flag | Env var | Default | Description |
 |------|---------|---------|-------------|
 | `--model` | `LLM_MODEL` | `ollama_chat/glm-5.2:cloud` | litellm model string |
 | `--hours-cutoff` | — | `24` | Article age window in hours |
-| `--output-dir` | `STRATEGIC_REPORTS_OUTPUT_DIR` | `output/daily/strategic-report` | HTML output directory |
+| `--output-dir` | `STRATEGIC_REPORTS_OUTPUT_DIR` | *(required)* | HTML output directory — wiped and recreated on every run |
 | `--data-dir` | `STRATEGIC_REPORTS_DATA_DIR` | `data/rss_feeds` | RSS feed config directory |
 | `--batch-size` | — | `50` | Articles per LLM summarization call |
 | `--max-concurrent` | — | `3` | Max topics hitting the LLM API simultaneously |
@@ -179,6 +185,7 @@ Example — run against Claude with higher concurrency and debug logging:
 
 ```bash
 python -m strategic_reports.daily.cli \
+  --output-dir output/daily/strategic-report \
   --model anthropic/claude-sonnet-4-6 \
   --max-concurrent 5 \
   --log-level DEBUG
@@ -188,6 +195,7 @@ Example — run against an Ollama model without tool-calling support:
 
 ```bash
 python -m strategic_reports.daily.cli \
+  --output-dir output/daily/strategic-report \
   --model ollama_chat/gpt-oss:120b \
   --instructor-mode JSON
 ```
@@ -377,7 +385,7 @@ pip install arize-phoenix openinference-instrumentation-litellm \
             opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
 
 export PHOENIX_TRACING=true
-python -m strategic_reports.daily.cli
+python -m strategic_reports.daily.cli --output-dir output/daily/strategic-report
 ```
 
 ---
@@ -435,6 +443,12 @@ tests/
 ---
 
 ## Output
+
+> **`--output-dir` is wiped on every run.** The directory (if it exists) is
+> deleted and recreated from scratch before any files are written, so stale
+> pages from a previous run never linger. Point it at a directory dedicated
+> to this pipeline's output — never at a directory containing anything else
+> you care about.
 
 The pipeline writes the following files to `--output-dir`:
 

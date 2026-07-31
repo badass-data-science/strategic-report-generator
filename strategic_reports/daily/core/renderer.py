@@ -27,6 +27,7 @@ Template inheritance:
   only the parts that differ, without duplicating the boilerplate.
 """
 
+import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -84,9 +85,14 @@ def render_report(
       feeds_ai          → ai_summaries.html
       feeds_data_science → data_science_summaries.html
     """
-    # mkdir(parents=True) creates any missing parent directories.
-    # exist_ok=True means no error if the directory already exists.
-    output_dir.mkdir(parents=True, exist_ok=True)
+    # Wipe any previous run's output before writing this run's files, so stale
+    # pages (e.g. a topic's {slug}_summaries.html from a run where that topic
+    # had articles, but this run doesn't) never linger alongside fresh ones.
+    # mkdir(parents=True) then creates the directory fresh, including any
+    # missing parent directories if it didn't exist at all.
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
+    output_dir.mkdir(parents=True)
 
     env = _env()
     now = datetime.now()
