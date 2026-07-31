@@ -461,3 +461,9 @@ Two history files are maintained outside the upload directory (`output/daily/`):
 - **`bullet_history.json`** — per-topic strategic bullets from each run (last 7 kept); used by the bullet diff to identify what changed since yesterday.
 
 Weekend runs will produce thinner output — most news sources don't publish on weekends.
+
+---
+
+## License
+
+[MIT](LICENSE)
