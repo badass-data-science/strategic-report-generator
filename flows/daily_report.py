@@ -80,6 +80,11 @@ from strategic_reports.daily.core.bullet_diff import (
     diff_all_topics,
     load_bullet_history,
 )
+from strategic_reports.daily.core.db import (
+    connect as connect_db,
+    ensure_safe_db_path,
+    record_run,
+)
 from strategic_reports.daily.core.renderer import render_report
 from strategic_reports.daily.core.tag_graph import write_tag_graph
 from strategic_reports.daily.core.tracing import generate_run_id, setup_tracing
@@ -267,16 +272,16 @@ async def run_cross_topic_synthesis(
 def check_urgency_alerts(
     results: list[TopicResult],
     run_id: str,
-    history_path: Path,
+    db_path: Path,
     absolute_threshold: float,
     z_score_threshold: float,
 ) -> None:
     """Check per-topic urgency scores against history; log alerts and update history."""
     logger = get_run_logger()
     try:
-        history = load_history(history_path)
+        history = load_history(db_path)
         alerts = check_alerts(results, history, absolute_threshold, z_score_threshold)
-        append_run(history_path, results, run_id)
+        append_run(db_path, results, run_id)
 
         if alerts:
             logger.warning(f"URGENCY ALERTS ({len(alerts)} topic(s)):")
@@ -304,7 +309,7 @@ def check_urgency_alerts(
 @task(name="run-bullet-diff", retries=2, retry_delay_seconds=60)
 async def run_bullet_diff(
     results: list[TopicResult],
-    history_path: Path,
+    db_path: Path,
     model: str,
     temperature: float,
     instructor_mode_str: str,
@@ -315,13 +320,12 @@ async def run_bullet_diff(
     """Diff today's strategic bullets against yesterday's and return per-topic results."""
     logger = get_run_logger()
     try:
-        history = load_bullet_history(history_path)
-        if not history:
+        yesterday = load_bullet_history(db_path)
+        if not yesterday:
             logger.info("No bullet history yet — skipping diff on first run")
-            append_bullet_run(history_path, results, run_id)
+            append_bullet_run(db_path, results, run_id)
             return {}
 
-        yesterday = history[-1]["topics"]
         mode = _INSTRUCTOR_MODES.get(instructor_mode_str.upper(), instructor.Mode.TOOLS)
         client = LLMClient(
             model=model,
@@ -332,7 +336,7 @@ async def run_bullet_diff(
             api_key=api_key,
         )
         diffs = await diff_all_topics(results, yesterday, client)
-        append_bullet_run(history_path, results, run_id)
+        append_bullet_run(db_path, results, run_id)
 
         new_count = sum(len(d.new) for d in diffs.values())
         dropped_count = sum(len(d.dropped) for d in diffs.values())
@@ -433,6 +437,7 @@ def upload_to_web_server(
 )
 async def daily_report_flow(
     output_dir: Path,
+    db_path: Path,
     model: str = _DEFAULT_MODEL,
     hours_cutoff: int = 24,
     data_dir: Path = _DEFAULT_HOME / "data" / "rss_feeds",
@@ -458,6 +463,18 @@ async def daily_report_flow(
     remote_web_dir: str = os.environ.get("REMOTE_WEB_DIR", "/var/www/html/strategic-review-daily"),
 ) -> None:
     """Daily strategic report: ingest RSS feeds, summarize, synthesize, render HTML."""
+    # output_dir is deleted and recreated on every run (see render_report()),
+    # so the tracking database can never live inside it — check before doing
+    # any real work.
+    ensure_safe_db_path(db_path, output_dir)
+    # connect() creates the database file (and parent dirs, and the schema)
+    # on first use, and never touches existing data — this is what makes
+    # cross-run history possible. Just a fail-fast check here (closed right
+    # away); the urgency/bullet tasks below each open their own short
+    # connection per call rather than sharing this one (a sqlite3.Connection
+    # can't be passed between Prefect tasks — it isn't picklable).
+    connect_db(db_path).close()
+
     # configure_logging sets up structlog for the pipeline's internal logging.
     # Prefect has its own logging layer on top; the two coexist fine.
     configure_logging(log_level)
@@ -482,6 +499,13 @@ async def daily_report_flow(
         api_key=ollama_api_key,
     )
 
+    # Register this run in the tracking database, with the total number of
+    # articles considered — the denominator any future cross-run tag-weight
+    # comparison divides by. Must happen before the urgency/bullet tasks
+    # below, since those insert rows referencing this run_id.
+    article_count = sum(len(r.articles) for r in results)
+    record_run(db_path, run_id, article_count)
+
     overview = await run_cross_topic_synthesis(
         results=results,
         model=model,
@@ -495,14 +519,14 @@ async def daily_report_flow(
     check_urgency_alerts(
         results=results,
         run_id=run_id,
-        history_path=_DEFAULT_HOME / "output" / "daily" / "urgency_history.json",
+        db_path=db_path,
         absolute_threshold=absolute_threshold,
         z_score_threshold=z_score_threshold,
     )
 
     diffs = await run_bullet_diff(
         results=results,
-        history_path=_DEFAULT_HOME / "output" / "daily" / "bullet_history.json",
+        db_path=db_path,
         model=model,
         temperature=temperature,
         instructor_mode_str=instructor_mode,
@@ -553,8 +577,12 @@ if __name__ == "__main__":
             "Runs at 00:30 Pacific time. "
             "Synthesizes recent news across AI, biotech, economics, geopolitics, defense, and more."
         ),
-        # output_dir has no function default (see daily_report_flow) — the
-        # scheduled cron run has no CLI invocation to supply it, so the value
-        # is fixed here, once, at deployment registration time.
-        parameters={"output_dir": _DEFAULT_HOME / "output" / "daily" / "strategic-report"},
+        # output_dir and db_path have no function default (see
+        # daily_report_flow) — the scheduled cron run has no CLI invocation to
+        # supply them, so their values are fixed here, once, at deployment
+        # registration time.
+        parameters={
+            "output_dir": _DEFAULT_HOME / "output" / "daily" / "strategic-report",
+            "db_path": _DEFAULT_HOME / "output" / "daily" / "strategic_reports.db",
+        },
     )

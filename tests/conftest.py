@@ -74,6 +74,22 @@ from strategic_reports.daily.core.models import (
 
 
 # ---------------------------------------------------------------------------
+# Tracking-database fixture
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def db_path(tmp_path: Path) -> Path:
+    """
+    Path to a fresh SQLite tracking database for one test.
+
+    Doesn't call db.connect() itself — the functions under test (record_run,
+    load_history, append_run, etc.) each open their own short connection via
+    db.connect(), which creates the file and schema on first use.
+    """
+    return tmp_path / "test.db"
+
+
+# ---------------------------------------------------------------------------
 # Data fixtures — provide pre-built model instances
 # ---------------------------------------------------------------------------
 

@@ -13,7 +13,8 @@ recommendations into a linked HTML report.
 > research before acting on any recommendation.
 
 > Working on this repo with an AI coding agent? See [`AGENTS.md`](AGENTS.md)
-> for setup, test commands, and code conventions.
+> for setup, test commands, and code conventions. See
+> [`CHANGELOG.md`](CHANGELOG.md) for what's changed recently.
 
 ---
 
@@ -38,10 +39,10 @@ Phase 3 — Cross-topic Synthesis  [single LLM call]
 
 Phase 4 — Historical Diffing  [concurrent per-topic LLM calls]
 
-  bullet_history.json ──► yesterday's bullets (per topic)
-  list[TopicResult]   ──► diff vs. yesterday ──► dict[topic, BulletDiff]
-                                                  (new / continued / dropped)
-  (skipped on first run; bullet_history.json written after diff)
+  --db-path (bullets table) ──► yesterday's bullets (per topic)
+  list[TopicResult]         ──► diff vs. yesterday ──► dict[topic, BulletDiff]
+                                                        (new / continued / dropped)
+  (skipped on first run; today's bullets inserted into --db-path after diff)
 
 Phase 5 — Rendering  [Jinja2 templates]
 
@@ -138,10 +139,13 @@ export LLM_MODEL="gpt-4o"
 export OPENAI_API_KEY="..."
 ```
 
-Run, specifying where the report gets written (required):
+Run, specifying where the report gets written and where the tracking
+database lives (both required):
 
 ```bash
-python -m strategic_reports.daily.cli --output-dir output/daily/strategic-report
+python -m strategic_reports.daily.cli \
+  --output-dir output/daily/strategic-report \
+  --db-path output/daily/strategic_reports.db
 ```
 
 Open `index.html` in the output directory in a browser to read the report.
@@ -151,7 +155,7 @@ Open `index.html` in the output directory in a browser to read the report.
 ## Configuration
 
 Most options can be set via CLI flag or environment variable and have a
-default. `--output-dir` is the exception: it's required.
+default. `--output-dir` and `--db-path` are the exception: both are required.
 
 | Flag | Env var | Default | Description |
 |------|---------|---------|-------------|
@@ -159,13 +163,23 @@ default. `--output-dir` is the exception: it's required.
 | `--model` | `LLM_MODEL` | `ollama_chat/glm-5.2:cloud` | litellm model string |
 | `--hours-cutoff` | — | `24` | Article age window in hours |
 | `--data-dir` | `STRATEGIC_REPORTS_DATA_DIR` | `data/rss_feeds` | RSS feed config directory |
+| `--db-path` | — | *(required)* | SQLite tracking database — created on first use if missing, persists across runs, never wiped. Must not be inside `--output-dir` (checked at startup). |
 | `--batch-size` | — | `50` | Articles per LLM summarization call |
 | `--max-concurrent` | — | `3` | Max topics hitting the LLM API simultaneously |
 | `--temperature` | — | `0.1` | LLM sampling temperature |
 | `--instructor-mode` | — | `TOOLS` | Structured output mode (see below) |
 | `--ollama-api-base` | `OLLAMA_API_BASE` | — | Ollama server URL (e.g. `http://my-server:11434`) |
 | `--ollama-api-key` | `OLLAMA_API_KEY` | — | API key for authenticated Ollama instances |
+| `--absolute-threshold` | — | `0.8` | Urgency score (0–1) above which an alert fires unconditionally |
+| `--z-score-threshold` | — | `2.0` | Standard deviations above a topic's historical mean urgency score that trigger a statistical alert (requires ≥7 prior runs for that topic) |
 | `--log-level` | — | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
+
+`python -m strategic_reports.daily.cli` performs the full pipeline — RSS
+ingestion, per-topic summarization/strategy, cross-topic synthesis, urgency
+alerting, bullet diffing, HTML rendering, and the tag co-occurrence graph —
+the same steps the [Prefect flow](#scheduling-with-prefect) runs on a
+schedule. The one thing the CLI does *not* do is the optional remote
+upload step, which is Prefect-only.
 
 ### `--instructor-mode`
 
@@ -184,6 +198,7 @@ Example — run against Claude with higher concurrency and debug logging:
 ```bash
 python -m strategic_reports.daily.cli \
   --output-dir output/daily/strategic-report \
+  --db-path output/daily/strategic_reports.db \
   --model anthropic/claude-sonnet-4-6 \
   --max-concurrent 5 \
   --log-level DEBUG
@@ -194,6 +209,7 @@ Example — run against an Ollama model without tool-calling support:
 ```bash
 python -m strategic_reports.daily.cli \
   --output-dir output/daily/strategic-report \
+  --db-path output/daily/strategic_reports.db \
   --model ollama_chat/gpt-oss:120b \
   --instructor-mode JSON
 ```
@@ -299,11 +315,11 @@ daily_report_flow
   ├── run-cross-topic-synthesis   (async)  single LLM call across all topic insights
   │                                        retries=2; fails gracefully to None
   ├── check-urgency-alerts        (sync)   score each topic; alert if above threshold
-  │                                        appends to output/daily/urgency_history.json
+  │                                        inserts into --db-path (urgency_scores table)
   ├── run-bullet-diff             (async)  diff today's bullets vs. yesterday's per topic
   │                                        retries=2; fails gracefully to {}
   │                                        skipped (no diff) on first run
-  │                                        appends to output/daily/bullet_history.json
+  │                                        inserts into --db-path (bullets table)
   ├── render-html-report          (sync)   Jinja2 → HTML output files
   ├── build-tag-graph             (sync)   tag co-occurrence graph → tag_graph.json + tag_graph.html
   └── upload-to-web-server        (sync)   SCP output to remote host; SSH to move into web root
@@ -383,7 +399,9 @@ pip install arize-phoenix openinference-instrumentation-litellm \
             opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
 
 export PHOENIX_TRACING=true
-python -m strategic_reports.daily.cli --output-dir output/daily/strategic-report
+python -m strategic_reports.daily.cli \
+  --output-dir output/daily/strategic-report \
+  --db-path output/daily/strategic_reports.db
 ```
 
 ---
@@ -394,7 +412,7 @@ python -m strategic_reports.daily.cli --output-dir output/daily/strategic-report
 pytest
 ```
 
-98 tests across 7 files. No real API calls — the LLM client is fully mocked.
+115 tests across 9 files. No real API calls — the LLM client is fully mocked.
 Runs in under a second. A GitHub Actions workflow
 (`.github/workflows/tests.yml`) runs the same suite on every push and pull
 request to `main` — no LLM credentials needed there either.
@@ -406,6 +424,8 @@ tests/test_renderer.py    HTML rendering for all three result states + XSS
 tests/test_ingestion.py   RSS fetching with mocked feedparser
 tests/test_pipeline.py    Async orchestration with mocked LLMClient
 tests/test_urgency.py     Urgency alerting: absolute threshold, z-score, std==0 fallback, history persistence
+tests/test_bullet_diff.py Bullet-history storage: most-recent-run lookup, ordering, multi-topic
+tests/test_db.py          Tracking-db safety guard, schema creation, run registration
 tests/test_tag_normalizer.py  Tag synonym normalization
 ```
 
@@ -424,8 +444,9 @@ strategic_reports/daily/
     renderer.py        Jinja2 HTML rendering
     tag_normalizer.py  Tag synonym map and normalize_tags(); applied via Pydantic validator
     tag_graph.py       Tag co-occurrence graph builder; full tag_graph.json + pruned/community tag_graph_display.json + tag_graph.html
-    urgency.py         Urgency alert logic: absolute threshold + z-score baseline
-    bullet_diff.py     Historical bullet diffing: load/append history, concurrent per-topic LLM diff
+    urgency.py         Urgency alert logic: absolute threshold + z-score baseline (SQLite-backed)
+    bullet_diff.py     Historical bullet diffing: load/append history, concurrent per-topic LLM diff (SQLite-backed)
+    db.py              SQLite tracking database: schema, connection helper, output_dir/db_path safety guard, run registration
     tracing.py         Langfuse and Phoenix setup (opt-in)
   templates/
     base.html.j2       Shared layout and styles
@@ -459,10 +480,16 @@ The pipeline writes the following files to `--output-dir`:
 - **`tag_graph_display.json`** — pruned and community-annotated graph consumed by `tag_graph.html`. Nodes with fewer than 3 article appearances and edges with fewer than 2 co-occurrences are dropped before Louvain community detection runs. Typically ~200 nodes and ~800 edges.
 - **`tag_graph.json`** — full graph (all tags and co-occurrence edges, unfiltered) for downstream data science use.
 
-Two history files are maintained outside the upload directory (`output/daily/`):
+Cross-run history is kept separately, in the SQLite database at `--db-path`
+(never inside `--output-dir` — see [Configuration](#configuration)):
 
-- **`urgency_history.json`** — per-topic urgency scores from each run; used by the z-score baseline after 7 runs per topic.
-- **`bullet_history.json`** — per-topic strategic bullets from each run (last 7 kept); used by the bullet diff to identify what changed since yesterday.
+- **`runs`** — one row per pipeline run: `run_id`, `created_at` timestamp, and `article_count` (total articles considered that run — the denominator for comparing tag weights across runs, since a raw tag count means something different on a 400-article day than a 50-article one).
+- **`urgency_scores`** — one row per topic per run; used by the z-score baseline after 7 runs per topic.
+- **`bullets`** — one row per strategic bullet per topic per run; used by the bullet diff to identify what changed since the most recent prior run.
+
+Every row carries its own `created_at` timestamp in addition to `run_id`, and
+nothing is pruned — unlike the JSON files this replaced, which capped bullet
+history at the last 7 runs, the database keeps full history indefinitely.
 
 Weekend runs will produce thinner output — most news sources don't publish on weekends.
 

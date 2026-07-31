@@ -9,6 +9,8 @@ Key options:
     --model             litellm model string  (default: env LLM_MODEL or ollama_chat/glm-5.2:cloud)
     --hours-cutoff      Article age window in hours (default: 24)
     --data-dir          Where to find rss_feeds/*.json files
+    --db-path           SQLite tracking database (required; persists across
+                        runs; must not be inside --output-dir)
     --batch-size        Articles per LLM summarization call
     --max-concurrent    Max concurrent LLM calls (semaphore width)
     --log-level         Logging verbosity
@@ -61,8 +63,25 @@ import instructor
 import typer
 
 from strategic_reports.daily.config.topic_order import list_directories_and_titles
-from strategic_reports.daily.core import configure_logging, LLMClient, run_pipeline
+from strategic_reports.daily.core import (
+    append_bullet_run,
+    append_run,
+    check_alerts,
+    configure_logging,
+    diff_all_topics,
+    load_bullet_history,
+    load_history,
+    LLMClient,
+    run_pipeline,
+    write_tag_graph,
+)
+from strategic_reports.daily.core.db import (
+    connect as connect_db,
+    ensure_safe_db_path,
+    record_run,
+)
 from strategic_reports.daily.core.models import TopicConfig
+from strategic_reports.daily.core.pipeline import synthesize_cross_topic
 from strategic_reports.daily.core.renderer import render_report
 from strategic_reports.daily.core.tracing import generate_run_id, setup_tracing
 
@@ -141,6 +160,12 @@ def run(
         envvar="STRATEGIC_REPORTS_DATA_DIR",
         help="Directory containing rss_feeds/*.json files",
     ),
+    db_path: Path = typer.Option(
+        ...,
+        help="SQLite tracking database for cross-run history (urgency scores, "
+             "bullet history) (required). Persists across runs — never wiped, "
+             "unlike --output-dir. Must not be located inside --output-dir.",
+    ),
     batch_size: int = typer.Option(50, help="Max articles per LLM summarization call"),
     max_concurrent: int = typer.Option(3, help="Max topics hitting the LLM API simultaneously"),
     temperature: float = typer.Option(0.1, help="LLM sampling temperature"),
@@ -161,9 +186,34 @@ def run(
         help="API key for authenticated Ollama instances. "
              "Also read from OLLAMA_API_KEY env var.",
     ),
+    absolute_threshold: float = typer.Option(
+        0.8,
+        help="Urgency score (0-1) above which an alert fires unconditionally",
+    ),
+    z_score_threshold: float = typer.Option(
+        2.0,
+        help="Standard deviations above a topic's historical mean urgency score "
+             "that trigger a statistical alert (requires >=7 prior runs for that topic)",
+    ),
     log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR)"),
 ) -> None:
     """Run the daily strategic report pipeline and write results to output_dir."""
+
+    # Validate --db-path before doing any real work: output_dir is deleted and
+    # recreated by render_report() on every run, so the tracking database can
+    # never live inside it.
+    try:
+        ensure_safe_db_path(db_path, output_dir)
+    except ValueError as e:
+        typer.echo(str(e), err=True)
+        raise typer.Exit(code=1)
+
+    # connect_db() creates the database file (and parent dirs, and the schema)
+    # on first use, and never touches existing data — this is what makes
+    # cross-run history possible. Just a fail-fast check here (closed right
+    # away); the urgency/bullet functions below each open their own short
+    # connection per call rather than sharing this one.
+    connect_db(db_path).close()
 
     # Validate --instructor-mode before doing any real work.
     mode_upper = instructor_mode.upper()
@@ -201,6 +251,7 @@ def run(
     typer.echo(f"Topics:           {len(topics)}")
     typer.echo(f"Hours cutoff:     {hours_cutoff}h")
     typer.echo(f"Output:           {output_dir}")
+    typer.echo(f"Tracking DB:      {db_path}")
     typer.echo(f"Run ID:           {run_id}")
     if any(active_backends.values()):
         active = [k for k, v in active_backends.items() if v]
@@ -232,8 +283,79 @@ def run(
         )
     )
 
+    # Register this run in the tracking database, with the total number of
+    # articles considered — the denominator any future cross-run tag-weight
+    # comparison divides by. Must happen before append_run()/append_bullet_run()
+    # below, since those insert rows referencing this run_id.
+    article_count = sum(len(r.articles) for r in results)
+    record_run(db_path, run_id, article_count)
+
+    # Cross-topic synthesis: a separate LLMClient (distinct trace_name) so it's
+    # distinguishable from the per-topic summarization calls in tracing. Fails
+    # gracefully to None — render_report omits the Strategic Overview section
+    # when overview is None, so a synthesis failure doesn't affect the rest of
+    # the report.
+    synthesis_client = LLMClient(
+        model=model,
+        temperature=temperature,
+        run_metadata={"trace_id": run_id, "trace_name": "strategic-report-cross-topic"},
+        instructor_mode=resolved_mode,
+        api_base=ollama_api_base,
+        api_key=ollama_api_key,
+    )
+    try:
+        overview = asyncio.run(synthesize_cross_topic(results, synthesis_client))
+    except Exception as exc:
+        typer.echo(f"[warn] Cross-topic synthesis failed: {exc} — report will render without overview", err=True)
+        overview = None
+
+    # Urgency check: compare today's scores against history, log any alerts,
+    # then append today's scores for future runs' baseline. Order matters —
+    # the current run is checked before it's appended, so it never inflates
+    # its own baseline. Never blocks rendering on failure.
+    try:
+        urgency_history = load_history(db_path)
+        alerts = check_alerts(results, urgency_history, absolute_threshold, z_score_threshold)
+        append_run(db_path, results, run_id)
+        if alerts:
+            typer.echo(f"URGENCY ALERTS ({len(alerts)} topic(s)):")
+            for alert in alerts:
+                typer.echo(f"  *** {alert.summary()}")
+        else:
+            typer.echo("Urgency check: no alerts")
+    except Exception as exc:
+        typer.echo(f"[warn] Urgency check failed: {exc} — continuing without alert check", err=True)
+
+    # Bullet diff: compare today's strategic bullets against yesterday's via an
+    # LLM classification call, then append today's bullets for tomorrow's diff.
+    # Skipped (no diff) on the very first run. Never blocks rendering on failure.
+    diffs: dict = {}
+    try:
+        yesterday = load_bullet_history(db_path)
+        if not yesterday:
+            typer.echo("No bullet history yet — skipping diff on first run")
+            append_bullet_run(db_path, results, run_id)
+        else:
+            diff_client = LLMClient(
+                model=model,
+                temperature=temperature,
+                run_metadata={"trace_id": run_id, "trace_name": "strategic-report-bullet-diff"},
+                instructor_mode=resolved_mode,
+                api_base=ollama_api_base,
+                api_key=ollama_api_key,
+            )
+            diffs = asyncio.run(diff_all_topics(results, yesterday, diff_client))
+            append_bullet_run(db_path, results, run_id)
+    except Exception as exc:
+        typer.echo(f"[warn] Bullet diff failed: {exc} — report will render without diffs", err=True)
+        diffs = {}
+
     # render_report() is synchronous (Jinja2 rendering is fast, no I/O bottleneck).
-    render_report(results, output_dir=output_dir, hours_cutoff=hours_cutoff)
+    render_report(results, output_dir=output_dir, hours_cutoff=hours_cutoff, overview=overview, diffs=diffs)
+
+    # Tag co-occurrence graph — written into the same output_dir as the HTML
+    # report, matching the Prefect flow's build-tag-graph step.
+    write_tag_graph(results, output_dir)
 
     # Summarize the run outcome. Three non-overlapping categories:
     #   successful: error is None AND strategy was generated
@@ -251,6 +373,7 @@ def run(
     # {:,} formats integers with thousands separators: 12345 → "12,345"
     typer.echo(f"  Total tokens used:     {client.total_usage.total_tokens:,}")
     typer.echo(f"  Report written to:     {output_dir / 'index.html'}")
+    typer.echo(f"  Tag graph written to:  {output_dir / 'tag_graph.html'}")
 
 
 if __name__ == "__main__":

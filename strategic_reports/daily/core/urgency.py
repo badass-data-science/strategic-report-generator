@@ -1,26 +1,34 @@
 """
-Urgency scoring history and alert detection.
+Urgency scoring history and alert detection — SQLite-backed.
 
-Each pipeline run appends per-topic urgency scores to a persistent JSON history
-file. After enough history has accumulated the alert logic switches from a simple
-absolute threshold to a statistical baseline (z-score), which self-calibrates to
-each topic's typical urgency level and avoids alert fatigue on domains that are
-inherently high-scoring (e.g. Defense).
+Each pipeline run inserts per-topic urgency scores into the tracking
+database (see db.py). After enough history has accumulated the alert logic
+switches from a simple absolute threshold to a statistical baseline
+(z-score), which self-calibrates to each topic's typical urgency level and
+avoids alert fatigue on domains that are inherently high-scoring (e.g.
+Defense).
 
-Alert order per run:
-  1. Load history  (reads only, does not include the current run)
-  2. Check alerts  (current scores vs. historical baseline)
-  3. Append run    (writes current scores into history for future runs)
+Call order per run (same pattern as bullet_diff.py):
+  0. db.record_run(db_path, run_id, article_count) — once per run, before
+     any of the below (creates the run_id foreign key both tables use)
+  1. load_history   (reads only, does not include the current run)
+  2. check_alerts    (current scores vs. historical baseline)
+  3. append_run       (writes current scores into the db for future runs)
 
 This ordering means the current run never inflates its own baseline.
+
+load_history/append_run take db_path rather than a live connection: each
+call opens and closes its own short connection. This keeps the functions
+safe to call from Prefect tasks, where a shared sqlite3.Connection can't be
+passed between tasks (it isn't picklable).
 """
 
-import json
 import math
 from dataclasses import dataclass
-from datetime import date
+from datetime import datetime, timezone
 from pathlib import Path
 
+from .db import connect
 from .models import TopicResult
 
 # Minimum number of historical runs required before the statistical baseline
@@ -47,37 +55,55 @@ class UrgencyAlert:
         return f"{self.topic}: score={self.score:.2f} exceeds absolute threshold {self.threshold:.2f}"
 
 
-def load_history(history_path: Path) -> list[dict]:
-    """Return the full run history, or an empty list if none exists yet."""
-    if not history_path.exists():
-        return []
-    return json.loads(history_path.read_text(encoding="utf-8"))
+def load_history(db_path: Path) -> dict[str, list[float]]:
+    """
+    Return every topic's historical urgency scores, oldest-first per topic.
+
+    Does not include the current run — call this before append_run().
+    """
+    conn = connect(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT topic, score FROM urgency_scores ORDER BY topic, created_at ASC"
+        ).fetchall()
+    finally:
+        conn.close()
+    history: dict[str, list[float]] = {}
+    for topic, score in rows:
+        history.setdefault(topic, []).append(score)
+    return history
 
 
 def append_run(
-    history_path: Path,
+    db_path: Path,
     results: list[TopicResult],
     run_id: str,
 ) -> None:
-    """Append the current run's urgency scores to the history file."""
-    history = load_history(history_path)
-    scores = {
-        r.config.title: r.strategy.urgency_score
-        for r in results
-        if r.strategy is not None
-    }
-    history.append({
-        "date": str(date.today()),
-        "run_id": run_id,
-        "scores": scores,
-    })
-    history_path.parent.mkdir(parents=True, exist_ok=True)
-    history_path.write_text(json.dumps(history, indent=2, ensure_ascii=False), encoding="utf-8")
+    """
+    Insert the current run's urgency scores into the database.
+
+    Assumes db.record_run(db_path, run_id, ...) has already been called this
+    run, so the run_id foreign key exists.
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    conn = connect(db_path)
+    try:
+        conn.executemany(
+            "INSERT INTO urgency_scores (run_id, created_at, topic, score) VALUES (?, ?, ?, ?)",
+            [
+                (run_id, now, r.config.title, r.strategy.urgency_score)
+                for r in results
+                if r.strategy is not None
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def check_alerts(
     results: list[TopicResult],
-    history: list[dict],
+    history: dict[str, list[float]],
     absolute_threshold: float = 0.8,
     z_score_threshold: float = 2.0,
 ) -> list[UrgencyAlert]:
@@ -99,12 +125,7 @@ def check_alerts(
 
         topic = result.config.title
         score = result.strategy.urgency_score
-
-        historical = [
-            run["scores"][topic]
-            for run in history
-            if topic in run.get("scores", {})
-        ]
+        historical = history.get(topic, [])
 
         if len(historical) >= _MIN_HISTORY_RUNS:
             mean = sum(historical) / len(historical)
