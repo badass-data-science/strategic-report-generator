@@ -71,10 +71,12 @@ from strategic_reports.daily.core import (
     check_emerging_tags,
     configure_logging,
     diff_all_topics,
+    find_bridge_tags,
     load_bullet_history,
     load_history,
     load_tag_rate_history,
     LLMClient,
+    record_bridge_tags,
     record_emerging_tag_alerts,
     record_tags,
     run_pipeline,
@@ -305,13 +307,15 @@ def run(
     # considered) against each tag's own historical baseline, then persist
     # today's tag graph linked to run_id — for future runs' baselines, and
     # so tag_graph.json could be reconstructed from --db-path for this run.
-    # Never blocks rendering on failure.
+    # Also persists the bridge tags that will be surfaced to cross-topic
+    # synthesis below, as an audit trail. Never blocks rendering on failure.
     try:
         graph_data = build_graph_data(results)
         tag_rate_history = load_tag_rate_history(db_path)
         tag_alerts = check_emerging_tags(graph_data, article_count, tag_rate_history, tag_z_score_threshold)
         record_tags(db_path, run_id, graph_data)
         record_emerging_tag_alerts(db_path, run_id, tag_alerts)
+        record_bridge_tags(db_path, run_id, find_bridge_tags(graph_data))
         if tag_alerts:
             typer.echo(f"EMERGING TAG ALERTS ({len(tag_alerts)} tag(s)):")
             for alert in tag_alerts:

@@ -38,7 +38,7 @@ matching provider credentials (see README's Quick Start).
 pytest
 ```
 
-- 147 tests across `tests/test_*.py`, no real network or LLM calls, runs in
+- 152 tests across `tests/test_*.py`, no real network or LLM calls, runs in
   under a second. CI (`.github/workflows/tests.yml`) runs the same suite on
   every push/PR to `main`, no credentials needed there either.
 - `pytest.ini` sets `asyncio_mode = auto` — async test functions don't need
@@ -106,9 +106,10 @@ LICENSE                 MIT
 - **Tracking-db functions take `db_path: Path`, not a live `sqlite3.Connection`.**
   Each call (`load_history`, `append_run`, `load_bullet_history`,
   `append_bullet_run`, `record_run`, `record_tags`, `load_tag_rate_history`,
-  `rebuild_graph_data`, `record_emerging_tag_alerts`) opens and closes its
-  own short connection. This is deliberate: a `sqlite3.Connection` isn't
-  picklable, so a shared one can't safely cross a Prefect task boundary.
+  `rebuild_graph_data`, `record_emerging_tag_alerts`, `record_bridge_tags`)
+  opens and closes its own short connection. This is deliberate: a
+  `sqlite3.Connection` isn't picklable, so a shared one can't safely cross a
+  Prefect task boundary.
 - **Bridge tags ground cross-topic synthesis in graph structure, not
   invention.** `synthesize_cross_topic()` computes `find_bridge_tags()`
   (tags spanning 3+ topics that day — a structural signal, no LLM
@@ -116,6 +117,13 @@ LICENSE                 MIT
   must confirm, not repeat verbatim. If you touch `build_cross_topic_prompt`
   or `synthesize_cross_topic`, keep this: bridge tags are grounding
   context, not a replacement for the model's own reasoning.
+- **`record_bridge_tags(db_path, run_id, bridge_tags)` is self-contained**
+  (stores each bridge tag's own topics in `bridge_tag_topics`, rather than
+  joining against `tag_topics`), because `cli.py` and the Prefect flow call
+  the emerging-tag block (which persists this) at *different* points
+  relative to cross-topic synthesis in their pipeline order — don't
+  "simplify" this into a join, it'll silently return incomplete data
+  depending on which entry point ran it.
 - **Tag rates, not raw counts, are what gets compared across runs**
   (`tag_tracking.check_emerging_tags`) — a raw tag count means something
   different on a big-news-volume day than a quiet one. There's no absolute-

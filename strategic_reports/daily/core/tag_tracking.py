@@ -233,3 +233,44 @@ def record_emerging_tag_alerts(db_path: Path, run_id: str, alerts: list[Emerging
         conn.commit()
     finally:
         conn.close()
+
+
+def record_bridge_tags(db_path: Path, run_id: str, bridge_tags: list[dict]) -> None:
+    """
+    Persist the bridge tags surfaced to the cross-topic synthesis prompt
+    this run (tag_graph.find_bridge_tags()'s output: [{"tag", "topics",
+    "count"}, ...]), as an audit trail — "which tags did we point the
+    synthesis at on day N, and did the resulting Strategic Overview
+    actually reflect them" is then answerable directly.
+
+    Self-contained: stores each bridge tag's own topics rather than joining
+    against tag_topics, since the two entry points call this at different
+    points relative to record_tags() in their pipeline order.
+
+    Assumes db.record_run(db_path, run_id, ...) has already been called
+    this run. A no-op if bridge_tags is empty.
+    """
+    if not bridge_tags:
+        return
+
+    now = datetime.now(timezone.utc).isoformat()
+    conn = connect(db_path)
+    try:
+        conn.executemany(
+            "INSERT INTO bridge_tags (run_id, created_at, tag, count, rank) VALUES (?, ?, ?, ?, ?)",
+            [
+                (run_id, now, b["tag"], b["count"], rank)
+                for rank, b in enumerate(bridge_tags, start=1)
+            ],
+        )
+        conn.executemany(
+            "INSERT INTO bridge_tag_topics (run_id, created_at, tag, topic) VALUES (?, ?, ?, ?)",
+            [
+                (run_id, now, b["tag"], topic)
+                for b in bridge_tags
+                for topic in b["topics"]
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()

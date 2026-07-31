@@ -88,11 +88,12 @@ from strategic_reports.daily.core.db import (
 from strategic_reports.daily.core.tag_tracking import (
     check_emerging_tags,
     load_tag_rate_history,
+    record_bridge_tags,
     record_emerging_tag_alerts,
     record_tags,
 )
 from strategic_reports.daily.core.renderer import render_report
-from strategic_reports.daily.core.tag_graph import build_graph_data, write_tag_graph
+from strategic_reports.daily.core.tag_graph import build_graph_data, find_bridge_tags, write_tag_graph
 from strategic_reports.daily.core.tracing import generate_run_id, setup_tracing
 
 # Anchor defaults to the project root (flows/../) regardless of the working
@@ -329,6 +330,7 @@ def check_emerging_tag_alerts(
         alerts = check_emerging_tags(graph_data, article_count, history, tag_z_score_threshold)
         record_tags(db_path, run_id, graph_data)
         record_emerging_tag_alerts(db_path, run_id, alerts)
+        record_bridge_tags(db_path, run_id, find_bridge_tags(graph_data))
 
         if alerts:
             logger.warning(f"EMERGING TAG ALERTS ({len(alerts)} tag(s)):")

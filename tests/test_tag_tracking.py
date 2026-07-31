@@ -8,6 +8,8 @@ Covers:
   - check_emerging_tags: thin-history skip, std==0 skip, statistical alert,
     no-alert-within-band, zero-article-count guard
   - record_emerging_tag_alerts: audit-trail persistence of fired alerts
+  - record_bridge_tags: audit-trail persistence of bridge tags surfaced to
+    cross-topic synthesis
 """
 
 import pytest
@@ -19,6 +21,7 @@ from strategic_reports.daily.core.tag_tracking import (
     EmergingTagAlert,
     check_emerging_tags,
     load_tag_rate_history,
+    record_bridge_tags,
     record_emerging_tag_alerts,
     rebuild_graph_data,
     record_tags,
@@ -231,3 +234,78 @@ class TestRecordEmergingTagAlerts:
         tags = {row[0] for row in conn.execute("SELECT tag FROM emerging_tag_alerts").fetchall()}
         conn.close()
         assert tags == {"ai", "biotech"}
+
+
+class TestRecordBridgeTags:
+    def test_noop_on_empty_bridge_tags(self, db_path):
+        record_run(db_path, "run-0", article_count=100)
+        record_bridge_tags(db_path, "run-0", [])
+        conn = connect(db_path)
+        counts = (
+            conn.execute("SELECT COUNT(*) FROM bridge_tags").fetchone()[0],
+            conn.execute("SELECT COUNT(*) FROM bridge_tag_topics").fetchone()[0],
+        )
+        conn.close()
+        assert counts == (0, 0)
+
+    def test_persists_tag_count_and_rank(self, db_path):
+        record_run(db_path, "run-0", article_count=100)
+        bridge_tags = [
+            {"tag": "export controls", "topics": ["AI", "Defense", "Economics"], "count": 12},
+            {"tag": "sanctions", "topics": ["Defense", "Economics", "Geopolitics"], "count": 8},
+        ]
+        record_bridge_tags(db_path, "run-0", bridge_tags)
+
+        conn = connect(db_path)
+        rows = conn.execute(
+            "SELECT tag, count, rank FROM bridge_tags ORDER BY rank"
+        ).fetchall()
+        conn.close()
+        assert rows == [("export controls", 12, 1), ("sanctions", 8, 2)]
+
+    def test_persists_topics_per_tag(self, db_path):
+        record_run(db_path, "run-0", article_count=100)
+        bridge_tags = [{"tag": "export controls", "topics": ["AI", "Defense", "Economics"], "count": 12}]
+        record_bridge_tags(db_path, "run-0", bridge_tags)
+
+        conn = connect(db_path)
+        topics = {
+            row[0]
+            for row in conn.execute(
+                "SELECT topic FROM bridge_tag_topics WHERE tag = 'export controls'"
+            ).fetchall()
+        }
+        conn.close()
+        assert topics == {"AI", "Defense", "Economics"}
+
+    def test_persists_own_timestamp(self, db_path):
+        record_run(db_path, "run-0", article_count=100)
+        bridge_tags = [{"tag": "export controls", "topics": ["AI"], "count": 1}]
+        record_bridge_tags(db_path, "run-0", bridge_tags)
+
+        conn = connect(db_path)
+        created_at = conn.execute(
+            "SELECT created_at FROM bridge_tags WHERE tag = 'export controls'"
+        ).fetchone()[0]
+        conn.close()
+        assert created_at  # non-empty timestamp string
+
+    def test_self_contained_no_dependency_on_tag_topics(self, db_path):
+        """
+        record_bridge_tags must work even when tag_topics has no rows for
+        this run_id yet — the two entry points call this at different
+        points relative to record_tags() in their pipeline order.
+        """
+        record_run(db_path, "run-0", article_count=100)
+        # Deliberately do NOT call record_tags() first.
+        bridge_tags = [{"tag": "export controls", "topics": ["AI", "Defense"], "count": 5}]
+        record_bridge_tags(db_path, "run-0", bridge_tags)
+
+        conn = connect(db_path)
+        tag_topics_count = conn.execute("SELECT COUNT(*) FROM tag_topics").fetchone()[0]
+        bridge_topics = {
+            row[0] for row in conn.execute("SELECT topic FROM bridge_tag_topics").fetchall()
+        }
+        conn.close()
+        assert tag_topics_count == 0
+        assert bridge_topics == {"AI", "Defense"}

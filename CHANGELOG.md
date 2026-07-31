@@ -16,7 +16,15 @@ doesn't tag releases.
   rather than repeating it verbatim.
 - `tests/test_tag_graph.py` (7 tests for `find_bridge_tags()`) and a new
   `TestBuildCrossTopicPrompt` class in `tests/test_prompts.py` (8 tests).
-  147 tests total, up from 132.
+- `bridge_tags`/`bridge_tag_topics` tables: an audit trail of the bridge
+  tags actually surfaced to the cross-topic synthesis prompt each run
+  (`tag`, `count`, `rank`, topic list, linked to `run_id`) — answers "which
+  tags did we point the synthesis at on day N" directly. Self-contained
+  (doesn't join against `tag_topics`) since `cli.py` and the Prefect flow
+  persist this at different points relative to cross-topic synthesis in
+  their pipeline order.
+- 5 new tests in `tests/test_tag_tracking.py` for `record_bridge_tags`.
+  152 tests total, up from 132.
 
 ## 2026-07-31
 

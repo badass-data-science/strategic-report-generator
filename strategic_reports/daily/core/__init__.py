@@ -126,6 +126,7 @@ from .tag_tracking import (
     check_emerging_tags,
     load_tag_rate_history,
     rebuild_graph_data,
+    record_bridge_tags,
     record_emerging_tag_alerts,
     record_tags,
 )
@@ -167,6 +168,7 @@ __all__ = [
     "check_emerging_tags",
     "load_tag_rate_history",
     "rebuild_graph_data",
+    "record_bridge_tags",
     "record_emerging_tag_alerts",
     "record_tags",
     # Prompt components
