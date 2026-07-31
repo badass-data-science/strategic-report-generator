@@ -159,13 +159,23 @@ default. `--output-dir` is the exception: it's required.
 | `--model` | `LLM_MODEL` | `ollama_chat/glm-5.2:cloud` | litellm model string |
 | `--hours-cutoff` | — | `24` | Article age window in hours |
 | `--data-dir` | `STRATEGIC_REPORTS_DATA_DIR` | `data/rss_feeds` | RSS feed config directory |
+| `--db-path` | — | `output/daily/strategic_reports.db` | SQLite tracking database — persists across runs, never wiped. Must not be inside `--output-dir` (checked at startup). |
 | `--batch-size` | — | `50` | Articles per LLM summarization call |
 | `--max-concurrent` | — | `3` | Max topics hitting the LLM API simultaneously |
 | `--temperature` | — | `0.1` | LLM sampling temperature |
 | `--instructor-mode` | — | `TOOLS` | Structured output mode (see below) |
 | `--ollama-api-base` | `OLLAMA_API_BASE` | — | Ollama server URL (e.g. `http://my-server:11434`) |
 | `--ollama-api-key` | `OLLAMA_API_KEY` | — | API key for authenticated Ollama instances |
+| `--absolute-threshold` | — | `0.8` | Urgency score (0–1) above which an alert fires unconditionally |
+| `--z-score-threshold` | — | `2.0` | Standard deviations above a topic's historical mean urgency score that trigger a statistical alert (requires ≥7 prior runs for that topic) |
 | `--log-level` | — | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
+
+`python -m strategic_reports.daily.cli` performs the full pipeline — RSS
+ingestion, per-topic summarization/strategy, cross-topic synthesis, urgency
+alerting, bullet diffing, HTML rendering, and the tag co-occurrence graph —
+the same steps the [Prefect flow](#scheduling-with-prefect) runs on a
+schedule. The one thing the CLI does *not* do is the optional remote
+upload step, which is Prefect-only.
 
 ### `--instructor-mode`
 

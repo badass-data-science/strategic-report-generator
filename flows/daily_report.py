@@ -80,6 +80,7 @@ from strategic_reports.daily.core.bullet_diff import (
     diff_all_topics,
     load_bullet_history,
 )
+from strategic_reports.daily.core.db import connect as connect_db, ensure_safe_db_path
 from strategic_reports.daily.core.renderer import render_report
 from strategic_reports.daily.core.tag_graph import write_tag_graph
 from strategic_reports.daily.core.tracing import generate_run_id, setup_tracing
@@ -436,6 +437,7 @@ async def daily_report_flow(
     model: str = _DEFAULT_MODEL,
     hours_cutoff: int = 24,
     data_dir: Path = _DEFAULT_HOME / "data" / "rss_feeds",
+    db_path: Path = _DEFAULT_HOME / "output" / "daily" / "strategic_reports.db",
     batch_size: int = 50,
     max_concurrent: int = 3,
     temperature: float = 0.1,
@@ -458,6 +460,15 @@ async def daily_report_flow(
     remote_web_dir: str = os.environ.get("REMOTE_WEB_DIR", "/var/www/html/strategic-review-daily"),
 ) -> None:
     """Daily strategic report: ingest RSS feeds, summarize, synthesize, render HTML."""
+    # output_dir is deleted and recreated on every run (see render_report()),
+    # so the tracking database can never live inside it — check before doing
+    # any real work.
+    ensure_safe_db_path(db_path, output_dir)
+    # connect() creates the database file (and parent dirs) on first use, and
+    # never touches an existing one — this is what makes cross-run history
+    # possible. No schema yet; that lands with urgency/bullet-history tracking.
+    connect_db(db_path).close()
+
     # configure_logging sets up structlog for the pipeline's internal logging.
     # Prefect has its own logging layer on top; the two coexist fine.
     configure_logging(log_level)
