@@ -13,7 +13,8 @@ recommendations into a linked HTML report.
 > research before acting on any recommendation.
 
 > Working on this repo with an AI coding agent? See [`AGENTS.md`](AGENTS.md)
-> for setup, test commands, and code conventions.
+> for setup, test commands, and code conventions. See
+> [`CHANGELOG.md`](CHANGELOG.md) for what's changed recently.
 
 ---
 

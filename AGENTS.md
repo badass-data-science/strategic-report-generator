@@ -8,8 +8,19 @@ orientation for making changes.
 
 A daily briefing pipeline: fetches RSS across 12 topics, summarizes and
 synthesizes strategic recommendations via an LLM (provider-agnostic via
-litellm), renders an HTML report, and optionally uploads it via SCP/SSH.
-Scheduled with Prefect (`flows/daily_report.py`).
+litellm), renders an HTML report + tag co-occurrence graph, tracks urgency
+scores and strategic bullets across runs in a SQLite database, and
+optionally uploads the report via SCP/SSH. Two entry points, kept at
+feature parity with each other:
+
+- `python -m strategic_reports.daily.cli` — run once, manually
+- `flows/daily_report.py` — the same pipeline as a Prefect flow, scheduled
+  daily via cron; adds only the optional remote-upload step, which the CLI
+  doesn't do
+
+If you add a pipeline step to one entry point (cross-topic synthesis,
+urgency alerts, bullet diffing, tag graph), add it to the other too unless
+told otherwise — this parity was an explicit, deliberate decision.
 
 ## Setup
 
@@ -27,8 +38,9 @@ matching provider credentials (see README's Quick Start).
 pytest
 ```
 
-- 92 tests across `tests/test_*.py`, no real network or LLM calls, runs in
-  under a second.
+- 115 tests across `tests/test_*.py`, no real network or LLM calls, runs in
+  under a second. CI (`.github/workflows/tests.yml`) runs the same suite on
+  every push/PR to `main`, no credentials needed there either.
 - `pytest.ini` sets `asyncio_mode = auto` — async test functions don't need
   `@pytest.mark.asyncio`.
 - Run the whole suite after any change to `strategic_reports/daily/core/*`;
@@ -50,8 +62,9 @@ strategic_reports/daily/
     renderer.py         Jinja2 HTML rendering
     tag_normalizer.py   Tag synonym map, normalize_tags() (Pydantic validator)
     tag_graph.py        Tag co-occurrence graph + Louvain community detection
-    urgency.py          Urgency alerting: absolute threshold + z-score
-    bullet_diff.py      Historical diffing vs. yesterday's bullets
+    urgency.py          Urgency alerting: absolute threshold + z-score (SQLite-backed)
+    bullet_diff.py      Historical diffing vs. yesterday's bullets (SQLite-backed)
+    db.py               SQLite tracking db: schema, connection helper, output_dir/db_path safety guard, run registration
     tracing.py          Langfuse / Phoenix instrumentation (opt-in)
   templates/            Jinja2 templates (base, index, topic)
   cli.py                typer CLI entrypoint
@@ -59,6 +72,7 @@ strategic_reports/daily/
 flows/daily_report.py   Prefect flow (8 tasks) for scheduled runs
 data/rss_feeds/         One JSON file per topic listing feed URLs
 tests/                  Per-module test files + conftest.py fixtures
+LICENSE                 MIT
 ```
 
 ## Conventions to preserve
@@ -78,7 +92,31 @@ tests/                  Per-module test files + conftest.py fixtures
   `feedparser` is sync and must stay wrapped in `asyncio.to_thread`.
 - Config values follow the CLI-flag + env-var + default pattern already used
   throughout `cli.py` and `flows/daily_report.py` — extend that pattern for
-  new options rather than inventing a new config mechanism.
+  new options rather than inventing a new config mechanism. Exceptions:
+  `--output-dir` and `--db-path` are required (no default, no env var) on
+  both entry points — deliberate, not an oversight.
+- **`--output-dir` is deleted and recreated on every run** (see
+  `render_report()`). Never assume anything written there survives past the
+  current run, and never point persistent state at a path inside it.
+- **`--db-path` (SQLite tracking db) must never resolve inside
+  `--output-dir`.** `db.ensure_safe_db_path()` enforces this at startup on
+  both entry points — call it before any real work if you add a third entry
+  point that touches the tracking db.
+- **Tracking-db functions take `db_path: Path`, not a live `sqlite3.Connection`.**
+  Each call (`load_history`, `append_run`, `load_bullet_history`,
+  `append_bullet_run`, `record_run`) opens and closes its own short
+  connection. This is deliberate: a `sqlite3.Connection` isn't picklable, so
+  a shared one can't safely cross a Prefect task boundary.
+- **Every tracking-db row gets its own timestamp**, in addition to `run_id` —
+  not just a `date`. Needed for precise ordering/change-tracking queries
+  (z-score baselines, future drift detection), not just row-insertion order.
+  Nothing in the tracking db is pruned (unlike the JSON files it replaced,
+  which capped bullet history at 7 entries) — full history is intentional.
+- `db.record_run(db_path, run_id, article_count)` must be called once per
+  run, before `append_run`/`append_bullet_run` (those insert rows that
+  reference `run_id` as a foreign key). `article_count` is the total
+  articles considered that run — the denominator for comparing tag/urgency
+  weights across runs of different sizes.
 
 ## Git identity
 
