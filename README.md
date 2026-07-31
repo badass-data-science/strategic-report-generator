@@ -390,7 +390,7 @@ python -m strategic_reports.daily.cli --output-dir output/daily/strategic-report
 pytest
 ```
 
-92 tests across 6 files. No real API calls — the LLM client is fully mocked.
+98 tests across 7 files. No real API calls — the LLM client is fully mocked.
 Runs in under a second. A GitHub Actions workflow
 (`.github/workflows/tests.yml`) runs the same suite on every push and pull
 request to `main` — no LLM credentials needed there either.
@@ -402,6 +402,7 @@ tests/test_renderer.py    HTML rendering for all three result states + XSS
 tests/test_ingestion.py   RSS fetching with mocked feedparser
 tests/test_pipeline.py    Async orchestration with mocked LLMClient
 tests/test_urgency.py     Urgency alerting: absolute threshold, z-score, std==0 fallback, history persistence
+tests/test_tag_normalizer.py  Tag synonym normalization
 ```
 
 ---
