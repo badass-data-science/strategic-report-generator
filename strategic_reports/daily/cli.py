@@ -2,12 +2,12 @@
 Daily strategic report pipeline — CLI entrypoint.
 
 Usage:
-    python -m strategic_reports.daily.cli run
+    python -m strategic_reports.daily.cli run --output-dir /path/to/output
 
-Key options (all have sensible defaults):
+Key options:
+    --output-dir        Where to write HTML output (required; or env STRATEGIC_REPORTS_OUTPUT_DIR)
     --model             litellm model string  (default: env LLM_MODEL or ollama_chat/glm-5.2:cloud)
     --hours-cutoff      Article age window in hours (default: 24)
-    --output-dir        Where to write HTML output
     --data-dir          Where to find rss_feeds/*.json files
     --batch-size        Articles per LLM summarization call
     --max-concurrent    Max concurrent LLM calls (semaphore width)
@@ -132,9 +132,9 @@ def run(
         help="Only consider articles published within this many hours",
     ),
     output_dir: Path = typer.Option(
-        _DEFAULT_HOME / "output" / "daily" / "strategic-report",
+        ...,
         envvar="STRATEGIC_REPORTS_OUTPUT_DIR",
-        help="Directory to write HTML report files",
+        help="Directory to write HTML report files (required)",
     ),
     data_dir: Path = typer.Option(
         _DEFAULT_HOME / "data" / "rss_feeds",
