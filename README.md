@@ -1,5 +1,9 @@
 # Strategic Reports Pipeline
 
+[![Tests](https://github.com/badass-data-science/strategic-report-generator/actions/workflows/tests.yml/badge.svg)](https://github.com/badass-data-science/strategic-report-generator/actions/workflows/tests.yml)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](.github/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 A daily briefing pipeline that reads recent news across 12 topic feeds — AI,
 biotech, economics, geopolitics, defense, and more — and synthesizes strategic
 recommendations into a linked HTML report.
@@ -390,7 +394,7 @@ python -m strategic_reports.daily.cli --output-dir output/daily/strategic-report
 pytest
 ```
 
-92 tests across 6 files. No real API calls — the LLM client is fully mocked.
+98 tests across 7 files. No real API calls — the LLM client is fully mocked.
 Runs in under a second. A GitHub Actions workflow
 (`.github/workflows/tests.yml`) runs the same suite on every push and pull
 request to `main` — no LLM credentials needed there either.
@@ -402,6 +406,7 @@ tests/test_renderer.py    HTML rendering for all three result states + XSS
 tests/test_ingestion.py   RSS fetching with mocked feedparser
 tests/test_pipeline.py    Async orchestration with mocked LLMClient
 tests/test_urgency.py     Urgency alerting: absolute threshold, z-score, std==0 fallback, history persistence
+tests/test_tag_normalizer.py  Tag synonym normalization
 ```
 
 ---
@@ -460,3 +465,9 @@ Two history files are maintained outside the upload directory (`output/daily/`):
 - **`bullet_history.json`** — per-topic strategic bullets from each run (last 7 kept); used by the bullet diff to identify what changed since yesterday.
 
 Weekend runs will produce thinner output — most news sources don't publish on weekends.
+
+---
+
+## License
+
+[MIT](LICENSE)
