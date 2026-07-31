@@ -117,7 +117,7 @@ from .llm_client import LLMClient
 from .ingestion import fetch_topic_articles
 from .pipeline import run_pipeline
 from .renderer import render_report
-from .tag_graph import build_graph_data, write_tag_graph
+from .tag_graph import build_graph_data, find_bridge_tags, write_tag_graph
 from .urgency import UrgencyAlert, append_run, check_alerts, load_history
 from .bullet_diff import append_bullet_run, diff_all_topics, load_bullet_history
 from .db import connect as connect_db, ensure_safe_db_path, record_run
@@ -158,6 +158,7 @@ __all__ = [
     "run_pipeline",
     "render_report",
     "build_graph_data",
+    "find_bridge_tags",
     "write_tag_graph",
     "connect_db",
     "ensure_safe_db_path",

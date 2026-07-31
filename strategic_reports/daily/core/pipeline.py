@@ -48,6 +48,7 @@ import structlog
 
 from .ingestion import fetch_topic_articles
 from .llm_client import LLMClient
+from .tag_graph import build_graph_data, find_bridge_tags
 from .models import (
     ArticleSummary,
     ArticleSummaryBatch,
@@ -217,12 +218,17 @@ async def synthesize_cross_topic(
     Make a single LLM call to synthesize cross-cutting themes across all topics.
 
     Only topics with a successful StrategicInsight are included in the prompt.
+    Also computes bridge tags (tags whose articles span multiple topics — a
+    graph-native, non-LLM signal) and includes them in the prompt as
+    candidate leads for the model to weigh, grounding the synthesis in
+    structure rather than pure inference.
     Raises if the LLM call fails — the caller (Prefect task) handles that.
     """
     successful = [r for r in results if r.strategy is not None]
-    log.info("synthesizing_cross_topic", topics=len(successful))
+    bridge_tags = find_bridge_tags(build_graph_data(results))
+    log.info("synthesizing_cross_topic", topics=len(successful), bridge_tags=len(bridge_tags))
     synthesis, _ = await client.complete_structured(
-        prompt=build_cross_topic_prompt(results),
+        prompt=build_cross_topic_prompt(results, bridge_tags),
         response_model=CrossTopicSynthesis,
         system=SYSTEM_CROSS_TOPIC,
     )

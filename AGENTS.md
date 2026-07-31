@@ -38,7 +38,7 @@ matching provider credentials (see README's Quick Start).
 pytest
 ```
 
-- 132 tests across `tests/test_*.py`, no real network or LLM calls, runs in
+- 147 tests across `tests/test_*.py`, no real network or LLM calls, runs in
   under a second. CI (`.github/workflows/tests.yml`) runs the same suite on
   every push/PR to `main`, no credentials needed there either.
 - `pytest.ini` sets `asyncio_mode = auto` — async test functions don't need
@@ -58,10 +58,10 @@ strategic_reports/daily/
     llm_client.py       Async LLMClient: litellm + instructor + tenacity retry
     ingestion.py        Async RSS fetching
     prompts.py          System messages + user-message builders
-    pipeline.py         Two-phase async orchestrator + cross-topic synthesis
+    pipeline.py         Two-phase async orchestrator + cross-topic synthesis (grounded by bridge tags)
     renderer.py         Jinja2 HTML rendering
     tag_normalizer.py   Tag synonym map, normalize_tags() (Pydantic validator)
-    tag_graph.py        Tag co-occurrence graph + Louvain community detection
+    tag_graph.py        Tag co-occurrence graph + Louvain community detection + find_bridge_tags()
     urgency.py          Urgency alerting: absolute threshold + z-score (SQLite-backed)
     bullet_diff.py      Historical diffing vs. yesterday's bullets (SQLite-backed)
     db.py               SQLite tracking db: schema, connection helper, output_dir/db_path safety guard, run registration
@@ -106,9 +106,16 @@ LICENSE                 MIT
 - **Tracking-db functions take `db_path: Path`, not a live `sqlite3.Connection`.**
   Each call (`load_history`, `append_run`, `load_bullet_history`,
   `append_bullet_run`, `record_run`, `record_tags`, `load_tag_rate_history`,
-  `rebuild_graph_data`) opens and closes its own short connection. This is
-  deliberate: a `sqlite3.Connection` isn't picklable, so a shared one can't
-  safely cross a Prefect task boundary.
+  `rebuild_graph_data`, `record_emerging_tag_alerts`) opens and closes its
+  own short connection. This is deliberate: a `sqlite3.Connection` isn't
+  picklable, so a shared one can't safely cross a Prefect task boundary.
+- **Bridge tags ground cross-topic synthesis in graph structure, not
+  invention.** `synthesize_cross_topic()` computes `find_bridge_tags()`
+  (tags spanning 3+ topics that day — a structural signal, no LLM
+  involved) and includes them in the prompt as candidate leads the model
+  must confirm, not repeat verbatim. If you touch `build_cross_topic_prompt`
+  or `synthesize_cross_topic`, keep this: bridge tags are grounding
+  context, not a replacement for the model's own reasoning.
 - **Tag rates, not raw counts, are what gets compared across runs**
   (`tag_tracking.check_emerging_tags`) — a raw tag count means something
   different on a big-news-volume day than a quiet one. There's no absolute-

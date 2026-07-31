@@ -60,6 +60,25 @@ def build_graph_data(results: list[TopicResult]) -> dict:
     return {"nodes": nodes, "links": links}
 
 
+def find_bridge_tags(graph_data: dict, min_topics: int = 3, limit: int = 8) -> list[dict]:
+    """
+    Return tags that appear across many different topics — structural
+    evidence of a cross-cutting theme, independent of any LLM inference.
+
+    A tag whose topics list spans >= min_topics distinct domains is a
+    candidate. Results are sorted by topic breadth (most cross-cutting
+    first), then by article count, and capped at `limit` so a synthesis
+    prompt built from this isn't flooded with long-tail tags.
+    """
+    bridges = [
+        {"tag": n["id"], "topics": n["topics"], "count": n["count"]}
+        for n in graph_data["nodes"]
+        if len(n["topics"]) >= min_topics
+    ]
+    bridges.sort(key=lambda b: (-len(b["topics"]), -b["count"]))
+    return bridges[:limit]
+
+
 def build_display_graph(
     full_data: dict,
     min_count: int = 3,

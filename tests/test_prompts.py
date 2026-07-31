@@ -35,10 +35,12 @@ import datetime
 
 import pytest
 
-from strategic_reports.daily.core.models import ArticleSummary, RawArticle
+from strategic_reports.daily.core.models import ArticleSummary, RawArticle, StrategicInsight, TopicConfig, TopicResult
 from strategic_reports.daily.core.prompts import (
+    SYSTEM_CROSS_TOPIC,
     SYSTEM_STRATEGIST,
     SYSTEM_SUMMARIZER,
+    build_cross_topic_prompt,
     build_strategy_prompt,
     build_summarize_prompt,
 )
@@ -98,6 +100,13 @@ class TestSystemMessages:
     def test_strategist_mentions_strategy(self):
         """The strategist system prompt should reference strategy/strategic."""
         assert "strateg" in SYSTEM_STRATEGIST.lower()
+
+    def test_cross_topic_non_empty(self):
+        assert len(SYSTEM_CROSS_TOPIC.strip()) > 30
+
+    def test_cross_topic_mentions_bridge_tags(self):
+        """The cross-topic system prompt should explain how to weigh bridge tags."""
+        assert "bridge tag" in SYSTEM_CROSS_TOPIC.lower()
 
 
 class TestBuildSummarizePrompt:
@@ -220,3 +229,63 @@ class TestBuildStrategyPrompt:
         """The count of summaries must appear in the prompt."""
         prompt = build_strategy_prompt("AI", summaries)
         assert "1" in prompt
+
+
+@pytest.fixture
+def topic_results() -> list[TopicResult]:
+    """Two topics with a successful strategy, for cross-topic prompt testing."""
+    def make(title: str, bullets: list[str]) -> TopicResult:
+        return TopicResult(
+            config=TopicConfig(slug=f"feeds_{title.lower()}", title=title, feeds_file="/dev/null"),
+            strategy=StrategicInsight(bullets=bullets, urgency_score=0.3),
+        )
+    return [
+        make("Artificial Intelligence", ["AI bullet one.", "AI bullet two.", "AI bullet three."]),
+        make("Defense", ["Defense bullet one.", "Defense bullet two.", "Defense bullet three."]),
+    ]
+
+
+class TestBuildCrossTopicPrompt:
+    """
+    Tests for build_cross_topic_prompt(results, bridge_tags) → str.
+
+    bridge_tags (from tag_graph.find_bridge_tags) is optional grounding
+    context — a tag's topic-breadth signal, computed independently of the
+    LLM. Key properties: per-topic bullets always appear; bridge tags only
+    appear when provided, and each one's topic list is included.
+    """
+
+    def test_contains_topic_titles(self, topic_results):
+        prompt = build_cross_topic_prompt(topic_results)
+        assert "Artificial Intelligence" in prompt
+        assert "Defense" in prompt
+
+    def test_contains_bullets(self, topic_results):
+        prompt = build_cross_topic_prompt(topic_results)
+        assert "AI bullet one." in prompt
+        assert "Defense bullet one." in prompt
+
+    def test_omits_topic_without_strategy(self):
+        results = [
+            TopicResult(config=TopicConfig(slug="feeds_ai", title="AI", feeds_file="/dev/null"), strategy=None),
+        ]
+        prompt = build_cross_topic_prompt(results)
+        # No bullets to render, but must not crash and should reflect 0 domains.
+        assert "0" in prompt
+
+    def test_no_bridge_tags_by_default(self, topic_results):
+        prompt = build_cross_topic_prompt(topic_results)
+        assert "bridge tag" not in prompt.lower() and "Structural signal" not in prompt
+
+    def test_bridge_tags_included_when_provided(self, topic_results):
+        bridge_tags = [{"tag": "export controls", "topics": ["Artificial Intelligence", "Defense", "Economics"], "count": 12}]
+        prompt = build_cross_topic_prompt(topic_results, bridge_tags)
+        assert "export controls" in prompt
+        assert "Artificial Intelligence" in prompt
+        assert "Defense" in prompt
+        assert "Economics" in prompt
+
+    def test_empty_bridge_tags_list_omits_section(self, topic_results):
+        """An empty list (no qualifying bridge tags) should behave like None."""
+        prompt = build_cross_topic_prompt(topic_results, [])
+        assert "Structural signal" not in prompt

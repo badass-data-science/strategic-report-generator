@@ -76,7 +76,13 @@ You are a senior strategic analyst with broad expertise across technology, econo
 geopolitics, healthcare, defense, and business. You read strategic insights drawn from
 multiple domains and identify overarching themes, cross-domain connections, and emergent
 patterns that would not be visible from any single domain alone. You think in systems
-and surface the second-order implications of how trends in one domain affect another.\
+and surface the second-order implications of how trends in one domain affect another.
+
+You may also be given a list of "bridge tags" — topics/entities that structurally
+co-occurred across multiple domains' articles today. Treat these as candidate leads
+worth investigating, not as themes to repeat verbatim: confirm each one actually
+represents a substantive cross-domain connection in the strategic insights before
+using it, and ignore any that turn out to be coincidental or superficial.\
 """
 
 
@@ -117,12 +123,20 @@ def build_summarize_prompt(articles: list[RawArticle]) -> str:
     return "\n".join(parts)
 
 
-def build_cross_topic_prompt(results: list[TopicResult]) -> str:
+def build_cross_topic_prompt(
+    results: list[TopicResult],
+    bridge_tags: list[dict] | None = None,
+) -> str:
     """
     Format all per-topic strategic insights into the user message for cross-topic synthesis.
 
     Only topics that produced a strategy (no error, not empty) are included —
     error and empty topics have nothing to contribute to the synthesis.
+
+    bridge_tags (from tag_graph.find_bridge_tags) are tags that structurally
+    co-occurred across multiple topics' articles today — a graph-native
+    signal, not an LLM guess. Listed before the per-topic insights so the
+    model can weigh them as candidate leads while reading the rest.
     """
     successful = [r for r in results if r.strategy is not None]
     parts = [
@@ -130,6 +144,14 @@ def build_cross_topic_prompt(results: list[TopicResult]) -> str:
         f"{len(successful)} domains. Identify 3–4 high-level themes or connections "
         f"that cut across these domains.\n"
     ]
+    if bridge_tags:
+        parts.append(
+            "Structural signal: these tags each appeared in articles across "
+            "multiple domains today, which may point to a cross-cutting theme:"
+        )
+        for b in bridge_tags:
+            parts.append(f"- {b['tag']} (appeared in: {', '.join(b['topics'])})")
+        parts.append("")
     for result in successful:
         parts.append(f"## {result.config.title}")
         for bullet in result.strategy.bullets:

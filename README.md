@@ -35,7 +35,8 @@ Phase 2 — LLM Processing  [concurrent, rate-limited by Semaphore]
 
 Phase 3 — Cross-topic Synthesis  [single LLM call]
 
-  list[TopicResult] ──► CrossTopicSynthesis  (3–4 cross-cutting bullets)
+  list[TopicResult] ──► find_bridge_tags() ──► candidate cross-domain tags
+  list[TopicResult] + bridge tags ──► CrossTopicSynthesis  (3–4 cross-cutting bullets)
 
 Phase 4 — Historical Diffing  [concurrent per-topic LLM calls]
 
@@ -103,6 +104,18 @@ Each topic's processing is wrapped independently. A bad RSS feed, a missing
 config file, or an LLM timeout for one topic returns a `TopicResult(error=...)`
 and is shown as a styled error note in the report — it does not cancel the
 other 11 topics.
+
+### Bridge tags ground cross-topic synthesis in graph structure
+
+`synthesize_cross_topic()` doesn't rely on the LLM alone to notice
+cross-domain connections. Before writing the prompt, it computes "bridge
+tags" (`tag_graph.find_bridge_tags()`): tags whose articles span three or
+more topics that day — a purely structural, non-LLM signal derived from
+the same tag co-occurrence graph that powers `tag_graph.html`. These are
+listed in the prompt as candidate leads, and the system message instructs
+the model to confirm each one actually represents a substantive connection
+rather than repeating it verbatim — the graph signal grounds the search,
+it doesn't replace the model's judgment.
 
 ### Observability
 
@@ -415,7 +428,7 @@ python -m strategic_reports.daily.cli \
 pytest
 ```
 
-132 tests across 10 files. No real API calls — the LLM client is fully mocked.
+147 tests across 11 files. No real API calls — the LLM client is fully mocked.
 Runs in under a second. A GitHub Actions workflow
 (`.github/workflows/tests.yml`) runs the same suite on every push and pull
 request to `main` — no LLM credentials needed there either.
@@ -430,6 +443,7 @@ tests/test_urgency.py     Urgency alerting: absolute threshold, z-score, std==0 
 tests/test_bullet_diff.py Bullet-history storage: most-recent-run lookup, ordering, multi-topic
 tests/test_db.py          Tracking-db safety guard, schema creation, run registration
 tests/test_tag_tracking.py  Tag-graph db round-trip, rate-history normalization, emerging-tag z-score
+tests/test_tag_graph.py    find_bridge_tags(): topic-breadth filtering, sorting, limiting
 tests/test_tag_normalizer.py  Tag synonym normalization
 ```
 
@@ -447,7 +461,7 @@ strategic_reports/daily/
     pipeline.py        Two-phase async orchestrator + cross-topic synthesis
     renderer.py        Jinja2 HTML rendering
     tag_normalizer.py  Tag synonym map and normalize_tags(); applied via Pydantic validator
-    tag_graph.py       Tag co-occurrence graph builder; full tag_graph.json + pruned/community tag_graph_display.json + tag_graph.html
+    tag_graph.py       Tag co-occurrence graph builder; full tag_graph.json + pruned/community tag_graph_display.json + tag_graph.html; find_bridge_tags() for cross-topic synthesis grounding
     urgency.py         Urgency alert logic: absolute threshold + z-score baseline (SQLite-backed)
     bullet_diff.py     Historical bullet diffing: load/append history, concurrent per-topic LLM diff (SQLite-backed)
     db.py              SQLite tracking database: schema, connection helper, output_dir/db_path safety guard, run registration
