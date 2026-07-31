@@ -4,7 +4,34 @@ All notable changes to this project are documented here. Entries are
 grouped by date rather than a semantic version number, since this project
 doesn't tag releases.
 
-## Unreleased (`sqlite3-urgency-and-bullets` branch)
+## Unreleased (`emerging-tag-z-score-alerts` branch)
+
+### Added
+- Per-run tag tracking (`strategic_reports/daily/core/tag_tracking.py`):
+  `tag_counts`, `tag_topics`, `tag_edges` tables store a run's tag graph
+  (per-tag counts, per-tag topic membership, tag-pair co-occurrence
+  weights), linked to `run_id`. `rebuild_graph_data(db_path, run_id)`
+  reconstructs `tag_graph.json`'s `{"nodes", "links"}` shape from the
+  database for any past run.
+- Emerging-tag z-score alerts: a tag's rate this run (`count /
+  article_count`) is compared against its own historical rate once it has
+  7+ prior runs. Deliberately no absolute-threshold fallback for
+  thin-history tags (including brand-new tags) — unlike urgency scores,
+  tag rates have no meaningful absolute cutoff, so those are skipped
+  rather than guessed at.
+- `emerging_tag_alerts` table: an audit trail of the alerts that actually
+  fired (`tag`, `count`, `rate`, `mean`, `std`, `z_score`, `run_id`,
+  `created_at`) — answers "what was tag X's z-score on day N" directly,
+  without redoing the historical-window calculation. Only fired alerts are
+  stored; every tag's rate/z-score stays recomputable on demand from
+  `tag_counts` + `runs.article_count`.
+- `--tag-z-score-threshold` CLI/flow option (default `2.0`).
+- New Prefect task `check-emerging-tags` (flow is now 9 tasks).
+- `tests/test_tag_tracking.py` (17 tests: round-trip reconstruction, rate
+  normalization, thin-history/std-zero/brand-new-tag skips, statistical
+  alert firing, audit-trail persistence). 132 tests total, up from 115.
+
+## 2026-07-31
 
 ### Added
 - SQLite tracking database (`strategic_reports/daily/core/db.py`): `runs`,

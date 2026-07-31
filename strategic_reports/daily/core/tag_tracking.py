@@ -1,0 +1,235 @@
+"""
+Per-run tag tracking and emerging-tag z-score alerting — SQLite-backed.
+
+record_tags() persists a run's tag graph (per-tag counts, per-tag topics,
+and tag-pair co-occurrence edges) into the tracking database, linked to
+run_id. rebuild_graph_data() reconstructs tag_graph.json's {"nodes",
+"links"} shape from the database for a given run_id — nothing there is
+lost by storing it relationally instead of as a flat JSON file.
+
+check_emerging_tags() flags tags whose rate this run (tag count / that
+run's article_count — see db.record_run) is anomalously high relative to
+that tag's own historical rate, mirroring urgency.py's z-score pattern.
+Rate, not raw count, is what's compared: a count of 20 means something
+different on a 400-article news day than a 50-article one.
+
+record_emerging_tag_alerts() persists the alerts that fired (not every
+tag's rate/z-score — those stay always recomputable from tag_counts +
+runs.article_count), as an audit trail: "what was tag X's z-score on day
+N" is then answerable directly.
+
+Call order per run (same pattern as urgency.py/bullet_diff.py):
+  0. db.record_run(db_path, run_id, article_count) — once per run
+  1. load_tag_rate_history      (reads only, does not include the current run)
+  2. check_emerging_tags         (current rates vs. historical baseline)
+  3. record_tags                 (writes current run's tag graph for future runs)
+  4. record_emerging_tag_alerts   (writes the alerts from step 2, if any)
+
+Unlike urgency scores (a bounded, LLM-scored 0-1 value where an absolute
+cutoff like 0.8 is meaningful), tag rates have no obvious absolute
+threshold to fall back on for thin-history tags — tags are an open,
+growing vocabulary, and most will never accumulate much history. So
+check_emerging_tags only ever uses the statistical check: a tag with fewer
+than _MIN_HISTORY_RUNS prior appearances (including a brand-new tag) is
+silently skipped rather than guessed at.
+"""
+
+import math
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+
+from .db import connect
+
+# Minimum number of historical runs required before a tag can be flagged.
+# Matches urgency.py's _MIN_HISTORY_RUNS for consistency.
+_MIN_HISTORY_RUNS = 7
+
+
+@dataclass
+class EmergingTagAlert:
+    tag: str
+    count: int        # raw tag count this run
+    rate: float        # count / this run's article_count
+    mean: float          # historical mean rate for this tag
+    std: float
+    z_score: float
+
+    def summary(self) -> str:
+        return (
+            f"{self.tag}: count={self.count} rate={self.rate:.4f} "
+            f"(z={self.z_score:.1f}, mean={self.mean:.4f}±{self.std:.4f})"
+        )
+
+
+def record_tags(db_path: Path, run_id: str, graph_data: dict) -> None:
+    """
+    Insert this run's tag graph into the tracking database, linked to
+    run_id: per-tag counts, per-tag topics, and tag-pair co-occurrence
+    edges. graph_data is tag_graph.build_graph_data()'s output — pass the
+    same object you're about to write to tag_graph.json so the database and
+    the JSON file always agree.
+
+    Assumes db.record_run(db_path, run_id, ...) has already been called
+    this run, so the run_id foreign key exists.
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    nodes = graph_data["nodes"]
+    links = graph_data["links"]
+
+    conn = connect(db_path)
+    try:
+        conn.executemany(
+            "INSERT INTO tag_counts (run_id, created_at, tag, count) VALUES (?, ?, ?, ?)",
+            [(run_id, now, n["id"], n["count"]) for n in nodes],
+        )
+        conn.executemany(
+            "INSERT INTO tag_topics (run_id, created_at, tag, topic) VALUES (?, ?, ?, ?)",
+            [(run_id, now, n["id"], topic) for n in nodes for topic in n["topics"]],
+        )
+        conn.executemany(
+            "INSERT INTO tag_edges (run_id, created_at, tag_a, tag_b, weight) VALUES (?, ?, ?, ?, ?)",
+            [(run_id, now, l["source"], l["target"], l["weight"]) for l in links],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def rebuild_graph_data(db_path: Path, run_id: str) -> dict:
+    """
+    Reconstruct tag_graph.json's {"nodes": [...], "links": [...]} shape
+    from the tracking database for a single run_id.
+    """
+    conn = connect(db_path)
+    try:
+        count_rows = conn.execute(
+            "SELECT tag, count FROM tag_counts WHERE run_id = ? ORDER BY count DESC, tag ASC",
+            (run_id,),
+        ).fetchall()
+        topic_rows = conn.execute(
+            "SELECT tag, topic FROM tag_topics WHERE run_id = ? ORDER BY tag, topic",
+            (run_id,),
+        ).fetchall()
+        edge_rows = conn.execute(
+            "SELECT tag_a, tag_b, weight FROM tag_edges WHERE run_id = ? ORDER BY weight DESC",
+            (run_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    topics_by_tag: dict[str, list[str]] = {}
+    for tag, topic in topic_rows:
+        topics_by_tag.setdefault(tag, []).append(topic)
+
+    nodes = [
+        {"id": tag, "count": count, "topics": topics_by_tag.get(tag, [])}
+        for tag, count in count_rows
+    ]
+    links = [{"source": a, "target": b, "weight": w} for a, b, w in edge_rows]
+    return {"nodes": nodes, "links": links}
+
+
+def load_tag_rate_history(db_path: Path) -> dict[str, list[float]]:
+    """
+    Return every tag's historical rate (tag count / that run's total
+    article_count), oldest-first per tag. Does not include the current
+    run — call this before record_tags().
+    """
+    conn = connect(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT tc.tag, tc.count, r.article_count
+            FROM tag_counts tc
+            JOIN runs r ON tc.run_id = r.run_id
+            ORDER BY tc.tag, tc.created_at ASC
+            """
+        ).fetchall()
+    finally:
+        conn.close()
+
+    history: dict[str, list[float]] = {}
+    for tag, count, article_count in rows:
+        rate = count / article_count if article_count else 0.0
+        history.setdefault(tag, []).append(rate)
+    return history
+
+
+def check_emerging_tags(
+    current_graph_data: dict,
+    current_article_count: int,
+    history: dict[str, list[float]],
+    z_score_threshold: float = 2.0,
+) -> list[EmergingTagAlert]:
+    """
+    Flag tags whose rate this run is anomalously high relative to that
+    tag's own historical rate (z-score against the tag's rolling mean/std).
+
+    Tags with fewer than _MIN_HISTORY_RUNS prior runs (including brand-new
+    tags) are skipped — see module docstring for why there's no absolute-
+    threshold fallback here, unlike urgency.check_alerts.
+    """
+    if current_article_count == 0:
+        return []
+
+    alerts: list[EmergingTagAlert] = []
+    for node in current_graph_data["nodes"]:
+        tag = node["id"]
+        count = node["count"]
+        rate = count / current_article_count
+        historical = history.get(tag, [])
+
+        if len(historical) < _MIN_HISTORY_RUNS:
+            continue
+
+        mean = sum(historical) / len(historical)
+        variance = sum((x - mean) ** 2 for x in historical) / len(historical)
+        std = math.sqrt(variance)
+        if std == 0:
+            continue
+
+        z = (rate - mean) / std
+        if z >= z_score_threshold:
+            alerts.append(EmergingTagAlert(
+                tag=tag,
+                count=count,
+                rate=round(rate, 6),
+                mean=round(mean, 6),
+                std=round(std, 6),
+                z_score=round(z, 2),
+            ))
+
+    return alerts
+
+
+def record_emerging_tag_alerts(db_path: Path, run_id: str, alerts: list[EmergingTagAlert]) -> None:
+    """
+    Persist the emerging-tag alerts that fired this run, as an audit trail —
+    "what was tag X's z-score on day N" is then answerable directly, without
+    redoing the historical-window calculation. Only fired alerts are stored
+    here, not every tag's rate/z-score every run; those remain always
+    recomputable from tag_counts + runs.article_count via
+    load_tag_rate_history(), so nothing is lost by not storing them all.
+
+    Assumes db.record_run(db_path, run_id, ...) has already been called
+    this run, so the run_id foreign key exists. A no-op if alerts is empty.
+    """
+    if not alerts:
+        return
+
+    now = datetime.now(timezone.utc).isoformat()
+    conn = connect(db_path)
+    try:
+        conn.executemany(
+            "INSERT INTO emerging_tag_alerts "
+            "(run_id, created_at, tag, count, rate, mean, std, z_score) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (run_id, now, a.tag, a.count, a.rate, a.mean, a.std, a.z_score)
+                for a in alerts
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()

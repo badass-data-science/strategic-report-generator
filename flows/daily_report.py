@@ -85,8 +85,14 @@ from strategic_reports.daily.core.db import (
     ensure_safe_db_path,
     record_run,
 )
+from strategic_reports.daily.core.tag_tracking import (
+    check_emerging_tags,
+    load_tag_rate_history,
+    record_emerging_tag_alerts,
+    record_tags,
+)
 from strategic_reports.daily.core.renderer import render_report
-from strategic_reports.daily.core.tag_graph import write_tag_graph
+from strategic_reports.daily.core.tag_graph import build_graph_data, write_tag_graph
 from strategic_reports.daily.core.tracing import generate_run_id, setup_tracing
 
 # Anchor defaults to the project root (flows/../) regardless of the working
@@ -298,7 +304,44 @@ def check_urgency_alerts(
 
 
 # ---------------------------------------------------------------------------
-# Task 6: Historical bullet diffing
+# Task 6: Emerging-tag check
+# ---------------------------------------------------------------------------
+# Compares today's tag rates (tag count / article_count) against each tag's
+# own historical baseline. Order: load rate history → check → persist
+# today's tag graph (current run never biases its own baseline).
+#
+# Fails gracefully: a failure here logs a warning but does not prevent
+# rendering, the tag graph HTML/JSON files, or upload.
+
+@task(name="check-emerging-tags")
+def check_emerging_tag_alerts(
+    results: list[TopicResult],
+    run_id: str,
+    db_path: Path,
+    article_count: int,
+    tag_z_score_threshold: float,
+) -> None:
+    """Check today's tag rates against history; log alerts and persist today's tag graph."""
+    logger = get_run_logger()
+    try:
+        graph_data = build_graph_data(results)
+        history = load_tag_rate_history(db_path)
+        alerts = check_emerging_tags(graph_data, article_count, history, tag_z_score_threshold)
+        record_tags(db_path, run_id, graph_data)
+        record_emerging_tag_alerts(db_path, run_id, alerts)
+
+        if alerts:
+            logger.warning(f"EMERGING TAG ALERTS ({len(alerts)} tag(s)):")
+            for alert in alerts:
+                logger.warning(f"  *** {alert.summary()}")
+        else:
+            logger.info("Emerging-tag check: no alerts")
+    except Exception as exc:
+        logger.warning(f"Emerging-tag check failed: {exc} — continuing without tag tracking")
+
+
+# ---------------------------------------------------------------------------
+# Task 7: Historical bullet diffing
 # ---------------------------------------------------------------------------
 # Compares today's strategic bullets against yesterday's using an LLM to
 # classify changes as new / continued / dropped.
@@ -351,7 +394,7 @@ async def run_bullet_diff(
 
 
 # ---------------------------------------------------------------------------
-# Task 7: Build tag co-occurrence network graph
+# Task 8: Build tag co-occurrence network graph
 # ---------------------------------------------------------------------------
 
 @task(name="build-tag-graph")
@@ -363,7 +406,7 @@ def build_tag_graph(results: list[TopicResult], output_dir: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Task 5: Upload HTML output to web server
+# Task 9: Upload HTML output to web server
 # ---------------------------------------------------------------------------
 # Two steps mirror the manual workflow:
 #   1. scp: copy all HTML files from output_dir to remote_staging_dir
@@ -452,6 +495,7 @@ async def daily_report_flow(
     log_level: str = "INFO",
     absolute_threshold: float = 0.8,
     z_score_threshold: float = 2.0,
+    tag_z_score_threshold: float = 2.0,
     upload_enabled: bool = True,
     ssh_key_path: str = os.environ.get(
         "SSH_KEY_PATH",
@@ -522,6 +566,14 @@ async def daily_report_flow(
         db_path=db_path,
         absolute_threshold=absolute_threshold,
         z_score_threshold=z_score_threshold,
+    )
+
+    check_emerging_tag_alerts(
+        results=results,
+        run_id=run_id,
+        db_path=db_path,
+        article_count=article_count,
+        tag_z_score_threshold=tag_z_score_threshold,
     )
 
     diffs = await run_bullet_diff(

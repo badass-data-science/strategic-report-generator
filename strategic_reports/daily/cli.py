@@ -66,12 +66,17 @@ from strategic_reports.daily.config.topic_order import list_directories_and_titl
 from strategic_reports.daily.core import (
     append_bullet_run,
     append_run,
+    build_graph_data,
     check_alerts,
+    check_emerging_tags,
     configure_logging,
     diff_all_topics,
     load_bullet_history,
     load_history,
+    load_tag_rate_history,
     LLMClient,
+    record_emerging_tag_alerts,
+    record_tags,
     run_pipeline,
     write_tag_graph,
 )
@@ -195,6 +200,12 @@ def run(
         help="Standard deviations above a topic's historical mean urgency score "
              "that trigger a statistical alert (requires >=7 prior runs for that topic)",
     ),
+    tag_z_score_threshold: float = typer.Option(
+        2.0,
+        help="Standard deviations above a tag's historical mean rate (tag count / "
+             "articles considered) that trigger an emerging-tag alert "
+             "(requires >=7 prior runs for that tag)",
+    ),
     log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR)"),
 ) -> None:
     """Run the daily strategic report pipeline and write results to output_dir."""
@@ -289,6 +300,26 @@ def run(
     # below, since those insert rows referencing this run_id.
     article_count = sum(len(r.articles) for r in results)
     record_run(db_path, run_id, article_count)
+
+    # Emerging-tag check: compare today's tag rates (tag count / articles
+    # considered) against each tag's own historical baseline, then persist
+    # today's tag graph linked to run_id — for future runs' baselines, and
+    # so tag_graph.json could be reconstructed from --db-path for this run.
+    # Never blocks rendering on failure.
+    try:
+        graph_data = build_graph_data(results)
+        tag_rate_history = load_tag_rate_history(db_path)
+        tag_alerts = check_emerging_tags(graph_data, article_count, tag_rate_history, tag_z_score_threshold)
+        record_tags(db_path, run_id, graph_data)
+        record_emerging_tag_alerts(db_path, run_id, tag_alerts)
+        if tag_alerts:
+            typer.echo(f"EMERGING TAG ALERTS ({len(tag_alerts)} tag(s)):")
+            for alert in tag_alerts:
+                typer.echo(f"  *** {alert.summary()}")
+        else:
+            typer.echo("Emerging-tag check: no alerts")
+    except Exception as exc:
+        typer.echo(f"[warn] Emerging-tag check failed: {exc} — continuing without tag tracking", err=True)
 
     # Cross-topic synthesis: a separate LLMClient (distinct trace_name) so it's
     # distinguishable from the per-topic summarization calls in tracing. Fails
