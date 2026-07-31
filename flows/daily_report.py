@@ -434,10 +434,10 @@ def upload_to_web_server(
 )
 async def daily_report_flow(
     output_dir: Path,
+    db_path: Path,
     model: str = _DEFAULT_MODEL,
     hours_cutoff: int = 24,
     data_dir: Path = _DEFAULT_HOME / "data" / "rss_feeds",
-    db_path: Path = _DEFAULT_HOME / "output" / "daily" / "strategic_reports.db",
     batch_size: int = 50,
     max_concurrent: int = 3,
     temperature: float = 0.1,
@@ -564,8 +564,12 @@ if __name__ == "__main__":
             "Runs at 00:30 Pacific time. "
             "Synthesizes recent news across AI, biotech, economics, geopolitics, defense, and more."
         ),
-        # output_dir has no function default (see daily_report_flow) — the
-        # scheduled cron run has no CLI invocation to supply it, so the value
-        # is fixed here, once, at deployment registration time.
-        parameters={"output_dir": _DEFAULT_HOME / "output" / "daily" / "strategic-report"},
+        # output_dir and db_path have no function default (see
+        # daily_report_flow) — the scheduled cron run has no CLI invocation to
+        # supply them, so their values are fixed here, once, at deployment
+        # registration time.
+        parameters={
+            "output_dir": _DEFAULT_HOME / "output" / "daily" / "strategic-report",
+            "db_path": _DEFAULT_HOME / "output" / "daily" / "strategic_reports.db",
+        },
     )

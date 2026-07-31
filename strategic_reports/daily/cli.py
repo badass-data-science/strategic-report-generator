@@ -9,8 +9,8 @@ Key options:
     --model             litellm model string  (default: env LLM_MODEL or ollama_chat/glm-5.2:cloud)
     --hours-cutoff      Article age window in hours (default: 24)
     --data-dir          Where to find rss_feeds/*.json files
-    --db-path           SQLite tracking database (persists across runs; must
-                        not be inside --output-dir)
+    --db-path           SQLite tracking database (required; persists across
+                        runs; must not be inside --output-dir)
     --batch-size        Articles per LLM summarization call
     --max-concurrent    Max concurrent LLM calls (semaphore width)
     --log-level         Logging verbosity
@@ -157,10 +157,10 @@ def run(
         help="Directory containing rss_feeds/*.json files",
     ),
     db_path: Path = typer.Option(
-        _DEFAULT_HOME / "output" / "daily" / "strategic_reports.db",
+        ...,
         help="SQLite tracking database for cross-run history (urgency scores, "
-             "bullet history). Persists across runs — never wiped, unlike "
-             "--output-dir. Must not be located inside --output-dir.",
+             "bullet history) (required). Persists across runs — never wiped, "
+             "unlike --output-dir. Must not be located inside --output-dir.",
     ),
     batch_size: int = typer.Option(50, help="Max articles per LLM summarization call"),
     max_concurrent: int = typer.Option(3, help="Max topics hitting the LLM API simultaneously"),

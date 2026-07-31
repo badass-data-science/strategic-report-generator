@@ -138,10 +138,13 @@ export LLM_MODEL="gpt-4o"
 export OPENAI_API_KEY="..."
 ```
 
-Run, specifying where the report gets written (required):
+Run, specifying where the report gets written and where the tracking
+database lives (both required):
 
 ```bash
-python -m strategic_reports.daily.cli --output-dir output/daily/strategic-report
+python -m strategic_reports.daily.cli \
+  --output-dir output/daily/strategic-report \
+  --db-path output/daily/strategic_reports.db
 ```
 
 Open `index.html` in the output directory in a browser to read the report.
@@ -151,7 +154,7 @@ Open `index.html` in the output directory in a browser to read the report.
 ## Configuration
 
 Most options can be set via CLI flag or environment variable and have a
-default. `--output-dir` is the exception: it's required.
+default. `--output-dir` and `--db-path` are the exception: both are required.
 
 | Flag | Env var | Default | Description |
 |------|---------|---------|-------------|
@@ -159,7 +162,7 @@ default. `--output-dir` is the exception: it's required.
 | `--model` | `LLM_MODEL` | `ollama_chat/glm-5.2:cloud` | litellm model string |
 | `--hours-cutoff` | — | `24` | Article age window in hours |
 | `--data-dir` | `STRATEGIC_REPORTS_DATA_DIR` | `data/rss_feeds` | RSS feed config directory |
-| `--db-path` | — | `output/daily/strategic_reports.db` | SQLite tracking database — persists across runs, never wiped. Must not be inside `--output-dir` (checked at startup). |
+| `--db-path` | — | *(required)* | SQLite tracking database — created on first use if missing, persists across runs, never wiped. Must not be inside `--output-dir` (checked at startup). |
 | `--batch-size` | — | `50` | Articles per LLM summarization call |
 | `--max-concurrent` | — | `3` | Max topics hitting the LLM API simultaneously |
 | `--temperature` | — | `0.1` | LLM sampling temperature |
@@ -194,6 +197,7 @@ Example — run against Claude with higher concurrency and debug logging:
 ```bash
 python -m strategic_reports.daily.cli \
   --output-dir output/daily/strategic-report \
+  --db-path output/daily/strategic_reports.db \
   --model anthropic/claude-sonnet-4-6 \
   --max-concurrent 5 \
   --log-level DEBUG
@@ -204,6 +208,7 @@ Example — run against an Ollama model without tool-calling support:
 ```bash
 python -m strategic_reports.daily.cli \
   --output-dir output/daily/strategic-report \
+  --db-path output/daily/strategic_reports.db \
   --model ollama_chat/gpt-oss:120b \
   --instructor-mode JSON
 ```
@@ -393,7 +398,9 @@ pip install arize-phoenix openinference-instrumentation-litellm \
             opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
 
 export PHOENIX_TRACING=true
-python -m strategic_reports.daily.cli --output-dir output/daily/strategic-report
+python -m strategic_reports.daily.cli \
+  --output-dir output/daily/strategic-report \
+  --db-path output/daily/strategic_reports.db
 ```
 
 ---
