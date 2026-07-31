@@ -323,7 +323,7 @@ prefect deployment run 'daily-strategic-report/daily-strategic-report' \
 
 ### Flow structure
 
-The flow contains nine tasks, each tracked independently in the Prefect UI:
+The flow contains ten tasks, each tracked independently in the Prefect UI:
 
 ```
 daily_report_flow
@@ -332,6 +332,8 @@ daily_report_flow
   │                                        retries=2, retry_delay=60s
   ├── run-cross-topic-synthesis   (async)  single LLM call across all topic insights
   │                                        retries=2; fails gracefully to None
+  ├── archive-articles            (sync)   persist article summaries (source material)
+  │                                        inserts into --db-path (articles/article_summary_bullets/article_tags)
   ├── check-urgency-alerts        (sync)   score each topic; alert if above threshold
   │                                        inserts into --db-path (urgency_scores table)
   ├── check-emerging-tags         (sync)   compare today's tag rates vs. each tag's baseline
@@ -432,7 +434,7 @@ python -m strategic_reports.daily.cli \
 pytest
 ```
 
-152 tests across 11 files. No real API calls — the LLM client is fully mocked.
+161 tests across 12 files. No real API calls — the LLM client is fully mocked.
 Runs in under a second. A GitHub Actions workflow
 (`.github/workflows/tests.yml`) runs the same suite on every push and pull
 request to `main` — no LLM credentials needed there either.
@@ -448,6 +450,7 @@ tests/test_bullet_diff.py Bullet-history storage: most-recent-run lookup, orderi
 tests/test_db.py          Tracking-db safety guard, schema creation, run registration
 tests/test_tag_tracking.py  Tag-graph db round-trip, rate-history normalization, emerging-tag z-score, bridge-tag audit trail
 tests/test_tag_graph.py    find_bridge_tags(): topic-breadth filtering, sorting, limiting
+tests/test_article_archive.py  Article-summary db round-trip, ordering, multi-topic, error/empty topics
 tests/test_tag_normalizer.py  Tag synonym normalization
 ```
 
@@ -469,6 +472,7 @@ strategic_reports/daily/
     urgency.py         Urgency alert logic: absolute threshold + z-score baseline (SQLite-backed)
     bullet_diff.py     Historical bullet diffing: load/append history, concurrent per-topic LLM diff (SQLite-backed)
     db.py              SQLite tracking database: schema, connection helper, output_dir/db_path safety guard, run registration
+    article_archive.py Persists each run's article summaries (source material), linked to run_id
     tag_tracking.py    Per-run tag-graph persistence (linked to run_id) + emerging-tag z-score alerting
     tracing.py         Langfuse and Phoenix setup (opt-in)
   templates/
@@ -507,6 +511,7 @@ Cross-run history is kept separately, in the SQLite database at `--db-path`
 (never inside `--output-dir` — see [Configuration](#configuration)):
 
 - **`runs`** — one row per pipeline run: `run_id`, `created_at` timestamp, and `article_count` (total articles considered that run — the denominator for comparing tag weights across runs, since a raw tag count means something different on a 400-article day than a 50-article one).
+- **`articles`**, **`article_summary_bullets`**, **`article_tags`** — every article's title, link, publish date, summary bullets, and tags, linked to `run_id`. This is the source material every derived signal below (tags, bullets, urgency scores) is computed from — otherwise it exists only in memory during a run and is lost once `{topic}_summaries.html` (in the wiped `--output-dir`) is gone. The foundation any future archive-query feature reads from.
 - **`urgency_scores`** — one row per topic per run; used by the z-score baseline after 7 runs per topic.
 - **`bullets`** — one row per strategic bullet per topic per run; used by the bullet diff to identify what changed since the most recent prior run.
 - **`tag_counts`**, **`tag_topics`**, **`tag_edges`** — one run's tag graph (per-tag counts, per-tag topic membership, and tag-pair co-occurrence edges), linked to `run_id`. Together these let `tag_graph.json` be reconstructed for any past run directly from the database. `tag_counts` also backs the emerging-tag z-score alert: a tag's rate (count ÷ that run's `article_count`) is compared against its own historical rate once it has 7+ prior runs; tags with less history (including brand-new tags) are skipped rather than guessed at, since — unlike urgency scores — tag rates have no meaningful absolute cutoff to fall back on.

@@ -132,6 +132,46 @@ CREATE TABLE IF NOT EXISTS bridge_tag_topics (
     topic TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_bridge_tag_topics_run_tag ON bridge_tag_topics(run_id, tag);
+
+-- Persists each run's article summaries (title, link, publish_date,
+-- summary bullets, tags), which otherwise exist only in memory during a
+-- run and get rendered to {topic}_summaries.html — a file that lives in
+-- --output-dir and is wiped every run (see renderer.render_report). This
+-- is the source material every derived signal (tag_counts, bullets,
+-- urgency_scores) is computed from; without it, cross-run archive queries
+-- can only ever reason over structure (which tags co-occurred), never
+-- substance (what was actually said). See article_archive.py.
+CREATE TABLE IF NOT EXISTS articles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL REFERENCES runs(run_id),
+    created_at TEXT NOT NULL,
+    topic TEXT NOT NULL,
+    title TEXT NOT NULL,
+    link TEXT NOT NULL,
+    publish_date TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_articles_run ON articles(run_id);
+CREATE INDEX IF NOT EXISTS idx_articles_topic ON articles(topic, created_at);
+
+CREATE TABLE IF NOT EXISTS article_summary_bullets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    article_id INTEGER NOT NULL REFERENCES articles(id),
+    run_id TEXT NOT NULL REFERENCES runs(run_id),
+    created_at TEXT NOT NULL,
+    bullet_index INTEGER NOT NULL,
+    bullet_text TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_article_summary_bullets_article ON article_summary_bullets(article_id);
+
+CREATE TABLE IF NOT EXISTS article_tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    article_id INTEGER NOT NULL REFERENCES articles(id),
+    run_id TEXT NOT NULL REFERENCES runs(run_id),
+    created_at TEXT NOT NULL,
+    tag TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_article_tags_article ON article_tags(article_id);
+CREATE INDEX IF NOT EXISTS idx_article_tags_tag ON article_tags(tag, created_at);
 """
 
 
