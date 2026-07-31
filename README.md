@@ -159,7 +159,7 @@ required (via flag or env var), everything else has a default.
 |------|---------|---------|-------------|
 | `--model` | `LLM_MODEL` | `ollama_chat/glm-5.2:cloud` | litellm model string |
 | `--hours-cutoff` | — | `24` | Article age window in hours |
-| `--output-dir` | `STRATEGIC_REPORTS_OUTPUT_DIR` | *(required)* | HTML output directory |
+| `--output-dir` | `STRATEGIC_REPORTS_OUTPUT_DIR` | *(required)* | HTML output directory — wiped and recreated on every run |
 | `--data-dir` | `STRATEGIC_REPORTS_DATA_DIR` | `data/rss_feeds` | RSS feed config directory |
 | `--batch-size` | — | `50` | Articles per LLM summarization call |
 | `--max-concurrent` | — | `3` | Max topics hitting the LLM API simultaneously |
@@ -443,6 +443,12 @@ tests/
 ---
 
 ## Output
+
+> **`--output-dir` is wiped on every run.** The directory (if it exists) is
+> deleted and recreated from scratch before any files are written, so stale
+> pages from a previous run never linger. Point it at a directory dedicated
+> to this pipeline's output — never at a directory containing anything else
+> you care about.
 
 The pipeline writes the following files to `--output-dir`:
 

@@ -134,7 +134,8 @@ def run(
     output_dir: Path = typer.Option(
         ...,
         envvar="STRATEGIC_REPORTS_OUTPUT_DIR",
-        help="Directory to write HTML report files (required)",
+        help="Directory to write HTML report files (required). "
+             "WARNING: wiped and recreated on every run.",
     ),
     data_dir: Path = typer.Option(
         _DEFAULT_HOME / "data" / "rss_feeds",
