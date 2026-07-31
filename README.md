@@ -1,5 +1,9 @@
 # Strategic Reports Pipeline
 
+[![Tests](https://github.com/badass-data-science/strategic-report-generator/actions/workflows/tests.yml/badge.svg)](https://github.com/badass-data-science/strategic-report-generator/actions/workflows/tests.yml)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](.github/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 A daily briefing pipeline that reads recent news across 12 topic feeds — AI,
 biotech, economics, geopolitics, defense, and more — and synthesizes strategic
 recommendations into a linked HTML report.
