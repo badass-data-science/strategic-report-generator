@@ -4,7 +4,29 @@ All notable changes to this project are documented here. Entries are
 grouped by date rather than a semantic version number, since this project
 doesn't tag releases.
 
-## Unreleased (`emerging-tag-z-score-alerts` branch)
+## Unreleased (`bridge-tags` branch)
+
+### Added
+- Cross-topic synthesis is now grounded by "bridge tags"
+  (`tag_graph.find_bridge_tags()`): tags whose articles span 3+ topics that
+  day — a structural signal from the same co-occurrence graph that powers
+  `tag_graph.html`, computed independently of the LLM. Listed in the
+  `synthesize_cross_topic()` prompt as candidate leads; the system message
+  instructs the model to confirm each one represents a real connection
+  rather than repeating it verbatim.
+- `tests/test_tag_graph.py` (7 tests for `find_bridge_tags()`) and a new
+  `TestBuildCrossTopicPrompt` class in `tests/test_prompts.py` (8 tests).
+- `bridge_tags`/`bridge_tag_topics` tables: an audit trail of the bridge
+  tags actually surfaced to the cross-topic synthesis prompt each run
+  (`tag`, `count`, `rank`, topic list, linked to `run_id`) — answers "which
+  tags did we point the synthesis at on day N" directly. Self-contained
+  (doesn't join against `tag_topics`) since `cli.py` and the Prefect flow
+  persist this at different points relative to cross-topic synthesis in
+  their pipeline order.
+- 5 new tests in `tests/test_tag_tracking.py` for `record_bridge_tags`.
+  152 tests total, up from 132.
+
+## 2026-07-31
 
 ### Added
 - Per-run tag tracking (`strategic_reports/daily/core/tag_tracking.py`):
@@ -30,10 +52,6 @@ doesn't tag releases.
 - `tests/test_tag_tracking.py` (17 tests: round-trip reconstruction, rate
   normalization, thin-history/std-zero/brand-new-tag skips, statistical
   alert firing, audit-trail persistence). 132 tests total, up from 115.
-
-## 2026-07-31
-
-### Added
 - SQLite tracking database (`strategic_reports/daily/core/db.py`): `runs`,
   `urgency_scores`, and `bullets` tables. Every row carries its own
   timestamp in addition to `run_id`; nothing is pruned.

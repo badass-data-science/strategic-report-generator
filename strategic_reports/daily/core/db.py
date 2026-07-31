@@ -105,6 +105,33 @@ CREATE TABLE IF NOT EXISTS emerging_tag_alerts (
 );
 CREATE INDEX IF NOT EXISTS idx_emerging_tag_alerts_tag ON emerging_tag_alerts(tag, created_at);
 CREATE INDEX IF NOT EXISTS idx_emerging_tag_alerts_run ON emerging_tag_alerts(run_id);
+
+-- Audit trail of the bridge tags actually surfaced to the cross-topic
+-- synthesis prompt each run (see tag_graph.find_bridge_tags and
+-- pipeline.synthesize_cross_topic). Self-contained — stores its own
+-- topics rather than joining against tag_topics — because the two entry
+-- points call the emerging-tag block (which persists this) at different
+-- points relative to cross-topic synthesis in their pipeline order, so a
+-- join can't be relied on to already have this run_id's tag_topics rows.
+CREATE TABLE IF NOT EXISTS bridge_tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL REFERENCES runs(run_id),
+    created_at TEXT NOT NULL,
+    tag TEXT NOT NULL,
+    count INTEGER NOT NULL,
+    rank INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_bridge_tags_run ON bridge_tags(run_id);
+CREATE INDEX IF NOT EXISTS idx_bridge_tags_tag ON bridge_tags(tag, created_at);
+
+CREATE TABLE IF NOT EXISTS bridge_tag_topics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL REFERENCES runs(run_id),
+    created_at TEXT NOT NULL,
+    tag TEXT NOT NULL,
+    topic TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_bridge_tag_topics_run_tag ON bridge_tag_topics(run_id, tag);
 """
 
 

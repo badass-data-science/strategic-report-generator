@@ -35,7 +35,8 @@ Phase 2 — LLM Processing  [concurrent, rate-limited by Semaphore]
 
 Phase 3 — Cross-topic Synthesis  [single LLM call]
 
-  list[TopicResult] ──► CrossTopicSynthesis  (3–4 cross-cutting bullets)
+  list[TopicResult] ──► find_bridge_tags() ──► candidate cross-domain tags
+  list[TopicResult] + bridge tags ──► CrossTopicSynthesis  (3–4 cross-cutting bullets)
 
 Phase 4 — Historical Diffing  [concurrent per-topic LLM calls]
 
@@ -103,6 +104,22 @@ Each topic's processing is wrapped independently. A bad RSS feed, a missing
 config file, or an LLM timeout for one topic returns a `TopicResult(error=...)`
 and is shown as a styled error note in the report — it does not cancel the
 other 11 topics.
+
+### Bridge tags ground cross-topic synthesis in graph structure
+
+`synthesize_cross_topic()` doesn't rely on the LLM alone to notice
+cross-domain connections. Before writing the prompt, it computes "bridge
+tags" (`tag_graph.find_bridge_tags()`): tags whose articles span three or
+more topics that day — a purely structural, non-LLM signal derived from
+the same tag co-occurrence graph that powers `tag_graph.html`. These are
+listed in the prompt as candidate leads, and the system message instructs
+the model to confirm each one actually represents a substantive connection
+rather than repeating it verbatim — the graph signal grounds the search,
+it doesn't replace the model's judgment. Every bridge tag surfaced this way
+is also persisted (`bridge_tags`/`bridge_tag_topics` — see
+[Output](#output)) as an audit trail, so it's possible to later check
+whether the resulting Strategic Overview actually reflected what the graph
+pointed to.
 
 ### Observability
 
@@ -415,7 +432,7 @@ python -m strategic_reports.daily.cli \
 pytest
 ```
 
-132 tests across 10 files. No real API calls — the LLM client is fully mocked.
+152 tests across 11 files. No real API calls — the LLM client is fully mocked.
 Runs in under a second. A GitHub Actions workflow
 (`.github/workflows/tests.yml`) runs the same suite on every push and pull
 request to `main` — no LLM credentials needed there either.
@@ -429,7 +446,8 @@ tests/test_pipeline.py    Async orchestration with mocked LLMClient
 tests/test_urgency.py     Urgency alerting: absolute threshold, z-score, std==0 fallback, history persistence
 tests/test_bullet_diff.py Bullet-history storage: most-recent-run lookup, ordering, multi-topic
 tests/test_db.py          Tracking-db safety guard, schema creation, run registration
-tests/test_tag_tracking.py  Tag-graph db round-trip, rate-history normalization, emerging-tag z-score
+tests/test_tag_tracking.py  Tag-graph db round-trip, rate-history normalization, emerging-tag z-score, bridge-tag audit trail
+tests/test_tag_graph.py    find_bridge_tags(): topic-breadth filtering, sorting, limiting
 tests/test_tag_normalizer.py  Tag synonym normalization
 ```
 
@@ -447,7 +465,7 @@ strategic_reports/daily/
     pipeline.py        Two-phase async orchestrator + cross-topic synthesis
     renderer.py        Jinja2 HTML rendering
     tag_normalizer.py  Tag synonym map and normalize_tags(); applied via Pydantic validator
-    tag_graph.py       Tag co-occurrence graph builder; full tag_graph.json + pruned/community tag_graph_display.json + tag_graph.html
+    tag_graph.py       Tag co-occurrence graph builder; full tag_graph.json + pruned/community tag_graph_display.json + tag_graph.html; find_bridge_tags() for cross-topic synthesis grounding
     urgency.py         Urgency alert logic: absolute threshold + z-score baseline (SQLite-backed)
     bullet_diff.py     Historical bullet diffing: load/append history, concurrent per-topic LLM diff (SQLite-backed)
     db.py              SQLite tracking database: schema, connection helper, output_dir/db_path safety guard, run registration
@@ -493,6 +511,7 @@ Cross-run history is kept separately, in the SQLite database at `--db-path`
 - **`bullets`** — one row per strategic bullet per topic per run; used by the bullet diff to identify what changed since the most recent prior run.
 - **`tag_counts`**, **`tag_topics`**, **`tag_edges`** — one run's tag graph (per-tag counts, per-tag topic membership, and tag-pair co-occurrence edges), linked to `run_id`. Together these let `tag_graph.json` be reconstructed for any past run directly from the database. `tag_counts` also backs the emerging-tag z-score alert: a tag's rate (count ÷ that run's `article_count`) is compared against its own historical rate once it has 7+ prior runs; tags with less history (including brand-new tags) are skipped rather than guessed at, since — unlike urgency scores — tag rates have no meaningful absolute cutoff to fall back on.
 - **`emerging_tag_alerts`** — an audit trail of the alerts that actually fired: `tag`, `count`, `rate`, `mean`, `std`, `z_score`, linked to `run_id`. Only fired alerts are stored here, not every tag's rate/z-score every run — those stay recomputable on demand from `tag_counts` + `runs.article_count`.
+- **`bridge_tags`**, **`bridge_tag_topics`** — an audit trail of the bridge tags (`tag_graph.find_bridge_tags()`) actually surfaced to the cross-topic synthesis prompt each run: `tag`, `count`, `rank`, and each tag's topic list, linked to `run_id`. Answers "which tags did we point the synthesis at on day N" directly, without recomputing from `results`.
 
 Every row carries its own `created_at` timestamp in addition to `run_id`, and
 nothing is pruned — unlike the JSON files this replaced, which capped bullet
