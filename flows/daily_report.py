@@ -85,6 +85,7 @@ from strategic_reports.daily.core.db import (
     ensure_safe_db_path,
     record_run,
 )
+from strategic_reports.daily.core.article_archive import record_articles
 from strategic_reports.daily.core.tag_tracking import (
     check_emerging_tags,
     load_tag_rate_history,
@@ -266,7 +267,30 @@ async def run_cross_topic_synthesis(
 
 
 # ---------------------------------------------------------------------------
-# Task 5: Urgency alert check
+# Task 5: Archive article summaries
+# ---------------------------------------------------------------------------
+# Persists this run's article summaries (title, link, publish_date, summary
+# bullets, tags) — the source material every derived signal (tags, bullets,
+# urgency scores) is computed from, which otherwise only exists in memory
+# during this run.
+#
+# Fails gracefully: a failure here logs a warning but does not prevent
+# rendering or upload.
+
+@task(name="archive-articles")
+def archive_articles(results: list[TopicResult], run_id: str, db_path: Path) -> None:
+    """Persist this run's article summaries into the tracking database."""
+    logger = get_run_logger()
+    try:
+        record_articles(db_path, run_id, results)
+        article_total = sum(len(r.articles) for r in results)
+        logger.info(f"Archived {article_total} article summaries")
+    except Exception as exc:
+        logger.warning(f"Article archiving failed: {exc} — continuing without archiving")
+
+
+# ---------------------------------------------------------------------------
+# Task 6: Urgency alert check
 # ---------------------------------------------------------------------------
 # Runs after the LLM pipeline so all urgency scores are available.
 # Order within each run: load history → check alerts → append run → save.
@@ -305,7 +329,7 @@ def check_urgency_alerts(
 
 
 # ---------------------------------------------------------------------------
-# Task 6: Emerging-tag check
+# Task 7: Emerging-tag check
 # ---------------------------------------------------------------------------
 # Compares today's tag rates (tag count / article_count) against each tag's
 # own historical baseline. Order: load rate history → check → persist
@@ -343,7 +367,7 @@ def check_emerging_tag_alerts(
 
 
 # ---------------------------------------------------------------------------
-# Task 7: Historical bullet diffing
+# Task 8: Historical bullet diffing
 # ---------------------------------------------------------------------------
 # Compares today's strategic bullets against yesterday's using an LLM to
 # classify changes as new / continued / dropped.
@@ -396,7 +420,7 @@ async def run_bullet_diff(
 
 
 # ---------------------------------------------------------------------------
-# Task 8: Build tag co-occurrence network graph
+# Task 9: Build tag co-occurrence network graph
 # ---------------------------------------------------------------------------
 
 @task(name="build-tag-graph")
@@ -408,7 +432,7 @@ def build_tag_graph(results: list[TopicResult], output_dir: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Task 9: Upload HTML output to web server
+# Task 10: Upload HTML output to web server
 # ---------------------------------------------------------------------------
 # Two steps mirror the manual workflow:
 #   1. scp: copy all HTML files from output_dir to remote_staging_dir
@@ -551,6 +575,8 @@ async def daily_report_flow(
     # below, since those insert rows referencing this run_id.
     article_count = sum(len(r.articles) for r in results)
     record_run(db_path, run_id, article_count)
+
+    archive_articles(results=results, run_id=run_id, db_path=db_path)
 
     overview = await run_cross_topic_synthesis(
         results=results,

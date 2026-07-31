@@ -4,7 +4,27 @@ All notable changes to this project are documented here. Entries are
 grouped by date rather than a semantic version number, since this project
 doesn't tag releases.
 
-## Unreleased (`bridge-tags` branch)
+## Unreleased (`persist-article-summaries` branch)
+
+### Added
+- Persists each run's article summaries (title, link, publish_date, summary
+  bullets, tags) into the tracking database, linked to `run_id`
+  (`strategic_reports/daily/core/article_archive.py`, new `articles` /
+  `article_summary_bullets` / `article_tags` tables). This is the source
+  material every derived signal (tags, bullets, urgency scores) is
+  computed from; previously it only existed in memory during a run and was
+  lost once `{topic}_summaries.html` — in the wiped `--output-dir` — was
+  gone. Explicitly the foundation for a future interactive archive-query
+  feature (graph-guided-retrieval-inspired, not full GraphRAG — that
+  remains deliberately out of scope for now).
+- New Prefect task `archive-articles` (flow is now 10 tasks); wired into
+  `cli.py` right after `record_run()` too, keeping both entry points at
+  parity.
+- `tests/test_article_archive.py` (9 tests: round-trip, bullet/tag
+  ordering, multi-topic, error/empty topics contribute nothing, run
+  isolation). 161 tests total, up from 152.
+
+## 2026-07-31
 
 ### Added
 - Cross-topic synthesis is now grounded by "bridge tags"
@@ -25,10 +45,6 @@ doesn't tag releases.
   their pipeline order.
 - 5 new tests in `tests/test_tag_tracking.py` for `record_bridge_tags`.
   152 tests total, up from 132.
-
-## 2026-07-31
-
-### Added
 - Per-run tag tracking (`strategic_reports/daily/core/tag_tracking.py`):
   `tag_counts`, `tag_topics`, `tag_edges` tables store a run's tag graph
   (per-tag counts, per-tag topic membership, tag-pair co-occurrence

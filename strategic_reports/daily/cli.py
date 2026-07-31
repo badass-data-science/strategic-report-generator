@@ -76,6 +76,7 @@ from strategic_reports.daily.core import (
     load_history,
     load_tag_rate_history,
     LLMClient,
+    record_articles,
     record_bridge_tags,
     record_emerging_tag_alerts,
     record_tags,
@@ -302,6 +303,15 @@ def run(
     # below, since those insert rows referencing this run_id.
     article_count = sum(len(r.articles) for r in results)
     record_run(db_path, run_id, article_count)
+
+    # Archive today's article summaries — the source material every derived
+    # signal (tags, bullets, urgency scores) is computed from, which
+    # otherwise only exists in memory during this run. Never blocks
+    # rendering on failure.
+    try:
+        record_articles(db_path, run_id, results)
+    except Exception as exc:
+        typer.echo(f"[warn] Article archiving failed: {exc} — continuing without archiving", err=True)
 
     # Emerging-tag check: compare today's tag rates (tag count / articles
     # considered) against each tag's own historical baseline, then persist

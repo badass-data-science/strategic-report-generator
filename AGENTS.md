@@ -38,7 +38,7 @@ matching provider credentials (see README's Quick Start).
 pytest
 ```
 
-- 152 tests across `tests/test_*.py`, no real network or LLM calls, runs in
+- 161 tests across `tests/test_*.py`, no real network or LLM calls, runs in
   under a second. CI (`.github/workflows/tests.yml`) runs the same suite on
   every push/PR to `main`, no credentials needed there either.
 - `pytest.ini` sets `asyncio_mode = auto` — async test functions don't need
@@ -65,12 +65,13 @@ strategic_reports/daily/
     urgency.py          Urgency alerting: absolute threshold + z-score (SQLite-backed)
     bullet_diff.py      Historical diffing vs. yesterday's bullets (SQLite-backed)
     db.py               SQLite tracking db: schema, connection helper, output_dir/db_path safety guard, run registration
+    article_archive.py  Persists each run's article summaries (source material), linked to run_id
     tag_tracking.py     Per-run tag-graph persistence (linked to run_id) + emerging-tag z-score (SQLite-backed)
     tracing.py          Langfuse / Phoenix instrumentation (opt-in)
   templates/            Jinja2 templates (base, index, topic)
   cli.py                typer CLI entrypoint
   config/topic_order.py Ordered topic slugs + display titles
-flows/daily_report.py   Prefect flow (9 tasks) for scheduled runs
+flows/daily_report.py   Prefect flow (10 tasks) for scheduled runs
 data/rss_feeds/         One JSON file per topic listing feed URLs
 tests/                  Per-module test files + conftest.py fixtures
 LICENSE                 MIT
@@ -106,10 +107,19 @@ LICENSE                 MIT
 - **Tracking-db functions take `db_path: Path`, not a live `sqlite3.Connection`.**
   Each call (`load_history`, `append_run`, `load_bullet_history`,
   `append_bullet_run`, `record_run`, `record_tags`, `load_tag_rate_history`,
-  `rebuild_graph_data`, `record_emerging_tag_alerts`, `record_bridge_tags`)
-  opens and closes its own short connection. This is deliberate: a
-  `sqlite3.Connection` isn't picklable, so a shared one can't safely cross a
-  Prefect task boundary.
+  `rebuild_graph_data`, `record_emerging_tag_alerts`, `record_bridge_tags`,
+  `record_articles`, `load_articles`) opens and closes its own short
+  connection. This is deliberate: a `sqlite3.Connection` isn't picklable, so
+  a shared one can't safely cross a Prefect task boundary.
+- **`article_archive.py` is the foundation for a future interactive
+  archive-query feature**, graph-guided-retrieval-inspired rather than a
+  full GraphRAG implementation (that's explicitly out of scope for now —
+  ask before adding hierarchical community summarization or embeddings).
+  It persists the source text every derived signal (tags, bullets, urgency
+  scores) is computed from, which otherwise only exists in memory during a
+  run. If you add an "ask questions about the archive" feature, it reads
+  from `articles`/`article_summary_bullets`/`article_tags` — don't
+  reinvent a second place to store article text.
 - **Bridge tags ground cross-topic synthesis in graph structure, not
   invention.** `synthesize_cross_topic()` computes `find_bridge_tags()`
   (tags spanning 3+ topics that day — a structural signal, no LLM
