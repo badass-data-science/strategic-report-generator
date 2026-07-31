@@ -1,61 +1,93 @@
 """
-Historical bullet diffing between consecutive pipeline runs.
+Historical bullet diffing between consecutive pipeline runs — SQLite-backed.
 
 Stores per-topic strategic bullets from each run and uses an LLM to
 semantically classify changes: new insights, continued insights, and
 insights that dropped out since yesterday.
 
 Call order per run (same pattern as urgency.py):
+  0. db.record_run(db_path, run_id, article_count) — once per run, before
+     any of the below (creates the run_id foreign key both tables use)
   1. load_bullet_history   — reads only; gives yesterday's bullets
   2. diff_all_topics       — compares today against yesterday
-  3. append_bullet_run     — writes today into history for future runs
+  3. append_bullet_run     — writes today into the db for future runs
+
+load_bullet_history/append_bullet_run take db_path rather than a live
+connection: each call opens and closes its own short connection. This
+keeps the functions safe to call from Prefect tasks, where a shared
+sqlite3.Connection can't be passed between tasks (it isn't picklable).
 """
 
 import asyncio
-import json
-from datetime import date
+from datetime import datetime, timezone
 from pathlib import Path
 
 import structlog
 
+from .db import connect
 from .llm_client import LLMClient
 from .models import BulletDiff, TopicResult
 from .prompts import SYSTEM_DIFF, build_diff_prompt
 
 log = structlog.get_logger(__name__)
 
-_MAX_HISTORY_ENTRIES = 7
 
+def load_bullet_history(db_path: Path) -> dict[str, list[str]]:
+    """
+    Return the most recent prior run's bullets, keyed by topic — this is
+    "yesterday" relative to a run about to be appended. Empty dict if no
+    prior run exists yet (skip the diff on the very first run).
+    """
+    conn = connect(db_path)
+    try:
+        latest = conn.execute(
+            "SELECT run_id FROM bullets ORDER BY created_at DESC LIMIT 1"
+        ).fetchone()
+        if latest is None:
+            return {}
+        latest_run_id = latest[0]
 
-def load_bullet_history(history_path: Path) -> list[dict]:
-    """Return run history, or empty list if the file does not exist yet."""
-    if not history_path.exists():
-        return []
-    return json.loads(history_path.read_text(encoding="utf-8"))
+        rows = conn.execute(
+            "SELECT topic, bullet_text FROM bullets WHERE run_id = ? ORDER BY topic, bullet_index",
+            (latest_run_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    yesterday: dict[str, list[str]] = {}
+    for topic, bullet_text in rows:
+        yesterday.setdefault(topic, []).append(bullet_text)
+    return yesterday
 
 
 def append_bullet_run(
-    history_path: Path,
+    db_path: Path,
     results: list[TopicResult],
     run_id: str,
 ) -> None:
-    """Append today's strategic bullets to the history file."""
-    history = load_bullet_history(history_path)
-    history.append({
-        "date": str(date.today()),
-        "run_id": run_id,
-        "topics": {
-            r.config.title: r.strategy.bullets
-            for r in results
-            if r.strategy is not None
-        },
-    })
-    if len(history) > _MAX_HISTORY_ENTRIES:
-        history = history[-_MAX_HISTORY_ENTRIES:]
-    history_path.parent.mkdir(parents=True, exist_ok=True)
-    history_path.write_text(
-        json.dumps(history, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    """
+    Insert today's strategic bullets into the database.
+
+    Assumes db.record_run(db_path, run_id, ...) has already been called this
+    run, so the run_id foreign key exists.
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    rows = [
+        (run_id, now, r.config.title, i, bullet)
+        for r in results
+        if r.strategy is not None
+        for i, bullet in enumerate(r.strategy.bullets)
+    ]
+    conn = connect(db_path)
+    try:
+        conn.executemany(
+            "INSERT INTO bullets (run_id, created_at, topic, bullet_index, bullet_text) "
+            "VALUES (?, ?, ?, ?, ?)",
+            rows,
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 async def _diff_one_topic(

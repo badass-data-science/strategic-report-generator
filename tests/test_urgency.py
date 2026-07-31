@@ -5,14 +5,13 @@ Covers:
   - Absolute threshold (no history, thin history, std==0 fallback)
   - Statistical z-score (sufficient varied history)
   - No-alert cases (below threshold / within z-score band)
-  - load/append/roundtrip
+  - load/append/roundtrip against the SQLite tracking database
   - Ordering guarantee: load → check → append (current run never biases itself)
 """
 
-import json
-
 import pytest
 
+from strategic_reports.daily.core.db import record_run
 from strategic_reports.daily.core.models import StrategicInsight, TopicConfig, TopicResult
 from strategic_reports.daily.core.urgency import (
     UrgencyAlert,
@@ -40,10 +39,12 @@ def _make_result(title: str, score: float) -> TopicResult:
     )
 
 
-def _append_n_runs(history_path, topic: str, scores: list[float]) -> None:
+def _append_n_runs(db_path, topic: str, scores: list[float]) -> None:
     """Append one historical run per score value for a topic."""
     for i, s in enumerate(scores):
-        append_run(history_path, [_make_result(topic, s)], run_id=f"run-{i}")
+        run_id = f"run-{i}"
+        record_run(db_path, run_id, article_count=0)
+        append_run(db_path, [_make_result(topic, s)], run_id=run_id)
 
 
 # ---------------------------------------------------------------------------
@@ -51,20 +52,18 @@ def _append_n_runs(history_path, topic: str, scores: list[float]) -> None:
 # ---------------------------------------------------------------------------
 
 class TestAbsoluteThreshold:
-    def test_no_alert_no_history_below_threshold(self, tmp_path):
-        history_path = tmp_path / "urgency_history.json"
+    def test_no_alert_no_history_below_threshold(self, db_path):
         alerts = check_alerts(
             [_make_result("AI", 0.5)],
-            load_history(history_path),
+            load_history(db_path),
             absolute_threshold=0.8,
         )
         assert alerts == []
 
-    def test_alert_no_history_above_threshold(self, tmp_path):
-        history_path = tmp_path / "urgency_history.json"
+    def test_alert_no_history_above_threshold(self, db_path):
         alerts = check_alerts(
             [_make_result("AI", 0.9)],
-            load_history(history_path),
+            load_history(db_path),
             absolute_threshold=0.8,
         )
         assert len(alerts) == 1
@@ -72,51 +71,47 @@ class TestAbsoluteThreshold:
         assert alerts[0].topic == "AI"
         assert alerts[0].score == pytest.approx(0.9)
 
-    def test_alert_thin_history_above_threshold(self, tmp_path):
-        history_path = tmp_path / "urgency_history.json"
+    def test_alert_thin_history_above_threshold(self, db_path):
         # Only 6 runs — below _MIN_HISTORY_RUNS=7, so still uses absolute check.
-        _append_n_runs(history_path, "AI", [0.3, 0.4, 0.35, 0.42, 0.38, 0.41])
+        _append_n_runs(db_path, "AI", [0.3, 0.4, 0.35, 0.42, 0.38, 0.41])
         alerts = check_alerts(
             [_make_result("AI", 0.85)],
-            load_history(history_path),
+            load_history(db_path),
             absolute_threshold=0.8,
         )
         assert len(alerts) == 1
         assert alerts[0].reason == "absolute"
 
-    def test_no_alert_thin_history_below_threshold(self, tmp_path):
-        history_path = tmp_path / "urgency_history.json"
-        _append_n_runs(history_path, "AI", [0.3, 0.4, 0.35, 0.42, 0.38, 0.41])
+    def test_no_alert_thin_history_below_threshold(self, db_path):
+        _append_n_runs(db_path, "AI", [0.3, 0.4, 0.35, 0.42, 0.38, 0.41])
         alerts = check_alerts(
             [_make_result("AI", 0.6)],
-            load_history(history_path),
+            load_history(db_path),
             absolute_threshold=0.8,
         )
         assert alerts == []
 
-    def test_absolute_fallback_when_std_zero(self, tmp_path):
+    def test_absolute_fallback_when_std_zero(self, db_path):
         """
         When >=7 runs all have the same score, std==0.
         The statistical check cannot fire, so we fall back to absolute threshold.
         """
-        history_path = tmp_path / "urgency_history.json"
         # 7 identical scores → std=0
-        _append_n_runs(history_path, "AI", [0.4] * 7)
+        _append_n_runs(db_path, "AI", [0.4] * 7)
         alerts = check_alerts(
             [_make_result("AI", 0.85)],
-            load_history(history_path),
+            load_history(db_path),
             absolute_threshold=0.8,
         )
         assert len(alerts) == 1
         assert alerts[0].reason == "absolute"
 
-    def test_no_alert_std_zero_below_absolute(self, tmp_path):
+    def test_no_alert_std_zero_below_absolute(self, db_path):
         """std==0 and score below absolute threshold → no alert."""
-        history_path = tmp_path / "urgency_history.json"
-        _append_n_runs(history_path, "AI", [0.4] * 7)
+        _append_n_runs(db_path, "AI", [0.4] * 7)
         alerts = check_alerts(
             [_make_result("AI", 0.6)],
-            load_history(history_path),
+            load_history(db_path),
             absolute_threshold=0.8,
         )
         assert alerts == []
@@ -130,13 +125,12 @@ class TestStatisticalAlert:
     # Varied historical scores: mean≈0.389, std≈0.024
     _VARIED_SCORES = [0.35, 0.40, 0.38, 0.42, 0.37, 0.41, 0.39]
 
-    def test_statistical_alert_fires(self, tmp_path):
+    def test_statistical_alert_fires(self, db_path):
         """Score far above mean (z >> 2.0) with sufficient varied history."""
-        history_path = tmp_path / "urgency_history.json"
-        _append_n_runs(history_path, "AI", self._VARIED_SCORES)
+        _append_n_runs(db_path, "AI", self._VARIED_SCORES)
         alerts = check_alerts(
             [_make_result("AI", 0.85)],
-            load_history(history_path),
+            load_history(db_path),
             absolute_threshold=0.8,
             z_score_threshold=2.0,
         )
@@ -147,31 +141,29 @@ class TestStatisticalAlert:
         assert a.mean is not None
         assert a.std is not None and a.std > 0
 
-    def test_statistical_no_alert_within_band(self, tmp_path):
+    def test_statistical_no_alert_within_band(self, db_path):
         """Score within two standard deviations of the mean → no alert."""
-        history_path = tmp_path / "urgency_history.json"
-        _append_n_runs(history_path, "AI", self._VARIED_SCORES)
+        _append_n_runs(db_path, "AI", self._VARIED_SCORES)
         # Score close to mean — well within z=2.0 band
         alerts = check_alerts(
             [_make_result("AI", 0.40)],
-            load_history(history_path),
+            load_history(db_path),
             absolute_threshold=0.8,
             z_score_threshold=2.0,
         )
         assert alerts == []
 
-    def test_statistical_check_skips_absolute(self, tmp_path):
+    def test_statistical_check_skips_absolute(self, db_path):
         """
         Once statistical check runs (std > 0 with enough history), the absolute
         check must NOT also fire — even if the score exceeds absolute_threshold.
         Prevents double-counting the same anomaly.
         """
-        history_path = tmp_path / "urgency_history.json"
-        _append_n_runs(history_path, "AI", self._VARIED_SCORES)
+        _append_n_runs(db_path, "AI", self._VARIED_SCORES)
         # Score above absolute_threshold=0.8 but only just above z threshold
         alerts = check_alerts(
             [_make_result("AI", 0.85)],
-            load_history(history_path),
+            load_history(db_path),
             absolute_threshold=0.8,
             z_score_threshold=2.0,
         )
@@ -179,13 +171,12 @@ class TestStatisticalAlert:
         assert len(alerts) == 1
         assert alerts[0].reason == "statistical"
 
-    def test_custom_z_threshold(self, tmp_path):
+    def test_custom_z_threshold(self, db_path):
         """A very high z_score_threshold prevents the alert from firing."""
-        history_path = tmp_path / "urgency_history.json"
-        _append_n_runs(history_path, "AI", self._VARIED_SCORES)
+        _append_n_runs(db_path, "AI", self._VARIED_SCORES)
         alerts = check_alerts(
             [_make_result("AI", 0.45)],
-            load_history(history_path),
+            load_history(db_path),
             absolute_threshold=0.8,
             z_score_threshold=100.0,  # impossibly high
         )
@@ -197,44 +188,40 @@ class TestStatisticalAlert:
 # ---------------------------------------------------------------------------
 
 class TestMultiTopic:
-    def test_only_alerting_topic_returned(self, tmp_path):
-        history_path = tmp_path / "urgency_history.json"
+    def test_only_alerting_topic_returned(self, db_path):
         results = [
             _make_result("AI", 0.9),       # above absolute 0.8
             _make_result("Defense", 0.5),  # below threshold
         ]
-        alerts = check_alerts(results, load_history(history_path), absolute_threshold=0.8)
+        alerts = check_alerts(results, load_history(db_path), absolute_threshold=0.8)
         assert len(alerts) == 1
         assert alerts[0].topic == "AI"
 
-    def test_multiple_topics_can_alert(self, tmp_path):
-        history_path = tmp_path / "urgency_history.json"
+    def test_multiple_topics_can_alert(self, db_path):
         results = [
             _make_result("AI", 0.9),
             _make_result("Defense", 0.85),
             _make_result("Economics", 0.5),
         ]
-        alerts = check_alerts(results, load_history(history_path), absolute_threshold=0.8)
+        alerts = check_alerts(results, load_history(db_path), absolute_threshold=0.8)
         alerted_topics = {a.topic for a in alerts}
         assert alerted_topics == {"AI", "Defense"}
 
-    def test_topic_missing_from_history_uses_absolute(self, tmp_path):
+    def test_topic_missing_from_history_uses_absolute(self, db_path):
         """A topic with zero historical entries for it falls back to absolute."""
-        history_path = tmp_path / "urgency_history.json"
         # Only AI has history, Defense has none
-        _append_n_runs(history_path, "AI", [0.35, 0.40, 0.38, 0.42, 0.37, 0.41, 0.39])
+        _append_n_runs(db_path, "AI", [0.35, 0.40, 0.38, 0.42, 0.37, 0.41, 0.39])
         alerts = check_alerts(
             [_make_result("Defense", 0.85)],
-            load_history(history_path),
+            load_history(db_path),
             absolute_threshold=0.8,
         )
         assert len(alerts) == 1
         assert alerts[0].reason == "absolute"
 
-    def test_topic_without_strategy_ignored(self, tmp_path):
-        history_path = tmp_path / "urgency_history.json"
+    def test_topic_without_strategy_ignored(self, db_path):
         result = TopicResult(config=_make_config("AI"), strategy=None)
-        alerts = check_alerts([result], load_history(history_path), absolute_threshold=0.0)
+        alerts = check_alerts([result], load_history(db_path), absolute_threshold=0.0)
         assert alerts == []
 
 
@@ -243,49 +230,47 @@ class TestMultiTopic:
 # ---------------------------------------------------------------------------
 
 class TestHistoryPersistence:
-    def test_load_empty_when_no_file(self, tmp_path):
-        history = load_history(tmp_path / "nonexistent.json")
-        assert history == []
+    def test_load_empty_when_no_prior_runs(self, db_path):
+        history = load_history(db_path)
+        assert history == {}
 
-    def test_append_creates_file(self, tmp_path):
-        history_path = tmp_path / "sub" / "urgency_history.json"
-        append_run(history_path, [_make_result("AI", 0.5)], run_id="run-0")
-        assert history_path.exists()
-        data = json.loads(history_path.read_text())
-        assert len(data) == 1
-        assert data[0]["scores"]["AI"] == pytest.approx(0.5)
+    def test_append_creates_db_file(self, db_path):
+        record_run(db_path, "run-0", article_count=0)
+        append_run(db_path, [_make_result("AI", 0.5)], run_id="run-0")
+        assert db_path.exists()
+        history = load_history(db_path)
+        assert history["AI"] == pytest.approx([0.5])
 
-    def test_multiple_appends_accumulate(self, tmp_path):
-        history_path = tmp_path / "urgency_history.json"
+    def test_multiple_appends_accumulate(self, db_path):
         for i, s in enumerate([0.3, 0.5, 0.7]):
-            append_run(history_path, [_make_result("AI", s)], run_id=f"run-{i}")
-        history = load_history(history_path)
-        assert len(history) == 3
-        assert [h["scores"]["AI"] for h in history] == pytest.approx([0.3, 0.5, 0.7])
+            record_run(db_path, f"run-{i}", article_count=0)
+            append_run(db_path, [_make_result("AI", s)], run_id=f"run-{i}")
+        history = load_history(db_path)
+        assert history["AI"] == pytest.approx([0.3, 0.5, 0.7])
 
-    def test_ordering_current_run_not_in_own_baseline(self, tmp_path):
+    def test_ordering_current_run_not_in_own_baseline(self, db_path):
         """
         The correct call order is: load → check → append.
         If you accidentally pass the already-appended history to check_alerts,
         the current run's score would inflate the mean and reduce z-scores.
         This test verifies the baseline never includes the current run.
         """
-        history_path = tmp_path / "urgency_history.json"
         # Build 7 runs with consistently low scores
-        _append_n_runs(history_path, "AI", [0.35, 0.40, 0.38, 0.42, 0.37, 0.41, 0.39])
+        _append_n_runs(db_path, "AI", [0.35, 0.40, 0.38, 0.42, 0.37, 0.41, 0.39])
 
         current_results = [_make_result("AI", 0.99)]
-        history = load_history(history_path)   # load before append
+        history = load_history(db_path)   # load before append
         alerts = check_alerts(current_results, history, absolute_threshold=0.8, z_score_threshold=2.0)
-        append_run(history_path, current_results, run_id="current")
+        record_run(db_path, "current", article_count=0)
+        append_run(db_path, current_results, run_id="current")
 
         # Alert must have fired based on the 7-run baseline (not 8-run with 0.99 included)
         assert len(alerts) == 1
         assert alerts[0].reason == "statistical"
 
         # After append, history has 8 entries
-        new_history = load_history(history_path)
-        assert len(new_history) == 8
+        new_history = load_history(db_path)
+        assert len(new_history["AI"]) == 8
 
 
 # ---------------------------------------------------------------------------

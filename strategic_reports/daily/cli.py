@@ -75,7 +75,11 @@ from strategic_reports.daily.core import (
     run_pipeline,
     write_tag_graph,
 )
-from strategic_reports.daily.core.db import connect as connect_db, ensure_safe_db_path
+from strategic_reports.daily.core.db import (
+    connect as connect_db,
+    ensure_safe_db_path,
+    record_run,
+)
 from strategic_reports.daily.core.models import TopicConfig
 from strategic_reports.daily.core.pipeline import synthesize_cross_topic
 from strategic_reports.daily.core.renderer import render_report
@@ -204,10 +208,11 @@ def run(
         typer.echo(str(e), err=True)
         raise typer.Exit(code=1)
 
-    # connect_db() creates the database file (and parent dirs) on first use,
-    # and never touches an existing one — this is what makes cross-run
-    # history possible. No schema is created yet; that lands with the
-    # urgency/bullet-history tracking that will use this connection.
+    # connect_db() creates the database file (and parent dirs, and the schema)
+    # on first use, and never touches existing data — this is what makes
+    # cross-run history possible. Just a fail-fast check here (closed right
+    # away); the urgency/bullet functions below each open their own short
+    # connection per call rather than sharing this one.
     connect_db(db_path).close()
 
     # Validate --instructor-mode before doing any real work.
@@ -278,6 +283,13 @@ def run(
         )
     )
 
+    # Register this run in the tracking database, with the total number of
+    # articles considered — the denominator any future cross-run tag-weight
+    # comparison divides by. Must happen before append_run()/append_bullet_run()
+    # below, since those insert rows referencing this run_id.
+    article_count = sum(len(r.articles) for r in results)
+    record_run(db_path, run_id, article_count)
+
     # Cross-topic synthesis: a separate LLMClient (distinct trace_name) so it's
     # distinguishable from the per-topic summarization calls in tracing. Fails
     # gracefully to None — render_report omits the Strategic Overview section
@@ -301,11 +313,10 @@ def run(
     # then append today's scores for future runs' baseline. Order matters —
     # the current run is checked before it's appended, so it never inflates
     # its own baseline. Never blocks rendering on failure.
-    urgency_history_path = _DEFAULT_HOME / "output" / "daily" / "urgency_history.json"
     try:
-        urgency_history = load_history(urgency_history_path)
+        urgency_history = load_history(db_path)
         alerts = check_alerts(results, urgency_history, absolute_threshold, z_score_threshold)
-        append_run(urgency_history_path, results, run_id)
+        append_run(db_path, results, run_id)
         if alerts:
             typer.echo(f"URGENCY ALERTS ({len(alerts)} topic(s)):")
             for alert in alerts:
@@ -318,15 +329,13 @@ def run(
     # Bullet diff: compare today's strategic bullets against yesterday's via an
     # LLM classification call, then append today's bullets for tomorrow's diff.
     # Skipped (no diff) on the very first run. Never blocks rendering on failure.
-    bullet_history_path = _DEFAULT_HOME / "output" / "daily" / "bullet_history.json"
     diffs: dict = {}
     try:
-        bullet_history = load_bullet_history(bullet_history_path)
-        if not bullet_history:
+        yesterday = load_bullet_history(db_path)
+        if not yesterday:
             typer.echo("No bullet history yet — skipping diff on first run")
-            append_bullet_run(bullet_history_path, results, run_id)
+            append_bullet_run(db_path, results, run_id)
         else:
-            yesterday = bullet_history[-1]["topics"]
             diff_client = LLMClient(
                 model=model,
                 temperature=temperature,
@@ -336,7 +345,7 @@ def run(
                 api_key=ollama_api_key,
             )
             diffs = asyncio.run(diff_all_topics(results, yesterday, diff_client))
-            append_bullet_run(bullet_history_path, results, run_id)
+            append_bullet_run(db_path, results, run_id)
     except Exception as exc:
         typer.echo(f"[warn] Bullet diff failed: {exc} — report will render without diffs", err=True)
         diffs = {}

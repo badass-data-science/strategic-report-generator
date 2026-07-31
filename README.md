@@ -38,10 +38,10 @@ Phase 3 — Cross-topic Synthesis  [single LLM call]
 
 Phase 4 — Historical Diffing  [concurrent per-topic LLM calls]
 
-  bullet_history.json ──► yesterday's bullets (per topic)
-  list[TopicResult]   ──► diff vs. yesterday ──► dict[topic, BulletDiff]
-                                                  (new / continued / dropped)
-  (skipped on first run; bullet_history.json written after diff)
+  --db-path (bullets table) ──► yesterday's bullets (per topic)
+  list[TopicResult]         ──► diff vs. yesterday ──► dict[topic, BulletDiff]
+                                                        (new / continued / dropped)
+  (skipped on first run; today's bullets inserted into --db-path after diff)
 
 Phase 5 — Rendering  [Jinja2 templates]
 
@@ -314,11 +314,11 @@ daily_report_flow
   ├── run-cross-topic-synthesis   (async)  single LLM call across all topic insights
   │                                        retries=2; fails gracefully to None
   ├── check-urgency-alerts        (sync)   score each topic; alert if above threshold
-  │                                        appends to output/daily/urgency_history.json
+  │                                        inserts into --db-path (urgency_scores table)
   ├── run-bullet-diff             (async)  diff today's bullets vs. yesterday's per topic
   │                                        retries=2; fails gracefully to {}
   │                                        skipped (no diff) on first run
-  │                                        appends to output/daily/bullet_history.json
+  │                                        inserts into --db-path (bullets table)
   ├── render-html-report          (sync)   Jinja2 → HTML output files
   ├── build-tag-graph             (sync)   tag co-occurrence graph → tag_graph.json + tag_graph.html
   └── upload-to-web-server        (sync)   SCP output to remote host; SSH to move into web root
@@ -411,7 +411,7 @@ python -m strategic_reports.daily.cli \
 pytest
 ```
 
-98 tests across 7 files. No real API calls — the LLM client is fully mocked.
+115 tests across 9 files. No real API calls — the LLM client is fully mocked.
 Runs in under a second. A GitHub Actions workflow
 (`.github/workflows/tests.yml`) runs the same suite on every push and pull
 request to `main` — no LLM credentials needed there either.
@@ -423,6 +423,8 @@ tests/test_renderer.py    HTML rendering for all three result states + XSS
 tests/test_ingestion.py   RSS fetching with mocked feedparser
 tests/test_pipeline.py    Async orchestration with mocked LLMClient
 tests/test_urgency.py     Urgency alerting: absolute threshold, z-score, std==0 fallback, history persistence
+tests/test_bullet_diff.py Bullet-history storage: most-recent-run lookup, ordering, multi-topic
+tests/test_db.py          Tracking-db safety guard, schema creation, run registration
 tests/test_tag_normalizer.py  Tag synonym normalization
 ```
 
@@ -441,8 +443,9 @@ strategic_reports/daily/
     renderer.py        Jinja2 HTML rendering
     tag_normalizer.py  Tag synonym map and normalize_tags(); applied via Pydantic validator
     tag_graph.py       Tag co-occurrence graph builder; full tag_graph.json + pruned/community tag_graph_display.json + tag_graph.html
-    urgency.py         Urgency alert logic: absolute threshold + z-score baseline
-    bullet_diff.py     Historical bullet diffing: load/append history, concurrent per-topic LLM diff
+    urgency.py         Urgency alert logic: absolute threshold + z-score baseline (SQLite-backed)
+    bullet_diff.py     Historical bullet diffing: load/append history, concurrent per-topic LLM diff (SQLite-backed)
+    db.py              SQLite tracking database: schema, connection helper, output_dir/db_path safety guard, run registration
     tracing.py         Langfuse and Phoenix setup (opt-in)
   templates/
     base.html.j2       Shared layout and styles
@@ -476,10 +479,16 @@ The pipeline writes the following files to `--output-dir`:
 - **`tag_graph_display.json`** — pruned and community-annotated graph consumed by `tag_graph.html`. Nodes with fewer than 3 article appearances and edges with fewer than 2 co-occurrences are dropped before Louvain community detection runs. Typically ~200 nodes and ~800 edges.
 - **`tag_graph.json`** — full graph (all tags and co-occurrence edges, unfiltered) for downstream data science use.
 
-Two history files are maintained outside the upload directory (`output/daily/`):
+Cross-run history is kept separately, in the SQLite database at `--db-path`
+(never inside `--output-dir` — see [Configuration](#configuration)):
 
-- **`urgency_history.json`** — per-topic urgency scores from each run; used by the z-score baseline after 7 runs per topic.
-- **`bullet_history.json`** — per-topic strategic bullets from each run (last 7 kept); used by the bullet diff to identify what changed since yesterday.
+- **`runs`** — one row per pipeline run: `run_id`, `created_at` timestamp, and `article_count` (total articles considered that run — the denominator for comparing tag weights across runs, since a raw tag count means something different on a 400-article day than a 50-article one).
+- **`urgency_scores`** — one row per topic per run; used by the z-score baseline after 7 runs per topic.
+- **`bullets`** — one row per strategic bullet per topic per run; used by the bullet diff to identify what changed since the most recent prior run.
+
+Every row carries its own `created_at` timestamp in addition to `run_id`, and
+nothing is pruned — unlike the JSON files this replaced, which capped bullet
+history at the last 7 runs, the database keeps full history indefinitely.
 
 Weekend runs will produce thinner output — most news sources don't publish on weekends.
 
