@@ -134,13 +134,7 @@ export LLM_MODEL="gpt-4o"
 export OPENAI_API_KEY="..."
 ```
 
-Set where the report gets written (required):
-
-```bash
-export STRATEGIC_REPORTS_OUTPUT_DIR="output/daily/strategic-report"
-```
-
-Run:
+Run, specifying where the report gets written (required):
 
 ```bash
 python -m strategic_reports.daily.cli --output-dir output/daily/strategic-report
@@ -152,14 +146,14 @@ Open `index.html` in the output directory in a browser to read the report.
 
 ## Configuration
 
-All options can be set via CLI flag or environment variable; `--output-dir` is
-required (via flag or env var), everything else has a default.
+Most options can be set via CLI flag or environment variable and have a
+default. `--output-dir` is the exception: it's required.
 
 | Flag | Env var | Default | Description |
 |------|---------|---------|-------------|
+| `--output-dir` | — | *(required)* | HTML output directory — wiped and recreated on every run |
 | `--model` | `LLM_MODEL` | `ollama_chat/glm-5.2:cloud` | litellm model string |
 | `--hours-cutoff` | — | `24` | Article age window in hours |
-| `--output-dir` | `STRATEGIC_REPORTS_OUTPUT_DIR` | *(required)* | HTML output directory — wiped and recreated on every run |
 | `--data-dir` | `STRATEGIC_REPORTS_DATA_DIR` | `data/rss_feeds` | RSS feed config directory |
 | `--batch-size` | — | `50` | Articles per LLM summarization call |
 | `--max-concurrent` | — | `3` | Max topics hitting the LLM API simultaneously |

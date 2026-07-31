@@ -5,7 +5,7 @@ Usage:
     python -m strategic_reports.daily.cli run --output-dir /path/to/output
 
 Key options:
-    --output-dir        Where to write HTML output (required; or env STRATEGIC_REPORTS_OUTPUT_DIR)
+    --output-dir        Where to write HTML output (required)
     --model             litellm model string  (default: env LLM_MODEL or ollama_chat/glm-5.2:cloud)
     --hours-cutoff      Article age window in hours (default: 24)
     --data-dir          Where to find rss_feeds/*.json files
@@ -133,7 +133,6 @@ def run(
     ),
     output_dir: Path = typer.Option(
         ...,
-        envvar="STRATEGIC_REPORTS_OUTPUT_DIR",
         help="Directory to write HTML report files (required). "
              "WARNING: wiped and recreated on every run.",
     ),
