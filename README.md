@@ -391,7 +391,9 @@ pytest
 ```
 
 92 tests across 6 files. No real API calls — the LLM client is fully mocked.
-Runs in under a second.
+Runs in under a second. A GitHub Actions workflow
+(`.github/workflows/tests.yml`) runs the same suite on every push and pull
+request to `main` — no LLM credentials needed there either.
 
 ```
 tests/test_models.py      Pydantic validation and TokenUsage arithmetic
