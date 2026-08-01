@@ -4,6 +4,19 @@ All notable changes to this project are documented here. Entries are
 grouped by date rather than a semantic version number, since this project
 doesn't tag releases.
 
+## Unreleased (`prefect-pipeline-updates-0001` branch)
+
+### Added
+- New `flows/export_rdf_flow.py`: wraps `export-rdf` as a Prefect
+  `@flow`/`@task`, in its own file rather than folded into
+  `daily_report.py`, since `export-rdf` is deliberately independent of the
+  daily pipeline (see `AGENTS.md`). **Not scheduled** — no
+  `CronSchedule`/`.serve()` call yet; run it directly:
+  `python -m strategic_reports.daily.flows.export_rdf_flow --db-path ...
+  --output ...`, same flags as the CLI command. Scheduling cadence,
+  full-vs-incremental-on-schedule, and single- vs. two-process serving
+  were deliberately deferred rather than decided.
+
 ## Unreleased (`schema-org-html-markup` branch)
 
 ### Added

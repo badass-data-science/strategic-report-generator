@@ -391,6 +391,16 @@ This is a third CLI-only command, like `ask` — a deliberate exception to
 the run/flow parity convention (see `AGENTS.md`); a scheduled Prefect
 equivalent may be added later.
 
+A Prefect flow wrapping the same logic already exists
+(`flows/export_rdf_flow.py`), but it isn't scheduled yet — run it directly
+for now, same flags as the CLI command:
+
+```bash
+python -m strategic_reports.daily.flows.export_rdf_flow \
+  --db-path output/daily/strategic_reports.db \
+  --output output/daily/knowledge_graph.ttl
+```
+
 ---
 
 ## Scheduling with Prefect
@@ -652,6 +662,7 @@ strategic_reports/
       rss_feeds/         One JSON file per topic listing RSS feed URLs — packaged as wheel data
     flows/
       daily_report.py    Prefect flow (see Scheduling with Prefect)
+      export_rdf_flow.py Prefect flow wrapping export-rdf — not yet scheduled, run directly
     config/
       topic_order.py     Ordered list of topic slugs and display titles
     cli.py               typer CLI entrypoint
