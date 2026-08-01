@@ -60,6 +60,7 @@ from strategic_reports.daily.core import (
     record_bridge_tags,
     record_community_summaries,
     record_emerging_tag_alerts,
+    record_overview,
     record_tags,
     run_pipeline,
     summarize_communities,
@@ -72,6 +73,7 @@ from strategic_reports.daily.core.db import (
 )
 from strategic_reports.daily.core.models import TopicConfig
 from strategic_reports.daily.core.pipeline import synthesize_cross_topic
+from strategic_reports.daily.core.rdf_export import export_rdf
 from strategic_reports.daily.core.renderer import render_report
 from strategic_reports.daily.core.tracing import generate_run_id, setup_tracing
 from strategic_reports.daily.paths import default_data_dir
@@ -343,6 +345,10 @@ def run(
     )
     try:
         overview = asyncio.run(synthesize_cross_topic(results, synthesis_client))
+        try:
+            record_overview(db_path, run_id, overview.bullets)
+        except Exception as exc:
+            typer.echo(f"[warn] Overview archiving failed: {exc} — continuing without archiving", err=True)
     except Exception as exc:
         typer.echo(f"[warn] Cross-topic synthesis failed: {exc} — report will render without overview", err=True)
         overview = None
@@ -498,6 +504,43 @@ def ask(
         for c in result["communities"]:
             date = c["created_at"].split("T")[0]
             typer.echo(f"  - {date} — {c['label']} ({c['article_count']} articles)")
+
+
+@app.command(name="export-rdf")
+def export_rdf_command(
+    db_path: Path = typer.Option(
+        ...,
+        help="SQLite tracking database to export (required) — the same one "
+             "--db-path pointed at during `run` invocations.",
+    ),
+    output: Path = typer.Option(
+        ...,
+        help="Turtle (.ttl) file to write the RDF export to.",
+    ),
+    since: str | None = typer.Option(
+        None,
+        help="Only include runs at or after this point — a run_id or an "
+             "ISO 8601 timestamp. Omit for a full rebuild from every run "
+             "in the database.",
+    ),
+) -> None:
+    """
+    Export the accumulated archive as an RDF (Turtle) knowledge graph.
+
+    Complements tag_graph.py's per-run co-occurrence JSON/HTML output —
+    doesn't replace or recompute it. Reads durable, cross-run data from
+    --db-path (articles, tags, community summaries, bridge tags, per-topic
+    strategic bullets, urgency scores, cross-topic overviews) and gives it
+    a standard RDF shape (SKOS for tags/communities, PROV-O for run
+    lineage, schema.org for article metadata) intended for integration
+    into a broader, multi-source knowledge base. Read-only against
+    --db-path; never touches --output-dir.
+    """
+    connect_db(db_path).close()
+
+    triple_count = export_rdf(db_path, output, since=since)
+
+    typer.echo(f"RDF export written to {output} ({triple_count:,} triples)")
 
 
 if __name__ == "__main__":

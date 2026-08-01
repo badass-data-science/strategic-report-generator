@@ -200,6 +200,20 @@ CREATE TABLE IF NOT EXISTS community_summary_tags (
     tag TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_community_summary_tags_run_comm ON community_summary_tags(run_id, community_id);
+
+-- The cross-topic synthesis overview (see pipeline.synthesize_cross_topic)
+-- is rendered into index.html but was otherwise never persisted. One row
+-- per bullet (same shape as bullets/article_summary_bullets above) since
+-- CrossTopicSynthesis.bullets is a list, not a single blob of text. See
+-- overview_archive.py.
+CREATE TABLE IF NOT EXISTS cross_topic_overviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL REFERENCES runs(run_id),
+    created_at TEXT NOT NULL,
+    bullet_index INTEGER NOT NULL,
+    bullet_text TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_cross_topic_overviews_run ON cross_topic_overviews(run_id);
 """
 
 

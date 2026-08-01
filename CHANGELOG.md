@@ -4,6 +4,43 @@ All notable changes to this project are documented here. Entries are
 grouped by date rather than a semantic version number, since this project
 doesn't tag releases.
 
+## Unreleased (`rdf-export` branch)
+
+### Added
+- New `export-rdf` CLI command: `python -m strategic_reports.daily.cli
+  export-rdf --db-path ... --output knowledge_graph.ttl [--since
+  <run_id-or-timestamp>]` exports the accumulated archive as an RDF
+  (Turtle) knowledge graph. Complements `tag_graph.py`'s per-run
+  co-occurrence JSON/HTML output — doesn't replace or recompute it, and
+  the two are otherwise unconnected code paths.
+- New `rdf_export.py`: reuses standard vocabularies rather than inventing
+  a bespoke schema — SKOS (tags as `skos:Concept`, Louvain communities as
+  `skos:Collection`), PROV-O (every fact traces to the run that produced
+  it via `prov:wasGeneratedBy`), schema.org (article bibliographic
+  fields). A small custom `stratrep:` namespace covers what's genuinely
+  domain-specific (topics, urgency scores, bridge-tag observations, the
+  cross-topic overview).
+- `--since` filters which runs are included in a given export (a `run_id`
+  or ISO timestamp) but does not merge into an existing `.ttl` file —
+  each invocation writes a fresh file; a deliberate v1 scope choice, not
+  an oversight.
+- New `cross_topic_overviews` table + `overview_archive.py`
+  (`record_overview()`): the cross-topic synthesis overview was previously
+  rendered into `index.html` but never persisted anywhere. Now persisted
+  in both `cli.py run` and the Prefect flow's `run-cross-topic-synthesis`
+  task (folded in rather than added as a separate task, since it's a
+  one-line persist tied directly to that task's own output), following
+  the same "never blocks rendering on failure" pattern as the other
+  optional persistence steps.
+- Added `rdflib>=7.0.0` as a core dependency.
+- `export-rdf` is a fourth CLI-only command, like `ask` — a deliberate
+  exception to the run/flow parity convention; no Prefect equivalent yet.
+- 13 new tests (`tests/test_overview_archive.py`,
+  `tests/test_rdf_export.py`): overview bullet round-trip/ordering,
+  ontology mapping for articles/tags/communities/bridge
+  tags/urgency/bullets/overview, `--since` filtering, Turtle
+  serialization round-trip. 202 tests total, up from 189.
+
 ## Unreleased (`pypi-friendly-refactor` branch)
 
 ### Changed

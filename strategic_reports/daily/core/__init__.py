@@ -80,6 +80,8 @@ from .urgency import UrgencyAlert, append_run, check_alerts, load_history
 from .bullet_diff import append_bullet_run, diff_all_topics, load_bullet_history
 from .db import connect as connect_db, ensure_safe_db_path, record_run
 from .article_archive import load_articles, record_articles
+from .overview_archive import record_overview
+from .rdf_export import build_graph as build_rdf_graph, export_rdf
 from .tag_tracking import (
     EmergingTagAlert,
     check_emerging_tags,
@@ -132,6 +134,9 @@ __all__ = [
     "record_run",
     "load_articles",
     "record_articles",
+    "record_overview",
+    "build_rdf_graph",
+    "export_rdf",
     "EmergingTagAlert",
     "check_emerging_tags",
     "load_tag_rate_history",
