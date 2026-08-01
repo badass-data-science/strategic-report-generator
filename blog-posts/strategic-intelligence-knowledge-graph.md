@@ -1,4 +1,4 @@
-# Strategic Intelligence, Interconnected: Our Heroine Teaches Her Archive to Draw Its Own Map
+# Strategic Intelligence, Interconnected (Our Heroine Teaches Her Reporting Pipeline to Draw Its Own Knowledge Graph)
 
 If you read our heroine's earlier dispatch, ["Daily Strategic Intelligence, Automated"](https://badassdatascience.substack.com/p/daily-strategic-intelligence-automated), you already know the shape of her Ultimate Cunning Master Plan™: a nightly pipeline that reads a dozen topic areas' worth of RSS feeds, hands the results to an LLM, and produces a tight strategic brief instead of yet another pile of unread links. That part of the plan works. It has worked for months. Nobody has complained, mostly because our heroine does not tell anyone it exists.
 
