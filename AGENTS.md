@@ -36,13 +36,20 @@ recompute it, and touching one should not require touching the other.
 
 `export-rdf` also has a Prefect flow (`flows/export_rdf_flow.py`) — a
 separate file from `daily_report.py`, not a task folded into it, since
-`export-rdf` is deliberately independent of the daily pipeline. It is
-**not scheduled** (no `CronSchedule`/`.serve()` call) — run it directly
-(`python -m strategic_reports.daily.flows.export_rdf_flow --db-path ...
---output ...`). Don't add scheduling to it without discussing cadence,
-full-vs-incremental-on-schedule, and whether it stays a second process
-or gets folded into `daily_report.py`'s `serve()` call first — those were
-deliberately deferred, not decided.
+`export-rdf` is deliberately independent of the daily pipeline. It's
+scheduled as **its own separate process** (own `.serve()` call, own
+systemd unit — see README's "Scheduling with Prefect"), not folded into
+`daily_report.py`'s `serve()`, so a crash/restart of one never touches
+the other. Runs daily at 04:00 America/Los_Angeles (well after
+`daily_report_flow`'s 00:30 run) and always does a full rebuild — no
+`--since` watermark tracking, matching the CLI command's scope. The
+scheduled deployment's `db_path` reads from the same tracking database
+`daily_report_flow`'s deployment writes to (both anchored via
+`Path.home()`, not cwd). This module no longer exposes a typer/CLI-args
+entry point for ad-hoc runs — that capability is superseded by `prefect
+deployment run 'export-rdf/export-rdf' --param since=...` now that a
+deployment exists; `cli.py export-rdf` remains available for genuinely
+Prefect-independent ad-hoc use.
 
 **CLI invocation shape**: `cli.py` now has three commands (`run`, `ask`,
 `export-rdf`), so naming one explicitly is required (`... cli.py run
@@ -112,7 +119,7 @@ strategic_reports/
     templates/            Jinja2 templates (base, index, topic)
     data/rss_feeds/       One JSON file per topic listing feed URLs — packaged as wheel data
     flows/daily_report.py Prefect flow (10 tasks) for scheduled runs — no `ask` equivalent, deliberately (see above)
-    flows/export_rdf_flow.py Prefect flow wrapping export-rdf — not yet scheduled (see above)
+    flows/export_rdf_flow.py Prefect flow wrapping export-rdf — scheduled daily, own process (see above)
     cli.py                typer CLI entrypoint — three commands: run, ask, export-rdf
     paths.py              default_data_dir() — resolves bundled rss_feeds/ via importlib.resources
     config/topic_order.py Ordered topic slugs + display titles
