@@ -37,6 +37,15 @@ doesn't tag releases.
   (including `record_overview`, added earlier on this branch's history)
   was already present in both entry points.
 
+### Changed
+- The scheduled deployment's fixed `output_dir`/`db_path` (set once in
+  `daily_report_flow.serve()`'s `parameters={}`, since a cron-triggered
+  run has no CLI invocation to supply them) now point at
+  `$HOME/output/daily-strategic-report-from-RSS-feeds/{daily-report,
+  strategic-reports.db}`, anchored via `Path.home()` rather than the
+  process's working directory. Removed the now-unused `_DEFAULT_HOME`
+  module variable this replaced (it had no other callers).
+
 ## Unreleased (`schema-org-html-markup` branch)
 
 ### Added

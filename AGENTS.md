@@ -22,13 +22,13 @@ urgency alerts, bullet diffing, tag graph, community summaries), add it to
 the other too unless told otherwise — this parity was an explicit,
 deliberate decision.
 
-A third command, `python -m strategic_reports.daily.cli ask "<question>"`,
+A second command, `python -m strategic_reports.daily.cli ask "<question>"`,
 is a deliberate exception: an interactive, human-in-the-loop archive
 query (graph-guided retrieval over `community_summaries` — see
 `archive_query.py`), not a scheduled batch step. It has no Prefect
 equivalent, and that's intentional, not a parity gap to fix.
 
-A fourth command, `python -m strategic_reports.daily.cli export-rdf`, is
+A third command, `python -m strategic_reports.daily.cli export-rdf`, is
 the same kind of exception: an on-demand export of the tracking database
 to RDF/Turtle (see `rdf_export.py`), not a pipeline step. It complements
 `tag_graph.py`'s per-run co-occurrence JSON/HTML — it does not replace or
@@ -44,7 +44,7 @@ full-vs-incremental-on-schedule, and whether it stays a second process
 or gets folded into `daily_report.py`'s `serve()` call first — those were
 deliberately deferred, not decided.
 
-**CLI invocation shape**: `cli.py` now has four commands (`run`, `ask`,
+**CLI invocation shape**: `cli.py` now has three commands (`run`, `ask`,
 `export-rdf`), so naming one explicitly is required (`... cli.py run
 --output-dir ...`) — typer's single-command auto-invoke shorthand (bare
 `... cli.py --output-dir ...`) only applies when there's exactly one
@@ -113,7 +113,7 @@ strategic_reports/
     data/rss_feeds/       One JSON file per topic listing feed URLs — packaged as wheel data
     flows/daily_report.py Prefect flow (10 tasks) for scheduled runs — no `ask` equivalent, deliberately (see above)
     flows/export_rdf_flow.py Prefect flow wrapping export-rdf — not yet scheduled (see above)
-    cli.py                typer CLI entrypoint — two commands: run, ask
+    cli.py                typer CLI entrypoint — three commands: run, ask, export-rdf
     paths.py              default_data_dir() — resolves bundled rss_feeds/ via importlib.resources
     config/topic_order.py Ordered topic slugs + display titles
 tests/                  Per-module test files + conftest.py fixtures

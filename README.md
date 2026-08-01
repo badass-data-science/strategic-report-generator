@@ -227,8 +227,9 @@ export OPENAI_API_KEY="..."
 ```
 
 Run, specifying where the report gets written and where the tracking
-database lives (both required). The CLI has two commands (`run` and
-`ask` — see [Asking questions about the archive](#asking-questions-about-the-archive)),
+database lives (both required). The CLI has three commands (`run`,
+`ask`, and `export-rdf` — see [Asking questions about the archive](#asking-questions-about-the-archive)
+and [Exporting an RDF knowledge graph](#exporting-an-rdf-knowledge-graph)),
 so naming one explicitly is required:
 
 ```bash
@@ -450,7 +451,7 @@ These can also be placed in a `.env` file and loaded with `source .env`, or refe
 python -m strategic_reports.daily.flows.daily_report
 ```
 
-This registers the deployment with the local server and polls for scheduled runs. The flow defaults to `instructor_mode=JSON` and reads `OLLAMA_API_BASE` / `OLLAMA_API_KEY` from the environment automatically.
+This registers the deployment with the local server and polls for scheduled runs. The flow defaults to `instructor_mode=TOOLS` (override to `JSON` if your model doesn't support tool calling — see `--instructor-mode` below) and reads `OLLAMA_API_BASE` / `OLLAMA_API_KEY` from the environment automatically. An invalid `instructor_mode` value fails the flow run immediately, before any task runs.
 
 The process must stay alive — run it under `systemd` or in a `tmux`/`screen` session.
 
