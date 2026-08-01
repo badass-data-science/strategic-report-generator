@@ -4,7 +4,39 @@ All notable changes to this project are documented here. Entries are
 grouped by date rather than a semantic version number, since this project
 doesn't tag releases.
 
-## Unreleased (`community-summaries` branch)
+## Unreleased (`archive-query` branch)
+
+### Added
+- New `ask` CLI command: `python -m strategic_reports.daily.cli ask
+  "<question>" --db-path ...` answers free-text questions about the
+  accumulated archive — across every past run, not just today's — via
+  graph-guided retrieval, not full GraphRAG. `pipeline.extract_query_tags()`
+  pulls candidate tags from the question; `archive_query.find_relevant_communities()`
+  matches them against `community_summaries` (exact tag membership first,
+  substring fallback second, across all runs); `pipeline.answer_archive_question()`
+  synthesizes an answer grounded strictly in what's retrieved. No
+  embeddings, no hierarchical multi-level community summarization —
+  deliberately out of scope, a considered choice for this project's
+  single-user use case.
+- New `QueryTags`/`ArchiveAnswer` Pydantic models, `SYSTEM_QUERY_TAGS`/
+  `SYSTEM_ARCHIVE_ANSWER` system messages, `build_query_tags_prompt()`/
+  `build_archive_answer_prompt()`.
+- `ask` is the one deliberate exception to the "add every pipeline step to
+  both entry points" convention: no Prefect equivalent, since it's an
+  interactive human-in-the-loop command, not a scheduled batch step.
+- **Breaking CLI invocation change**: `cli.py` now has two commands (`run`,
+  `ask`), so naming one explicitly is required going forward
+  (`... cli.py run --output-dir ...`) — typer's single-command auto-invoke
+  shorthand (bare `... cli.py --output-dir ...`) no longer applies once
+  there's more than one command.
+- 20 new tests (`tests/test_archive_query.py`: `find_relevant_communities()`
+  exact/substring matching, dedup, ordering, limit; `tests/test_pipeline.py`:
+  `extract_query_tags()`/`answer_archive_question()`). 189 tests total, up
+  from 177. Verified end-to-end with two integration smoke tests (the real
+  `ask` command failing cleanly against an unreachable model, and the full
+  success path with a mocked LLM against a seeded archive).
+
+## 2026-08-01
 
 ### Added
 - LLM-written summary per Louvain tag-community, replacing "labeled by top

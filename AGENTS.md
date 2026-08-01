@@ -9,18 +9,32 @@ orientation for making changes.
 A daily briefing pipeline: fetches RSS across 12 topics, summarizes and
 synthesizes strategic recommendations via an LLM (provider-agnostic via
 litellm), renders an HTML report + tag co-occurrence graph, tracks urgency
-scores and strategic bullets across runs in a SQLite database, and
-optionally uploads the report via SCP/SSH. Two entry points, kept at
-feature parity with each other:
+scores/strategic bullets/article summaries/community summaries across runs
+in a SQLite database, and optionally uploads the report via SCP/SSH. Two
+scheduled/batch entry points, kept at feature parity with each other:
 
-- `python -m strategic_reports.daily.cli` — run once, manually
+- `python -m strategic_reports.daily.cli run` — the batch pipeline, run once, manually
 - `flows/daily_report.py` — the same pipeline as a Prefect flow, scheduled
   daily via cron; adds only the optional remote-upload step, which the CLI
   doesn't do
 
 If you add a pipeline step to one entry point (cross-topic synthesis,
-urgency alerts, bullet diffing, tag graph), add it to the other too unless
-told otherwise — this parity was an explicit, deliberate decision.
+urgency alerts, bullet diffing, tag graph, community summaries), add it to
+the other too unless told otherwise — this parity was an explicit,
+deliberate decision.
+
+A third command, `python -m strategic_reports.daily.cli ask "<question>"`,
+is the one deliberate exception: an interactive, human-in-the-loop archive
+query (graph-guided retrieval over `community_summaries` — see
+`archive_query.py`), not a scheduled batch step. It has no Prefect
+equivalent, and that's intentional, not a parity gap to fix.
+
+**CLI invocation shape**: `cli.py` now has two commands (`run`, `ask`), so
+naming one explicitly is required (`... cli.py run --output-dir ...`) —
+typer's single-command auto-invoke shorthand (bare `... cli.py
+--output-dir ...`) only applies when there's exactly one command, and no
+longer applies here. If you ever reduce back to one command, that
+shorthand returns; don't assume it's available with two or more.
 
 ## Setup
 
@@ -38,7 +52,7 @@ matching provider credentials (see README's Quick Start).
 pytest
 ```
 
-- 177 tests across `tests/test_*.py`, no real network or LLM calls, runs in
+- 189 tests across `tests/test_*.py`, no real network or LLM calls, runs in
   under a second. CI (`.github/workflows/tests.yml`) runs the same suite on
   every push/PR to `main`, no credentials needed there either.
 - `pytest.ini` sets `asyncio_mode = auto` — async test functions don't need
@@ -58,7 +72,7 @@ strategic_reports/daily/
     llm_client.py       Async LLMClient: litellm + instructor + tenacity retry
     ingestion.py        Async RSS fetching
     prompts.py          System messages + user-message builders
-    pipeline.py         Two-phase async orchestrator + cross-topic synthesis (grounded by bridge tags) + summarize_communities()
+    pipeline.py         Two-phase async orchestrator + cross-topic synthesis (grounded by bridge tags) + summarize_communities() + answer_archive_question()/extract_query_tags()
     renderer.py         Jinja2 HTML rendering
     tag_normalizer.py   Tag synonym map, normalize_tags() (Pydantic validator)
     tag_graph.py        Tag co-occurrence graph + Louvain community detection + find_bridge_tags() + group_articles_by_community()
@@ -66,12 +80,13 @@ strategic_reports/daily/
     bullet_diff.py      Historical diffing vs. yesterday's bullets (SQLite-backed)
     db.py               SQLite tracking db: schema, connection helper, output_dir/db_path safety guard, run registration
     article_archive.py  Persists each run's article summaries (source material), linked to run_id
+    archive_query.py    Graph-guided retrieval: find_relevant_communities() — pure SQL, no LLM calls
     tag_tracking.py     Per-run tag-graph persistence (linked to run_id) + emerging-tag z-score + community-summary persistence (SQLite-backed)
     tracing.py          Langfuse / Phoenix instrumentation (opt-in)
   templates/            Jinja2 templates (base, index, topic)
-  cli.py                typer CLI entrypoint
+  cli.py                typer CLI entrypoint — two commands: run, ask
   config/topic_order.py Ordered topic slugs + display titles
-flows/daily_report.py   Prefect flow (11 tasks) for scheduled runs
+flows/daily_report.py   Prefect flow (11 tasks) for scheduled runs — no `ask` equivalent, deliberately (see above)
 data/rss_feeds/         One JSON file per topic listing feed URLs
 tests/                  Per-module test files + conftest.py fixtures
 LICENSE                 MIT
@@ -122,17 +137,22 @@ LICENSE                 MIT
   `community_summary_tags` store each community's own member tags rather
   than reconstructing them later, since Louvain community membership
   (`build_display_graph`) is never itself persisted.
-- **`article_archive.py` and `community_summaries` are the foundation for a
-  future interactive archive-query feature**, graph-guided-retrieval-
-  inspired rather than a full GraphRAG implementation (that's explicitly
-  out of scope for now — ask before adding hierarchical multi-level
-  community summarization or embeddings; the single-level community
-  summaries that exist today were a deliberate, scoped-down choice, not a
-  first step assumed to need deepening). `article_archive.py` persists the
-  source text every derived signal is computed from; `community_summaries`
-  persists an LLM-written paragraph per topic cluster. If you add an "ask
-  questions about the archive" feature, it reads from both — don't
-  reinvent a second place to store article text or community summaries.
+- **`ask` (archive_query.py + pipeline.answer_archive_question) is
+  graph-guided retrieval, not full GraphRAG — deliberately.** No
+  embeddings, no hierarchical multi-level community summarization. It
+  currently reads `community_summaries` only, not raw article text
+  (`article_archive.py`'s `articles`/`article_summary_bullets` tables are
+  persisted but not yet consumed by any retrieval path — available for a
+  future mode grounded in raw text). Don't add embeddings or a deeper
+  community hierarchy without discussing it first; this scope was a
+  considered choice for a single-user tool, not a first step assumed to
+  need deepening.
+- **`archive_query.find_relevant_communities()` has no LLM dependency —
+  keep it that way.** It's pure SQL (two-pass: exact tag membership, then
+  a label/summary substring fallback). LLM orchestration (extracting query
+  tags, synthesizing the final answer) belongs in `pipeline.py`, matching
+  this project's existing split between "pure DB/graph access" modules
+  and pipeline.py's LLM-calling orchestration.
 - **Bridge tags ground cross-topic synthesis in graph structure, not
   invention.** `synthesize_cross_topic()` computes `find_bridge_tags()`
   (tags spanning 3+ topics that day — a structural signal, no LLM

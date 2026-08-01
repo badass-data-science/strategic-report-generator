@@ -102,12 +102,14 @@ def configure_logging(level: str = "INFO") -> None:
 # calls structlog would run before configure_logging() is defined.
 
 from .models import (
+    ArchiveAnswer,
     ArticleSummary,
     ArticleSummaryBatch,
     BulletDiff,
     CommunitySummary,
     CrossTopicSynthesis,
     FeedConfig,
+    QueryTags,
     RawArticle,
     StrategicInsight,
     TokenUsage,
@@ -116,8 +118,9 @@ from .models import (
 )
 from .llm_client import LLMClient
 from .ingestion import fetch_topic_articles
-from .pipeline import run_pipeline, summarize_communities
+from .pipeline import answer_archive_question, extract_query_tags, run_pipeline, summarize_communities
 from .renderer import render_report
+from .archive_query import find_relevant_communities
 from .tag_graph import (
     build_display_graph,
     build_graph_data,
@@ -152,12 +155,14 @@ from .prompts import (
 __all__ = [
     "configure_logging",
     # Data models
+    "ArchiveAnswer",
     "ArticleSummary",
     "ArticleSummaryBatch",
     "BulletDiff",
     "CommunitySummary",
     "CrossTopicSynthesis",
     "FeedConfig",
+    "QueryTags",
     "RawArticle",
     "StrategicInsight",
     "TokenUsage",
@@ -168,6 +173,9 @@ __all__ = [
     "fetch_topic_articles",
     "run_pipeline",
     "summarize_communities",
+    "answer_archive_question",
+    "extract_query_tags",
+    "find_relevant_communities",
     "render_report",
     "build_display_graph",
     "build_graph_data",

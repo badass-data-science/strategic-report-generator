@@ -60,18 +60,27 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from strategic_reports.daily.core.db import record_run
 from strategic_reports.daily.core.llm_client import LLMClient
 from strategic_reports.daily.core.models import (
+    ArchiveAnswer,
     ArticleSummary,
     ArticleSummaryBatch,
     CommunitySummary,
+    QueryTags,
     RawArticle,
     StrategicInsight,
     TokenUsage,
     TopicConfig,
     TopicResult,
 )
-from strategic_reports.daily.core.pipeline import run_pipeline, summarize_communities
+from strategic_reports.daily.core.pipeline import (
+    answer_archive_question,
+    extract_query_tags,
+    run_pipeline,
+    summarize_communities,
+)
+from strategic_reports.daily.core.tag_tracking import record_community_summaries
 
 
 # ---------------------------------------------------------------------------
@@ -450,3 +459,72 @@ class TestSummarizeCommunities:
         assert "Article 0" in captured["prompt"]
         assert "Article 1" in captured["prompt"]
         assert "Article 2" not in captured["prompt"]
+
+
+# ---------------------------------------------------------------------------
+# Tests for extract_query_tags() / answer_archive_question()
+# ---------------------------------------------------------------------------
+
+def make_archive_mock_client(
+    tags: list[str] | None = None,
+    answer_text: str = "A grounded answer citing the retrieved coverage.",
+) -> MagicMock:
+    """A mock client dispatching on QueryTags vs. ArchiveAnswer response_model."""
+    tags = tags if tags is not None else ["policy"]
+
+    async def _complete_structured(prompt, response_model, system=None):
+        if response_model is QueryTags:
+            return QueryTags(tags=tags), TokenUsage()
+        if response_model is ArchiveAnswer:
+            return ArchiveAnswer(answer=answer_text), TokenUsage()
+        raise ValueError(f"Unexpected response_model: {response_model}")
+
+    client = MagicMock(spec=LLMClient)
+    client.complete_structured = _complete_structured
+    return client
+
+
+class TestExtractQueryTags:
+    async def test_returns_llm_extracted_tags(self):
+        client = make_archive_mock_client(tags=["export controls", "biotech"])
+        tags = await extract_query_tags("What's happening with export controls?", client)
+        assert tags == ["export controls", "biotech"]
+
+
+class TestAnswerArchiveQuestion:
+    async def test_no_matching_communities_returns_fallback(self, db_path):
+        client = make_archive_mock_client(tags=["nonexistent-topic"])
+        result = await answer_archive_question("anything?", db_path, client)
+        assert result["communities"] == []
+        assert "No archived coverage" in result["answer"]
+
+    async def test_returns_grounded_answer_with_communities(self, db_path):
+        record_run(db_path, "run-0", article_count=10)
+        record_community_summaries(db_path, "run-0", {
+            0: {
+                "label": "policy", "tags": ["export controls"],
+                "summary": "Coverage of new export rules.", "article_count": 3,
+            },
+        })
+        client = make_archive_mock_client(
+            tags=["export controls"], answer_text="Export controls tightened recently."
+        )
+        result = await answer_archive_question(
+            "What's happening with export controls?", db_path, client
+        )
+        assert result["answer"] == "Export controls tightened recently."
+        assert len(result["communities"]) == 1
+        assert result["communities"][0]["label"] == "policy"
+
+    async def test_max_communities_passed_through(self, db_path):
+        record_run(db_path, "run-0", article_count=10)
+        record_community_summaries(db_path, "run-0", {
+            i: {
+                "label": f"topic{i}", "tags": ["shared"],
+                "summary": f"Coverage {i}.", "article_count": 1,
+            }
+            for i in range(5)
+        })
+        client = make_archive_mock_client(tags=["shared"])
+        result = await answer_archive_question("question", db_path, client, max_communities=2)
+        assert len(result["communities"]) == 2

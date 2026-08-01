@@ -43,17 +43,21 @@ This refactor:
 """
 
 import asyncio
+from pathlib import Path
 
 import structlog
 
+from .archive_query import find_relevant_communities
 from .ingestion import fetch_topic_articles
 from .llm_client import LLMClient
 from .tag_graph import build_graph_data, find_bridge_tags, group_articles_by_community
 from .models import (
+    ArchiveAnswer,
     ArticleSummary,
     ArticleSummaryBatch,
     CommunitySummary,
     CrossTopicSynthesis,
+    QueryTags,
     RawArticle,
     StrategicInsight,
     TokenUsage,
@@ -61,12 +65,16 @@ from .models import (
     TopicResult,
 )
 from .prompts import (
+    SYSTEM_ARCHIVE_ANSWER,
     SYSTEM_COMMUNITY_SUMMARY,
     SYSTEM_CROSS_TOPIC,
+    SYSTEM_QUERY_TAGS,
     SYSTEM_STRATEGIST,
     SYSTEM_SUMMARIZER,
+    build_archive_answer_prompt,
     build_community_summary_prompt,
     build_cross_topic_prompt,
+    build_query_tags_prompt,
     build_strategy_prompt,
     build_summarize_prompt,
 )
@@ -310,6 +318,56 @@ async def summarize_communities(
 
     log.info("summarize_communities_complete", communities=len(summaries))
     return summaries
+
+
+async def extract_query_tags(question: str, client: LLMClient) -> list[str]:
+    """
+    LLM call extracting a short list of candidate tags/phrases from a
+    free-text question, for graph-guided retrieval against the archived
+    tag-community summaries (see archive_query.find_relevant_communities).
+    """
+    result, _ = await client.complete_structured(
+        prompt=build_query_tags_prompt(question),
+        response_model=QueryTags,
+        system=SYSTEM_QUERY_TAGS,
+    )
+    return result.tags
+
+
+async def answer_archive_question(
+    question: str,
+    db_path: Path,
+    client: LLMClient,
+    max_communities: int = 8,
+) -> dict:
+    """
+    Answer a free-text question about the accumulated archive via
+    graph-guided retrieval: extract candidate tags from the question, find
+    matching community summaries across every run
+    (archive_query.find_relevant_communities), then synthesize an answer
+    grounded in those — never in outside knowledge or raw archive text
+    the model wasn't shown.
+
+    Returns {"answer": str, "communities": list[dict]} — communities is the
+    retrieved context actually used, so the caller can show what the answer
+    is (and isn't) grounded in.
+    """
+    candidate_tags = await extract_query_tags(question, client)
+    log.info("archive_query_tags_extracted", tags=candidate_tags)
+
+    communities = find_relevant_communities(db_path, candidate_tags, limit=max_communities)
+    if not communities:
+        return {
+            "answer": "No archived coverage matches this question yet.",
+            "communities": [],
+        }
+
+    answer, _ = await client.complete_structured(
+        prompt=build_archive_answer_prompt(question, communities),
+        response_model=ArchiveAnswer,
+        system=SYSTEM_ARCHIVE_ANSWER,
+    )
+    return {"answer": answer.answer, "communities": communities}
 
 
 async def run_pipeline(

@@ -9,8 +9,10 @@ publish_date), plus its summary bullets and tags as child rows. Call it
 once per run, after db.record_run(db_path, run_id, ...).
 
 load_articles() reconstructs a run's article summaries from the database —
-a round-trip counterpart, and the foundation any future archive-query
-feature reads from.
+a round-trip counterpart. The `ask` archive-query command (see
+archive_query.py) currently reads community_summaries, not this table
+directly — load_articles() is available if a future retrieval mode wants
+to ground answers in raw article text rather than community summaries.
 """
 
 from datetime import datetime, timezone
