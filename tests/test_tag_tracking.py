@@ -10,6 +10,8 @@ Covers:
   - record_emerging_tag_alerts: audit-trail persistence of fired alerts
   - record_bridge_tags: audit-trail persistence of bridge tags surfaced to
     cross-topic synthesis
+  - record_community_summaries: persistence of LLM-written community
+    summaries and their member tags
 """
 
 import pytest
@@ -22,6 +24,7 @@ from strategic_reports.daily.core.tag_tracking import (
     check_emerging_tags,
     load_tag_rate_history,
     record_bridge_tags,
+    record_community_summaries,
     record_emerging_tag_alerts,
     rebuild_graph_data,
     record_tags,
@@ -309,3 +312,74 @@ class TestRecordBridgeTags:
         conn.close()
         assert tag_topics_count == 0
         assert bridge_topics == {"AI", "Defense"}
+
+
+class TestRecordCommunitySummaries:
+    def test_noop_on_empty_dict(self, db_path):
+        record_run(db_path, "run-0", article_count=100)
+        record_community_summaries(db_path, "run-0", {})
+        conn = connect(db_path)
+        counts = (
+            conn.execute("SELECT COUNT(*) FROM community_summaries").fetchone()[0],
+            conn.execute("SELECT COUNT(*) FROM community_summary_tags").fetchone()[0],
+        )
+        conn.close()
+        assert counts == (0, 0)
+
+    def test_persists_label_summary_and_article_count(self, db_path):
+        record_run(db_path, "run-0", article_count=100)
+        community_summaries = {
+            0: {
+                "label": "policy",
+                "tags": ["policy", "regulation"],
+                "summary": "Coverage of new export-control policy.",
+                "article_count": 4,
+            },
+        }
+        record_community_summaries(db_path, "run-0", community_summaries)
+
+        conn = connect(db_path)
+        row = conn.execute(
+            "SELECT community_id, label, summary, article_count FROM community_summaries"
+        ).fetchone()
+        conn.close()
+        assert row == (0, "policy", "Coverage of new export-control policy.", 4)
+
+    def test_persists_member_tags(self, db_path):
+        record_run(db_path, "run-0", article_count=100)
+        community_summaries = {
+            0: {"label": "policy", "tags": ["policy", "regulation"], "summary": "x", "article_count": 1},
+        }
+        record_community_summaries(db_path, "run-0", community_summaries)
+
+        conn = connect(db_path)
+        tags = {
+            row[0] for row in conn.execute(
+                "SELECT tag FROM community_summary_tags WHERE community_id = 0"
+            ).fetchall()
+        }
+        conn.close()
+        assert tags == {"policy", "regulation"}
+
+    def test_persists_own_timestamp(self, db_path):
+        record_run(db_path, "run-0", article_count=100)
+        community_summaries = {
+            0: {"label": "policy", "tags": ["policy"], "summary": "x", "article_count": 1},
+        }
+        record_community_summaries(db_path, "run-0", community_summaries)
+        conn = connect(db_path)
+        created_at = conn.execute("SELECT created_at FROM community_summaries").fetchone()[0]
+        conn.close()
+        assert created_at
+
+    def test_multiple_communities_same_run(self, db_path):
+        record_run(db_path, "run-0", article_count=100)
+        community_summaries = {
+            0: {"label": "policy", "tags": ["policy"], "summary": "x", "article_count": 1},
+            1: {"label": "biotech", "tags": ["biotech"], "summary": "y", "article_count": 2},
+        }
+        record_community_summaries(db_path, "run-0", community_summaries)
+        conn = connect(db_path)
+        labels = {row[0] for row in conn.execute("SELECT label FROM community_summaries").fetchall()}
+        conn.close()
+        assert labels == {"policy", "biotech"}

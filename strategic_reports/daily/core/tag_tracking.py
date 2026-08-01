@@ -18,12 +18,18 @@ tag's rate/z-score — those stay always recomputable from tag_counts +
 runs.article_count), as an audit trail: "what was tag X's z-score on day
 N" is then answerable directly.
 
+record_community_summaries() persists the LLM-written paragraph per
+Louvain community from pipeline.summarize_communities(), replacing
+"labeled by top tag" with real substance — grounded in the articles
+tag_graph.group_articles_by_community() groups by community.
+
 Call order per run (same pattern as urgency.py/bullet_diff.py):
   0. db.record_run(db_path, run_id, article_count) — once per run
   1. load_tag_rate_history      (reads only, does not include the current run)
   2. check_emerging_tags         (current rates vs. historical baseline)
   3. record_tags                 (writes current run's tag graph for future runs)
   4. record_emerging_tag_alerts   (writes the alerts from step 2, if any)
+  5. record_community_summaries    (writes pipeline.summarize_communities()'s output)
 
 Unlike urgency scores (a bounded, LLM-scored 0-1 value where an absolute
 cutoff like 0.8 is meaningful), tag rates have no obvious absolute
@@ -269,6 +275,52 @@ def record_bridge_tags(db_path: Path, run_id: str, bridge_tags: list[dict]) -> N
                 (run_id, now, b["tag"], topic)
                 for b in bridge_tags
                 for topic in b["topics"]
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def record_community_summaries(
+    db_path: Path,
+    run_id: str,
+    community_summaries: dict[int, dict],
+) -> None:
+    """
+    Persist this run's LLM-written community summaries
+    (pipeline.summarize_communities()'s output: {community_id: {"label",
+    "tags", "summary", "article_count"}}), linked to run_id.
+
+    Self-contained: stores each community's own member tags rather than
+    reconstructing them from tag_counts, since Louvain community
+    membership (build_display_graph) is never itself persisted.
+
+    Assumes db.record_run(db_path, run_id, ...) has already been called
+    this run. A no-op if community_summaries is empty.
+    """
+    if not community_summaries:
+        return
+
+    now = datetime.now(timezone.utc).isoformat()
+    conn = connect(db_path)
+    try:
+        conn.executemany(
+            "INSERT INTO community_summaries "
+            "(run_id, created_at, community_id, label, summary, article_count) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            [
+                (run_id, now, comm_id, info["label"], info["summary"], info["article_count"])
+                for comm_id, info in community_summaries.items()
+            ],
+        )
+        conn.executemany(
+            "INSERT INTO community_summary_tags (run_id, created_at, community_id, tag) "
+            "VALUES (?, ?, ?, ?)",
+            [
+                (run_id, now, comm_id, tag)
+                for comm_id, info in community_summaries.items()
+                for tag in info["tags"]
             ],
         )
         conn.commit()

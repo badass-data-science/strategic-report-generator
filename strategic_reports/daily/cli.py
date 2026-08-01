@@ -66,6 +66,7 @@ from strategic_reports.daily.config.topic_order import list_directories_and_titl
 from strategic_reports.daily.core import (
     append_bullet_run,
     append_run,
+    build_display_graph,
     build_graph_data,
     check_alerts,
     check_emerging_tags,
@@ -78,9 +79,11 @@ from strategic_reports.daily.core import (
     LLMClient,
     record_articles,
     record_bridge_tags,
+    record_community_summaries,
     record_emerging_tag_alerts,
     record_tags,
     run_pipeline,
+    summarize_communities,
     write_tag_graph,
 )
 from strategic_reports.daily.core.db import (
@@ -334,6 +337,31 @@ def run(
             typer.echo("Emerging-tag check: no alerts")
     except Exception as exc:
         typer.echo(f"[warn] Emerging-tag check failed: {exc} — continuing without tag tracking", err=True)
+
+    # Community summaries: an LLM-written paragraph per Louvain tag-community
+    # (grounded in that community's articles), replacing "labeled by top
+    # tag" with real substance. Reuses graph_data computed above. A
+    # separate LLMClient (distinct trace_name), same as cross-topic
+    # synthesis below. Never blocks rendering on failure.
+    community_client = LLMClient(
+        model=model,
+        temperature=temperature,
+        run_metadata={"trace_id": run_id, "trace_name": "strategic-report-community-summary"},
+        instructor_mode=resolved_mode,
+        api_base=ollama_api_base,
+        api_key=ollama_api_key,
+    )
+    try:
+        display_data = build_display_graph(graph_data)
+        community_summaries = asyncio.run(summarize_communities(results, display_data, community_client))
+        record_community_summaries(db_path, run_id, community_summaries)
+        typer.echo(
+            f"Community summaries: {len(community_summaries)} of {display_data['n_communities']} communities"
+        )
+    except Exception as exc:
+        typer.echo(
+            f"[warn] Community summarization failed: {exc} — continuing without community summaries", err=True
+        )
 
     # Cross-topic synthesis: a separate LLMClient (distinct trace_name) so it's
     # distinguishable from the per-topic summarization calls in tracing. Fails

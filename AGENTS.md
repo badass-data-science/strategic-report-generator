@@ -38,7 +38,7 @@ matching provider credentials (see README's Quick Start).
 pytest
 ```
 
-- 161 tests across `tests/test_*.py`, no real network or LLM calls, runs in
+- 177 tests across `tests/test_*.py`, no real network or LLM calls, runs in
   under a second. CI (`.github/workflows/tests.yml`) runs the same suite on
   every push/PR to `main`, no credentials needed there either.
 - `pytest.ini` sets `asyncio_mode = auto` — async test functions don't need
@@ -58,20 +58,20 @@ strategic_reports/daily/
     llm_client.py       Async LLMClient: litellm + instructor + tenacity retry
     ingestion.py        Async RSS fetching
     prompts.py          System messages + user-message builders
-    pipeline.py         Two-phase async orchestrator + cross-topic synthesis (grounded by bridge tags)
+    pipeline.py         Two-phase async orchestrator + cross-topic synthesis (grounded by bridge tags) + summarize_communities()
     renderer.py         Jinja2 HTML rendering
     tag_normalizer.py   Tag synonym map, normalize_tags() (Pydantic validator)
-    tag_graph.py        Tag co-occurrence graph + Louvain community detection + find_bridge_tags()
+    tag_graph.py        Tag co-occurrence graph + Louvain community detection + find_bridge_tags() + group_articles_by_community()
     urgency.py          Urgency alerting: absolute threshold + z-score (SQLite-backed)
     bullet_diff.py      Historical diffing vs. yesterday's bullets (SQLite-backed)
     db.py               SQLite tracking db: schema, connection helper, output_dir/db_path safety guard, run registration
     article_archive.py  Persists each run's article summaries (source material), linked to run_id
-    tag_tracking.py     Per-run tag-graph persistence (linked to run_id) + emerging-tag z-score (SQLite-backed)
+    tag_tracking.py     Per-run tag-graph persistence (linked to run_id) + emerging-tag z-score + community-summary persistence (SQLite-backed)
     tracing.py          Langfuse / Phoenix instrumentation (opt-in)
   templates/            Jinja2 templates (base, index, topic)
   cli.py                typer CLI entrypoint
   config/topic_order.py Ordered topic slugs + display titles
-flows/daily_report.py   Prefect flow (10 tasks) for scheduled runs
+flows/daily_report.py   Prefect flow (11 tasks) for scheduled runs
 data/rss_feeds/         One JSON file per topic listing feed URLs
 tests/                  Per-module test files + conftest.py fixtures
 LICENSE                 MIT
@@ -108,18 +108,31 @@ LICENSE                 MIT
   Each call (`load_history`, `append_run`, `load_bullet_history`,
   `append_bullet_run`, `record_run`, `record_tags`, `load_tag_rate_history`,
   `rebuild_graph_data`, `record_emerging_tag_alerts`, `record_bridge_tags`,
-  `record_articles`, `load_articles`) opens and closes its own short
-  connection. This is deliberate: a `sqlite3.Connection` isn't picklable, so
-  a shared one can't safely cross a Prefect task boundary.
-- **`article_archive.py` is the foundation for a future interactive
-  archive-query feature**, graph-guided-retrieval-inspired rather than a
-  full GraphRAG implementation (that's explicitly out of scope for now —
-  ask before adding hierarchical community summarization or embeddings).
-  It persists the source text every derived signal (tags, bullets, urgency
-  scores) is computed from, which otherwise only exists in memory during a
-  run. If you add an "ask questions about the archive" feature, it reads
-  from `articles`/`article_summary_bullets`/`article_tags` — don't
-  reinvent a second place to store article text.
+  `record_articles`, `load_articles`, `record_community_summaries`) opens
+  and closes its own short connection. This is deliberate: a
+  `sqlite3.Connection` isn't picklable, so a shared one can't safely cross a
+  Prefect task boundary.
+- **Community summaries are LLM-grounded in that community's articles, not
+  in the label alone.** `pipeline.summarize_communities()` calls
+  `tag_graph.group_articles_by_community()` to gather the article summaries
+  whose tags belong to each Louvain community, then makes one LLM call per
+  community. A per-community failure is isolated (logged, omitted from the
+  result) and never blocks the others — same pattern as
+  `bullet_diff.diff_all_topics`. `community_summaries`/
+  `community_summary_tags` store each community's own member tags rather
+  than reconstructing them later, since Louvain community membership
+  (`build_display_graph`) is never itself persisted.
+- **`article_archive.py` and `community_summaries` are the foundation for a
+  future interactive archive-query feature**, graph-guided-retrieval-
+  inspired rather than a full GraphRAG implementation (that's explicitly
+  out of scope for now — ask before adding hierarchical multi-level
+  community summarization or embeddings; the single-level community
+  summaries that exist today were a deliberate, scoped-down choice, not a
+  first step assumed to need deepening). `article_archive.py` persists the
+  source text every derived signal is computed from; `community_summaries`
+  persists an LLM-written paragraph per topic cluster. If you add an "ask
+  questions about the archive" feature, it reads from both — don't
+  reinvent a second place to store article text or community summaries.
 - **Bridge tags ground cross-topic synthesis in graph structure, not
   invention.** `synthesize_cross_topic()` computes `find_bridge_tags()`
   (tags spanning 3+ topics that day — a structural signal, no LLM

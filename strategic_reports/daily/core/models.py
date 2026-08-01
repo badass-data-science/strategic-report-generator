@@ -232,6 +232,24 @@ class CrossTopicSynthesis(BaseModel):
     )
 
 
+class CommunitySummary(BaseModel):
+    """
+    LLM-generated summary of one Louvain tag-community's news coverage.
+
+    Grounded in the article summaries whose tags belong to that community
+    (see tag_graph.group_articles_by_community) — describes the substance
+    of what that cluster of coverage is actually about, not just its label.
+    """
+    summary: str = Field(
+        description=(
+            "A 2-4 sentence summary of what this cluster of related news coverage is "
+            "actually about — the substance, not just the shared topic label. Ground "
+            "every claim in the provided article summaries; do not speculate beyond them."
+        ),
+        min_length=20,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Observability model — tracks API cost across calls
 # ---------------------------------------------------------------------------

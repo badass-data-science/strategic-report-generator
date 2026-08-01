@@ -4,7 +4,36 @@ All notable changes to this project are documented here. Entries are
 grouped by date rather than a semantic version number, since this project
 doesn't tag releases.
 
-## Unreleased (`persist-article-summaries` branch)
+## Unreleased (`community-summaries` branch)
+
+### Added
+- LLM-written summary per Louvain tag-community, replacing "labeled by top
+  tag" with an actual paragraph: `pipeline.summarize_communities()` makes
+  one LLM call per community, grounded in the article summaries whose tags
+  belong to that community (`tag_graph.group_articles_by_community()`). A
+  per-community failure is isolated and never blocks the others or the
+  rest of the report.
+- New `community_summaries`/`community_summary_tags` tables (`label`,
+  `summary`, `article_count`, and each community's member tags, linked to
+  `run_id`). Self-contained — stores its own member tags rather than
+  reconstructing them later, since Louvain community membership
+  (`build_display_graph`) is never itself persisted.
+- New `CommunitySummary` Pydantic model, `SYSTEM_COMMUNITY_SUMMARY` /
+  `build_community_summary_prompt()`.
+- New Prefect task `summarize-communities` (flow is now 11 tasks); wired
+  into `cli.py` right after the emerging-tag check too, keeping both entry
+  points at parity.
+- Explicitly part of the same forward-looking foundation as
+  `article_archive.py` for a future interactive archive-query feature —
+  still graph-guided-retrieval-inspired, not full GraphRAG (deliberately
+  out of scope for now; this single-level community summary is a scoped-
+  down choice, not assumed to need hierarchical deepening).
+- 24 new tests (`tests/test_tag_graph.py`: `group_articles_by_community()`;
+  `tests/test_pipeline.py`: `summarize_communities()` concurrency/failure
+  isolation/prompt capping; `tests/test_tag_tracking.py`:
+  `record_community_summaries()`). 177 tests total, up from 161.
+
+## 2026-07-31
 
 ### Added
 - Persists each run's article summaries (title, link, publish_date, summary
@@ -23,10 +52,6 @@ doesn't tag releases.
 - `tests/test_article_archive.py` (9 tests: round-trip, bullet/tag
   ordering, multi-topic, error/empty topics contribute nothing, run
   isolation). 161 tests total, up from 152.
-
-## 2026-07-31
-
-### Added
 - Cross-topic synthesis is now grounded by "bridge tags"
   (`tag_graph.find_bridge_tags()`): tags whose articles span 3+ topics that
   day — a structural signal from the same co-occurrence graph that powers

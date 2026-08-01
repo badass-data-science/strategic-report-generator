@@ -85,6 +85,14 @@ represents a substantive cross-domain connection in the strategic insights befor
 using it, and ignore any that turn out to be coincidental or superficial.\
 """
 
+SYSTEM_COMMUNITY_SUMMARY = """\
+You are a research analyst who writes crisp, informative summaries of clusters of
+related news coverage. Given a set of article titles and summary bullets that share
+common tags, write a short summary describing what this cluster of coverage is
+actually about — the substance, not just the shared topic label. Ground every claim
+in the provided material; do not speculate or add information beyond it.\
+"""
+
 
 # ---------------------------------------------------------------------------
 # User-message builders — format typed data into the user turn
@@ -157,6 +165,27 @@ def build_cross_topic_prompt(
         for bullet in result.strategy.bullets:
             parts.append(f"- {bullet}")
         parts.append("")
+    return "\n".join(parts)
+
+
+def build_community_summary_prompt(label: str, tags: list[str], articles: list[ArticleSummary]) -> str:
+    """
+    Format one Louvain community's member tags and grounding articles into
+    the user message for community-summary generation.
+
+    articles should already be capped by the caller (see
+    pipeline.summarize_communities) — this function doesn't limit prompt size.
+    """
+    parts = [
+        f'This cluster is labeled "{label}" and covers the tags: {", ".join(tags)}.',
+        f"It's drawn from {len(articles)} articles today. Here are their summaries:\n",
+    ]
+    for article in articles:
+        parts.append(f"## {article.title}")
+        for bullet in article.summary:
+            parts.append(f"- {bullet}")
+        parts.append("")
+    parts.append("Write a 2-4 sentence summary of what this cluster of coverage is actually about.")
     return "\n".join(parts)
 
 

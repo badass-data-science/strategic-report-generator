@@ -24,7 +24,7 @@ from pathlib import Path
 
 import networkx as nx
 
-from .models import TopicResult
+from .models import ArticleSummary, TopicResult
 
 
 def build_graph_data(results: list[TopicResult]) -> dict:
@@ -142,6 +142,53 @@ def build_display_graph(
         "min_weight": min_weight,
         "full_node_count": len(full_data["nodes"]),
         "full_edge_count": len(full_data["links"]),
+    }
+
+
+def group_articles_by_community(
+    results: list[TopicResult],
+    display_data: dict,
+) -> dict[int, dict]:
+    """
+    Group this run's articles by Louvain community (display_data's
+    node "community" assignment, from build_display_graph), as the
+    grounding material for an LLM-written community summary.
+
+    An article belongs to a community if any of its (normalized) tags is a
+    member of that community — an article whose tags span multiple
+    communities can appear under more than one. Articles are deduplicated
+    by link within a community (the same article can carry two tags that
+    both belong to the same community).
+
+    Returns {community_id: {"label": str, "tags": list[str],
+    "articles": list[ArticleSummary]}} — only for communities that have at
+    least one matching article. Communities in display_data with no
+    surviving articles (shouldn't normally happen, since community
+    membership itself comes from articles' tags) are simply absent.
+    """
+    tag_to_community: dict[str, int] = {n["id"]: n["community"] for n in display_data["nodes"]}
+    community_label: dict[int, str] = {n["community"]: n["community_label"] for n in display_data["nodes"]}
+    community_tags: dict[int, set[str]] = defaultdict(set)
+    for n in display_data["nodes"]:
+        community_tags[n["community"]].add(n["id"])
+
+    community_articles: dict[int, list[ArticleSummary]] = defaultdict(list)
+    seen_links: dict[int, set[str]] = defaultdict(set)
+    for result in results:
+        for article in result.articles:
+            article_communities = {tag_to_community[t] for t in article.tags if t in tag_to_community}
+            for comm_id in article_communities:
+                if article.link not in seen_links[comm_id]:
+                    seen_links[comm_id].add(article.link)
+                    community_articles[comm_id].append(article)
+
+    return {
+        comm_id: {
+            "label": community_label[comm_id],
+            "tags": sorted(community_tags[comm_id]),
+            "articles": articles,
+        }
+        for comm_id, articles in community_articles.items()
     }
 
 

@@ -64,13 +64,14 @@ from strategic_reports.daily.core.llm_client import LLMClient
 from strategic_reports.daily.core.models import (
     ArticleSummary,
     ArticleSummaryBatch,
+    CommunitySummary,
     RawArticle,
     StrategicInsight,
     TokenUsage,
     TopicConfig,
     TopicResult,
 )
-from strategic_reports.daily.core.pipeline import run_pipeline
+from strategic_reports.daily.core.pipeline import run_pipeline, summarize_communities
 
 
 # ---------------------------------------------------------------------------
@@ -344,3 +345,108 @@ class TestRunPipeline:
 
         # 3 articles ÷ batch_size=1 = 3 summarize calls + 1 strategy call = 4
         assert call_count == 4
+
+
+# ---------------------------------------------------------------------------
+# Tests for summarize_communities()
+# ---------------------------------------------------------------------------
+# Uses hand-built display_data (the shape build_display_graph() produces)
+# and TopicResults, rather than routing through the full graph pipeline, to
+# keep these tests focused on summarize_communities' own orchestration:
+# grouping, concurrency, and per-community failure isolation.
+
+def _article(title: str, link: str, tags: list[str]) -> ArticleSummary:
+    return ArticleSummary(
+        title=title, link=link, publish_date="2026-07-31T09:00:00",
+        summary=["Bullet one.", "Bullet two.", "Bullet three."], tags=tags,
+    )
+
+
+def _display_node(tag: str, count: int, community: int, community_label: str) -> dict:
+    return {"id": tag, "count": count, "topics": [], "community": community, "community_label": community_label}
+
+
+def make_community_mock_client(fail_if_prompt_contains: str | None = None) -> MagicMock:
+    """A mock client that answers CommunitySummary requests, optionally
+    failing when the prompt contains a given substring (e.g. a label)."""
+    async def _complete_structured(prompt, response_model, system=None):
+        assert response_model is CommunitySummary
+        if fail_if_prompt_contains and fail_if_prompt_contains in prompt:
+            raise RuntimeError("simulated LLM failure")
+        return CommunitySummary(summary="A generated summary of this cluster of coverage."), TokenUsage()
+
+    client = MagicMock(spec=LLMClient)
+    client.complete_structured = _complete_structured
+    return client
+
+
+class TestSummarizeCommunities:
+    _DISPLAY_DATA = {
+        "nodes": [
+            _display_node("policy", 10, community=0, community_label="policy"),
+            _display_node("biotech", 12, community=1, community_label="biotech"),
+        ],
+        "links": [],
+    }
+
+    def _results(self, articles: list[ArticleSummary]) -> list[TopicResult]:
+        config = TopicConfig(slug="feeds_ai", title="Artificial Intelligence", feeds_file="/dev/null")
+        return [TopicResult(config=config, articles=articles)]
+
+    async def test_returns_summary_per_community(self):
+        results = self._results([
+            _article("A", "https://example.com/a", ["policy", "tech", "research", "markets", "law"]),
+            _article("B", "https://example.com/b", ["biotech", "tech", "research", "markets", "science"]),
+        ])
+        client = make_community_mock_client()
+        summaries = await summarize_communities(results, self._DISPLAY_DATA, client)
+
+        assert set(summaries.keys()) == {0, 1}
+        assert summaries[0]["label"] == "policy"
+        assert summaries[0]["article_count"] == 1
+        assert summaries[0]["summary"] == "A generated summary of this cluster of coverage."
+
+    async def test_community_with_no_matching_articles_absent(self):
+        results = self._results([
+            _article("A", "https://example.com/a", ["policy", "tech", "research", "markets", "law"]),
+        ])
+        client = make_community_mock_client()
+        summaries = await summarize_communities(results, self._DISPLAY_DATA, client)
+        assert set(summaries.keys()) == {0}
+
+    async def test_no_communities_returns_empty(self):
+        results = self._results([])
+        client = make_community_mock_client()
+        summaries = await summarize_communities(results, self._DISPLAY_DATA, client)
+        assert summaries == {}
+
+    async def test_one_failed_community_does_not_block_others(self):
+        results = self._results([
+            _article("A", "https://example.com/a", ["policy", "tech", "research", "markets", "law"]),
+            _article("B", "https://example.com/b", ["biotech", "tech", "research", "markets", "science"]),
+        ])
+        # Fail specifically the "biotech" community; "policy" should still succeed.
+        client = make_community_mock_client(fail_if_prompt_contains="biotech")
+        summaries = await summarize_communities(results, self._DISPLAY_DATA, client)
+        assert set(summaries.keys()) == {0}
+
+    async def test_max_articles_caps_prompt_content(self):
+        captured = {}
+
+        async def _complete_structured(prompt, response_model, system=None):
+            captured["prompt"] = prompt
+            return CommunitySummary(summary="Summary of a large cluster of coverage."), TokenUsage()
+
+        client = MagicMock(spec=LLMClient)
+        client.complete_structured = _complete_structured
+
+        articles = [
+            _article(f"Article {i}", f"https://example.com/{i}", ["policy", "tech", "research", "markets", "law"])
+            for i in range(5)
+        ]
+        results = self._results(articles)
+        await summarize_communities(results, self._DISPLAY_DATA, client, max_articles=2)
+
+        assert "Article 0" in captured["prompt"]
+        assert "Article 1" in captured["prompt"]
+        assert "Article 2" not in captured["prompt"]
