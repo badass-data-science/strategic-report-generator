@@ -2,6 +2,7 @@
 
 {% block head %}
 <title>{{ result.config.title }} — Article Summaries ({{ date }})</title>
+<script type="application/ld+json">{{ article_jsonld | safe }}</script>
 {% endblock %}
 
 {% block body %}

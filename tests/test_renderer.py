@@ -48,6 +48,7 @@ from conftest.py (sample_topic_config, sample_article_summary, sample_strategy)
 to avoid duplicating data setup.
 """
 
+import json
 from pathlib import Path
 
 import pytest
@@ -242,6 +243,50 @@ class TestTopicSummaryPage:
         render_report([successful_result], output_dir=tmp_path)
         html = (tmp_path / "ai_summaries.html").read_text()
         assert "index.html" in html
+
+    def test_jsonld_article_markup(self, tmp_path, successful_result):
+        """
+        SECURITY/STRUCTURED-DATA TEST: each article gets a schema:Article
+        JSON-LD entry with the same headline/url/datePublished fields
+        rdf_export.py maps onto schema:Article.
+        """
+        render_report([successful_result], output_dir=tmp_path)
+        html = (tmp_path / "ai_summaries.html").read_text()
+
+        start = html.index('<script type="application/ld+json">') + len('<script type="application/ld+json">')
+        end = html.index("</script>", start)
+        payload = json.loads(html[start:end])
+
+        assert len(payload) == 1
+        entry = payload[0]
+        assert entry["@type"] == "Article"
+        assert entry["headline"] == "LLMs Keep Improving"
+        assert entry["url"] == "https://example.com/llms"
+        assert entry["datePublished"] == "2026-06-27T09:00:00"
+
+    def test_jsonld_xss_escaping(self, tmp_path, sample_topic_config):
+        """
+        A malicious article title containing "</script>" must not be able to
+        break out of the JSON-LD <script> block — it should appear as an
+        escaped \\u003c...\\u003e sequence inside the JSON string instead.
+        """
+        malicious = ArticleSummary(
+            title="</script><script>alert(1)</script>",
+            link="https://example.com",
+            publish_date="2026-06-27",
+            summary=["A.", "B.", "C."],
+            tags=["a", "b", "c", "d", "e"],
+        )
+        result = TopicResult(
+            config=sample_topic_config,
+            articles=[malicious],
+            strategy=StrategicInsight(bullets=["Insight 1.", "Insight 2.", "Insight 3."], urgency_score=0.4),
+        )
+        render_report([result], output_dir=tmp_path)
+        html = (tmp_path / "ai_summaries.html").read_text()
+
+        assert "<script>alert(1)</script>" not in html
+        assert "\\u003cscript\\u003ealert(1)\\u003c/script\\u003e" in html
 
     def test_slug_strip_prefix(self, tmp_path):
         """

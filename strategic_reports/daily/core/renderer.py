@@ -27,13 +27,14 @@ Template inheritance:
   only the parts that differ, without duplicating the boilerplate.
 """
 
+import json
 import shutil
 from datetime import datetime
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
-from .models import BulletDiff, CrossTopicSynthesis, TokenUsage, TopicResult
+from .models import ArticleSummary, BulletDiff, CrossTopicSynthesis, TokenUsage, TopicResult
 
 # Resolved relative to this file (core/renderer.py -> daily/templates/), so
 # this works regardless of where the package is installed.
@@ -56,6 +57,37 @@ def _env() -> Environment:
     return Environment(
         loader=FileSystemLoader(str(_TEMPLATES_DIR)),
         autoescape=True,
+    )
+
+
+def _build_article_jsonld(articles: list[ArticleSummary]) -> str:
+    """
+    Build a JSON-LD array of schema:Article objects for a topic's articles —
+    the same headline/url/datePublished fields rdf_export.py maps onto
+    schema:Article, kept in sync for consistency.
+
+    json.dumps() alone doesn't stop a string value like "</script>" from
+    prematurely closing the surrounding <script> tag (the JSON spec allows
+    literal < and > inside strings) — article titles come from RSS feeds we
+    don't control, same threat model as the HTML escaping above. Escaping
+    <, >, and & as \\uXXXX keeps the JSON semantically identical while
+    making a breakout impossible.
+    """
+    payload = [
+        {
+            "@context": "https://schema.org",
+            "@type": "Article",
+            "headline": article.title,
+            "url": article.link,
+            "datePublished": article.publish_date,
+        }
+        for article in articles
+    ]
+    return (
+        json.dumps(payload)
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
     )
 
 
@@ -132,5 +164,6 @@ def render_report(
                 result=result,
                 date=date_str,
                 updated=updated_str,
+                article_jsonld=_build_article_jsonld(result.articles),
             )
         )
