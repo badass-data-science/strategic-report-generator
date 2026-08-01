@@ -8,15 +8,14 @@ orientation for making changes.
 
 A daily briefing pipeline: fetches RSS across 12 topics, summarizes and
 synthesizes strategic recommendations via an LLM (provider-agnostic via
-litellm), renders an HTML report + tag co-occurrence graph, tracks urgency
-scores/strategic bullets/article summaries/community summaries across runs
-in a SQLite database, and optionally uploads the report via SCP/SSH. Two
-scheduled/batch entry points, kept at feature parity with each other:
+litellm), renders an HTML report + tag co-occurrence graph, and tracks
+urgency scores/strategic bullets/article summaries/community summaries
+across runs in a SQLite database. Two scheduled/batch entry points, kept
+at full feature parity with each other:
 
 - `python -m strategic_reports.daily.cli run` — the batch pipeline, run once, manually
 - `strategic_reports/daily/flows/daily_report.py` — the same pipeline as a
-  Prefect flow, scheduled daily via cron; adds only the optional
-  remote-upload step, which the CLI doesn't do
+  Prefect flow, scheduled daily via cron
 
 If you add a pipeline step to one entry point (cross-topic synthesis,
 urgency alerts, bullet diffing, tag graph, community summaries), add it to
@@ -112,7 +111,7 @@ strategic_reports/
       tracing.py          Langfuse / Phoenix instrumentation (opt-in)
     templates/            Jinja2 templates (base, index, topic)
     data/rss_feeds/       One JSON file per topic listing feed URLs — packaged as wheel data
-    flows/daily_report.py Prefect flow (11 tasks) for scheduled runs — no `ask` equivalent, deliberately (see above)
+    flows/daily_report.py Prefect flow (10 tasks) for scheduled runs — no `ask` equivalent, deliberately (see above)
     flows/export_rdf_flow.py Prefect flow wrapping export-rdf — not yet scheduled (see above)
     cli.py                typer CLI entrypoint — two commands: run, ask
     paths.py              default_data_dir() — resolves bundled rss_feeds/ via importlib.resources

@@ -268,8 +268,7 @@ default. `--output-dir` and `--db-path` are the exception: both are required.
 ingestion, per-topic summarization/strategy, cross-topic synthesis, urgency
 alerting, bullet diffing, HTML rendering, and the tag co-occurrence graph —
 the same steps the [Prefect flow](#scheduling-with-prefect) runs on a
-schedule. The one thing it does *not* do is the optional remote upload
-step, which is Prefect-only.
+schedule.
 
 ### `--instructor-mode`
 
@@ -491,7 +490,7 @@ prefect deployment run 'daily-strategic-report/daily-strategic-report' \
 
 ### Flow structure
 
-The flow contains eleven tasks, each tracked independently in the Prefect UI:
+The flow contains ten tasks, each tracked independently in the Prefect UI:
 
 ```
 daily_report_flow
@@ -514,52 +513,13 @@ daily_report_flow
   │                                        skipped (no diff) on first run
   │                                        inserts into --db-path (bullets table)
   ├── render-html-report          (sync)   Jinja2 → HTML output files
-  ├── build-tag-graph             (sync)   tag co-occurrence graph → tag_graph.json + tag_graph.html
-  └── upload-to-web-server        (sync)   SCP output to remote host; SSH to move into web root
-                                           skipped if upload_enabled=false
+  └── build-tag-graph             (sync)   tag co-occurrence graph → tag_graph.json + tag_graph.html
 ```
 
-### Upload parameters
-
-The upload step is enabled by default. All connection details have env-var-backed defaults and can be overridden from the Prefect UI or via `--param`.
-
-| Flow parameter | Env var | Default | Description |
-|---|---|---|---|
-| `absolute_threshold` | — | `0.8` | Urgency score (0–1) above which an alert fires unconditionally |
-| `z_score_threshold` | — | `2.0` | Standard deviations above a topic's historical mean that triggers a statistical alert (requires ≥7 prior runs for that topic) |
-| `upload_enabled` | — | `true` | Set to `false` to skip the upload entirely |
-| `ssh_key_path` | `SSH_KEY_PATH` | `~/api_keys/keys/emily-bds-key.pem` | Path to the SSH private key |
-| `remote_host` | `REMOTE_HOST` | `badassdatascience.com` | Hostname of the web server |
-| `remote_user` | `REMOTE_USER` | `ubuntu` | SSH login user |
-| `remote_staging_dir` | `REMOTE_STAGING_DIR` | `/home/ubuntu` | Writable landing directory on the remote; `output_dir` is SCP'd here recursively (e.g. `/home/ubuntu/strategic-report/`) |
-| `remote_web_dir` | `REMOTE_WEB_DIR` | `/var/www/html/strategic-review-daily` | Web root directory; HTML and JSON files are sudo-copied here from the staged subdirectory |
-
-To skip the upload on a one-off run:
-
-```bash
-prefect deployment run 'daily-strategic-report/daily-strategic-report' \
-    --param upload_enabled=false
-```
-
-To point at a different server:
-
-```bash
-prefect deployment run 'daily-strategic-report/daily-strategic-report' \
-    --param remote_host=myserver.example.com \
-    --param remote_user=deploy \
-    --param ssh_key_path=/home/emily/.ssh/mykey.pem \
-    --param remote_web_dir=/var/www/html/reports
-```
-
-To set the defaults permanently via env vars, add them to your `.env` file or the `EnvironmentFile` in the systemd unit:
-
-```bash
-export SSH_KEY_PATH=/home/emily/api_keys/keys/emily-bds-key.pem
-export REMOTE_HOST=badassdatascience.com
-export REMOTE_USER=ubuntu
-export REMOTE_STAGING_DIR=/home/ubuntu
-export REMOTE_WEB_DIR=/var/www/html/strategic-review-daily
-```
+Flow parameters share names with their CLI-flag counterparts (e.g.
+`absolute_threshold` ↔ `--absolute-threshold` — see
+[Configuration](#configuration)); override any of them from the Prefect UI
+or via `--param`.
 
 ---
 

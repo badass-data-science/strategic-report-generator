@@ -17,6 +17,16 @@ doesn't tag releases.
   full-vs-incremental-on-schedule, and single- vs. two-process serving
   were deliberately deferred rather than decided.
 
+### Removed
+- **The remote-upload step** (`upload-to-web-server` task) from
+  `daily_report_flow` — no more SCP/SSH to badassdatascience.com. Removed
+  `upload_enabled`/`ssh_key_path`/`remote_host`/`remote_user`/
+  `remote_staging_dir`/`remote_web_dir` flow parameters and the `subprocess`
+  import. The flow now has 10 tasks (was 11) and is at **full** feature
+  parity with `cli.py run` — previously the flow's one documented
+  difference from the CLI was this upload step; that asymmetry no longer
+  exists.
+
 ## Unreleased (`schema-org-html-markup` branch)
 
 ### Added
