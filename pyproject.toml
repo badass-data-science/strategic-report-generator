@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "strategic-reports"
+version = "0.1.0"
+description = "Daily strategic intelligence reports generated from RSS feeds via LLM summarization and tag-graph analysis."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.12"
+dependencies = [
+    "litellm>=1.80.0",
+    "instructor>=1.15.0",
+    "tenacity>=9.0.0",
+    "pydantic>=2.0.0",
+    "feedparser>=6.0.0",
+    "html-to-markdown>=1.0.0",
+    "structlog>=26.0.0",
+    "jinja2>=3.1.0",
+    "networkx>=3.0.0",
+    "typer>=0.16.0",
+]
+
+[project.optional-dependencies]
+flow = ["prefect>=3.0.0"]
+test = ["pytest>=9.0.0", "pytest-asyncio>=1.0.0"]
+
+[project.scripts]
+strategic-reports = "strategic_reports.daily.cli:app"
+
+[tool.setuptools.packages.find]
+include = ["strategic_reports*"]
+
+[tool.setuptools.package-data]
+strategic_reports = ["py.typed"]
+"strategic_reports.daily" = ["data/rss_feeds/*.json", "templates/*.j2"]

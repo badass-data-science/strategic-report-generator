@@ -6,20 +6,9 @@ defaults to TOOLS, which requires the configured model (via LLM_MODEL) to
 support tool/function calling — e.g. glm-5.2:cloud. If you switch to a model
 without tool-calling support, override instructor_mode to JSON instead.
 
-WHY PREFECT?
-------------
-The CLI (cli.py) is fine for running the pipeline manually. Prefect adds:
-  - Scheduling: define the cron once, Prefect triggers it automatically
-  - Run history: every run is recorded with status, duration, and logs
-  - Retries: transient LLM API failures are retried automatically at the
-    task level, not by wrapping everything in a try/except loop
-  - Observability: each task shows its own status in the UI
-
-PREFECT'S TWO DECORATORS
---------------------------
-@flow   — the top-level unit. One flow = one entry in the run history.
-@task   — a step within a flow. Tasks get independent status, retry
-          configuration, and their own log view.
+WHY PREFECT? The CLI (cli.py) is fine for running the pipeline manually.
+Prefect adds scheduling, run history, per-task retries, and per-task
+observability in a UI, on top of the same pipeline code.
 
 RUNNING WITH LOCAL PREFECT (no cloud account required)
 -------------------------------------------------------
@@ -41,8 +30,7 @@ RUNNING WITH LOCAL PREFECT (no cloud account required)
 
 4. Start the scheduler (keep this terminal open):
 
-       cd <project-root>
-       python flows/daily_report.py
+       python -m strategic_reports.daily.flows.daily_report
 
    The flow registers with the local server and polls for scheduled runs.
    The schedule is 00:30 America/Los_Angeles daily.
@@ -102,12 +90,11 @@ from strategic_reports.daily.core.tag_graph import (
     write_tag_graph,
 )
 from strategic_reports.daily.core.tracing import generate_run_id, setup_tracing
+from strategic_reports.daily.paths import default_data_dir
 
-# Anchor defaults to the project root (flows/../) regardless of the working
-# directory from which this file is invoked. Path.cwd() would break if you ran
-# `python flows/daily_report.py` from outside the project root.
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-_DEFAULT_HOME = Path(os.environ.get("STRATEGIC_REPORTS_HOME", _PROJECT_ROOT))
+# Anchors output_dir/db_path defaults for the scheduled deployment (see
+# .serve() below) — must never point inside the installed package itself.
+_DEFAULT_HOME = Path(os.environ.get("STRATEGIC_REPORTS_HOME", Path.cwd()))
 _DEFAULT_MODEL = os.environ.get("LLM_MODEL", "ollama_chat/glm-5.2:cloud")
 
 _INSTRUCTOR_MODES: dict[str, instructor.Mode] = {
@@ -120,10 +107,8 @@ _INSTRUCTOR_MODES: dict[str, instructor.Mode] = {
 # ---------------------------------------------------------------------------
 # Task 1: Load configuration
 # ---------------------------------------------------------------------------
-# This is a sync @task — Prefect handles sync tasks just fine alongside async
-# ones. Making it a task (rather than a plain function call in the flow) means
-# config-load failures show up as a distinct "build-topic-configs FAILED" node
-# in the Prefect UI, rather than being buried in the flow logs.
+# A @task (rather than a plain function call in the flow) so config-load
+# failures show up as a distinct node in the Prefect UI.
 
 @task(name="build-topic-configs")
 def build_topic_configs(data_dir: Path) -> list[TopicConfig]:
@@ -147,20 +132,13 @@ def build_topic_configs(data_dir: Path) -> list[TopicConfig]:
 # ---------------------------------------------------------------------------
 # Task 2: Run the LLM pipeline
 # ---------------------------------------------------------------------------
-# This is the expensive step — RSS fetching + dozens of LLM API calls.
+# The expensive step — RSS fetching + dozens of LLM API calls. retries=2
+# covers whole-task failures (network/provider outage); individual topic
+# failures are already isolated inside run_pipeline itself.
 #
-# retries=2, retry_delay_seconds=60:
-#   If the task raises (e.g. transient rate-limit, network timeout), Prefect
-#   waits 60 seconds and tries again, up to 2 retries (3 total attempts).
-#   This is cleaner than wrapping the pipeline in a while-loop with sleep().
-#   Note that individual topic failures are already isolated inside run_pipeline
-#   itself — retries here are for whole-task-level failures like a network
-#   outage or a provider outage that kills all calls at once.
-#
-# The LLMClient is created inside this task rather than in the flow and passed
-# in because it holds an async HTTP session that can't be serialized across
-# Prefect's task result storage boundary (Prefect persists task results to
-# handle retries and caching).
+# LLMClient is created inside this task (not passed in) because it holds an
+# async HTTP session that can't be serialized across Prefect's task result
+# storage boundary.
 
 @task(
     name="run-llm-pipeline",
@@ -534,17 +512,9 @@ def upload_to_web_server(
 # ---------------------------------------------------------------------------
 # Flow — the top-level unit that Prefect schedules and tracks
 # ---------------------------------------------------------------------------
-# async def flow: Prefect fully supports async flows. The async keyword is
-# required here because run_llm_pipeline is an async task and we await it.
-# Prefect manages the asyncio event loop — we don't need asyncio.run() as
-# in the CLI entrypoint.
-#
-# log_prints=True: any print() call inside the flow or its tasks is captured
-# as a Prefect log line, visible in the UI alongside get_run_logger() output.
-#
 # All parameters have defaults so the flow runs without any arguments on
-# schedule. They're also exposed in the Prefect UI as overridable fields,
-# making it easy to trigger a one-off run with e.g. a different model.
+# schedule, and are exposed in the Prefect UI as overridable fields for
+# one-off runs.
 
 @flow(
     name="daily-strategic-report",
@@ -559,7 +529,7 @@ async def daily_report_flow(
     db_path: Path,
     model: str = _DEFAULT_MODEL,
     hours_cutoff: int = 24,
-    data_dir: Path = _DEFAULT_HOME / "data" / "rss_feeds",
+    data_dir: Path = default_data_dir(),
     batch_size: int = 50,
     max_concurrent: int = 3,
     temperature: float = 0.1,
@@ -587,16 +557,11 @@ async def daily_report_flow(
     # so the tracking database can never live inside it — check before doing
     # any real work.
     ensure_safe_db_path(db_path, output_dir)
-    # connect() creates the database file (and parent dirs, and the schema)
-    # on first use, and never touches existing data — this is what makes
-    # cross-run history possible. Just a fail-fast check here (closed right
-    # away); the urgency/bullet tasks below each open their own short
-    # connection per call rather than sharing this one (a sqlite3.Connection
-    # can't be passed between Prefect tasks — it isn't picklable).
+    # Fail-fast check only (closed right away) — the urgency/bullet tasks
+    # below each open their own short connection per call rather than sharing
+    # this one, since a sqlite3.Connection isn't picklable across tasks.
     connect_db(db_path).close()
 
-    # configure_logging sets up structlog for the pipeline's internal logging.
-    # Prefect has its own logging layer on top; the two coexist fine.
     configure_logging(log_level)
     setup_tracing()
     run_id = generate_run_id()
@@ -693,20 +658,12 @@ async def daily_report_flow(
 # ---------------------------------------------------------------------------
 # Entry point — registers the deployment and starts the local scheduler
 # ---------------------------------------------------------------------------
-# flow.serve() is Prefect's "lightweight deployment" pattern:
-#   - No Docker, no Kubernetes, no separate worker process required
-#   - The process running this file IS the worker
-#   - It registers (or updates) the deployment in Prefect Cloud on startup,
-#     then polls for scheduled runs and executes them in-process
+# flow.serve() is Prefect's "lightweight deployment" pattern: the process
+# running this file IS the worker — no Docker/Kubernetes/separate worker
+# process required.
 #
-# CronSchedule(cron="30 0 * * *", timezone="America/Los_Angeles"):
-#   "30 0 * * *" = minute 30, hour 0, every day → 00:30 daily
-#   timezone="America/Los_Angeles" → Pacific time (PST/PDT, DST-aware)
-#   Prefect Cloud handles DST transitions automatically.
-#
-# To keep this running persistently on a Linux server:
-#   sudo systemctl edit --force --full strategic-reports.service
-#   (see README for the full unit file)
+# To keep this running persistently on a Linux server, see README for the
+# systemd unit file (strategic-reports.service).
 
 if __name__ == "__main__":
     daily_report_flow.serve(

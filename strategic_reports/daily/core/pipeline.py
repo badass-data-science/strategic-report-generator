@@ -91,10 +91,6 @@ def _chunk(lst: list, n: int) -> list[list]:
     Used to batch articles for LLM summarization. LLMs have context window
     limits, so we can't send all 200 articles in one prompt. Batching into
     chunks of batch_size (default 50) keeps each prompt within safe limits.
-
-    range(0, len(lst), n) generates [0, n, 2n, 3n, ...] — the start index
-    of each chunk. lst[i : i + n] is a slice from i to i+n (exclusive),
-    which naturally handles the last chunk being smaller than n.
     """
     return [lst[i : i + n] for i in range(0, len(lst), n)]
 
@@ -124,19 +120,15 @@ async def _summarize_articles(
     )
 
     all_summaries: list[ArticleSummary] = []
-    total_usage = TokenUsage()  # starts at zero; we add to it each batch
+    total_usage = TokenUsage()
 
     for i, chunk in enumerate(chunks, 1):
-        # Each await here suspends this coroutine until the LLM responds,
-        # letting other coroutines (other topics) run in the meantime.
         batch, usage = await client.complete_structured(
             prompt=build_summarize_prompt(chunk),
             response_model=ArticleSummaryBatch,
             system=SYSTEM_SUMMARIZER,
         )
-        # batch.articles is a list[ArticleSummary]; extend flattens it in.
         all_summaries.extend(batch.articles)
-        # TokenUsage.__add__ returns a new object; we rebind total_usage.
         total_usage = total_usage + usage
         log.debug("batch_done", topic=topic.title, batch=i, of=len(chunks))
 
@@ -180,11 +172,6 @@ async def _process_topic(
       - Otherwise, acquire the semaphore and run LLM calls.
       - If LLM calls raise, catch and return error result.
       - In none of these cases do we re-raise — the caller always gets a TopicResult.
-
-    "async with sem:" is the asyncio.Semaphore context manager.
-    It decrements the semaphore counter on entry (blocking if count is 0)
-    and increments it on exit. So at most max_concurrent_llm_calls topics
-    can be inside this block simultaneously.
     """
     # Phase 1 failure arrives here as an Exception in the articles slot
     # because run_pipeline used return_exceptions=True in asyncio.gather.
@@ -196,8 +183,6 @@ async def _process_topic(
         log.warning("topic_no_articles", topic=topic.title)
         return TopicResult(config=topic)
 
-    # Acquire the semaphore before making any LLM calls.
-    # Other topics waiting here will proceed as slots become available.
     async with sem:
         try:
             summaries, usage_s = await _summarize_articles(
@@ -415,8 +400,6 @@ async def run_pipeline(
     # asyncio.Semaphore is not thread-safe but IS coroutine-safe.
     sem = asyncio.Semaphore(max_concurrent_llm_calls)
 
-    # zip(topics, article_lists) pairs each TopicConfig with its fetched articles.
-    # If Phase 1 failed for a topic, article_lists[i] is an Exception.
     results: list[TopicResult] = list(
         await asyncio.gather(
             *[

@@ -14,9 +14,9 @@ in a SQLite database, and optionally uploads the report via SCP/SSH. Two
 scheduled/batch entry points, kept at feature parity with each other:
 
 - `python -m strategic_reports.daily.cli run` — the batch pipeline, run once, manually
-- `flows/daily_report.py` — the same pipeline as a Prefect flow, scheduled
-  daily via cron; adds only the optional remote-upload step, which the CLI
-  doesn't do
+- `strategic_reports/daily/flows/daily_report.py` — the same pipeline as a
+  Prefect flow, scheduled daily via cron; adds only the optional
+  remote-upload step, which the CLI doesn't do
 
 If you add a pipeline step to one entry point (cross-topic synthesis,
 urgency alerts, bullet diffing, tag graph, community summaries), add it to
@@ -39,8 +39,14 @@ shorthand returns; don't assume it's available with two or more.
 ## Setup
 
 ```bash
-pip install -r requirements.txt
+pip install -e ".[flow,test]"
 ```
+
+Package metadata, dependencies, and extras (`flow` for Prefect, `test` for
+pytest) all live in `pyproject.toml` — there is no `requirements.txt`.
+`data/rss_feeds/*.json` and `flows/` ship as package data inside
+`strategic_reports/daily/` (see `paths.py`'s `default_data_dir()`), so the
+package is self-contained even though it isn't published to PyPI.
 
 No API keys are required to run the test suite — the LLM client is fully
 mocked in tests. Running the actual pipeline requires `LLM_MODEL` and the
@@ -66,29 +72,33 @@ style in the file you're editing rather than introducing a new tool.
 ## Code layout
 
 ```
-strategic_reports/daily/
-  core/
-    models.py          Pydantic models: RawArticle → ArticleSummary → TopicResult → CrossTopicSynthesis → BulletDiff
-    llm_client.py       Async LLMClient: litellm + instructor + tenacity retry
-    ingestion.py        Async RSS fetching
-    prompts.py          System messages + user-message builders
-    pipeline.py         Two-phase async orchestrator + cross-topic synthesis (grounded by bridge tags) + summarize_communities() + answer_archive_question()/extract_query_tags()
-    renderer.py         Jinja2 HTML rendering
-    tag_normalizer.py   Tag synonym map, normalize_tags() (Pydantic validator)
-    tag_graph.py        Tag co-occurrence graph + Louvain community detection + find_bridge_tags() + group_articles_by_community()
-    urgency.py          Urgency alerting: absolute threshold + z-score (SQLite-backed)
-    bullet_diff.py      Historical diffing vs. yesterday's bullets (SQLite-backed)
-    db.py               SQLite tracking db: schema, connection helper, output_dir/db_path safety guard, run registration
-    article_archive.py  Persists each run's article summaries (source material), linked to run_id
-    archive_query.py    Graph-guided retrieval: find_relevant_communities() — pure SQL, no LLM calls
-    tag_tracking.py     Per-run tag-graph persistence (linked to run_id) + emerging-tag z-score + community-summary persistence (SQLite-backed)
-    tracing.py          Langfuse / Phoenix instrumentation (opt-in)
-  templates/            Jinja2 templates (base, index, topic)
-  cli.py                typer CLI entrypoint — two commands: run, ask
-  config/topic_order.py Ordered topic slugs + display titles
-flows/daily_report.py   Prefect flow (11 tasks) for scheduled runs — no `ask` equivalent, deliberately (see above)
-data/rss_feeds/         One JSON file per topic listing feed URLs
+strategic_reports/
+  py.typed                 PEP 561 marker
+  daily/
+    core/
+      models.py          Pydantic models: RawArticle → ArticleSummary → TopicResult → CrossTopicSynthesis → BulletDiff
+      llm_client.py       Async LLMClient: litellm + instructor + tenacity retry
+      ingestion.py        Async RSS fetching
+      prompts.py          System messages + user-message builders
+      pipeline.py         Two-phase async orchestrator + cross-topic synthesis (grounded by bridge tags) + summarize_communities() + answer_archive_question()/extract_query_tags()
+      renderer.py         Jinja2 HTML rendering
+      tag_normalizer.py   Tag synonym map, normalize_tags() (Pydantic validator)
+      tag_graph.py        Tag co-occurrence graph + Louvain community detection + find_bridge_tags() + group_articles_by_community()
+      urgency.py          Urgency alerting: absolute threshold + z-score (SQLite-backed)
+      bullet_diff.py      Historical diffing vs. yesterday's bullets (SQLite-backed)
+      db.py               SQLite tracking db: schema, connection helper, output_dir/db_path safety guard, run registration
+      article_archive.py  Persists each run's article summaries (source material), linked to run_id
+      archive_query.py    Graph-guided retrieval: find_relevant_communities() — pure SQL, no LLM calls
+      tag_tracking.py     Per-run tag-graph persistence (linked to run_id) + emerging-tag z-score + community-summary persistence (SQLite-backed)
+      tracing.py          Langfuse / Phoenix instrumentation (opt-in)
+    templates/            Jinja2 templates (base, index, topic)
+    data/rss_feeds/       One JSON file per topic listing feed URLs — packaged as wheel data
+    flows/daily_report.py Prefect flow (11 tasks) for scheduled runs — no `ask` equivalent, deliberately (see above)
+    cli.py                typer CLI entrypoint — two commands: run, ask
+    paths.py              default_data_dir() — resolves bundled rss_feeds/ via importlib.resources
+    config/topic_order.py Ordered topic slugs + display titles
 tests/                  Per-module test files + conftest.py fixtures
+pyproject.toml          Package metadata, dependencies, extras, console script
 LICENSE                 MIT
 ```
 

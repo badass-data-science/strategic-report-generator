@@ -54,13 +54,9 @@ async def _fetch_one_feed(feed: FeedConfig, hours_cutoff: int) -> list[RawArticl
     returns an empty list on failure so one bad feed doesn't stop others.
     """
     try:
-        # asyncio.to_thread runs feedparser.parse (synchronous, blocking)
-        # in the default ThreadPoolExecutor without blocking the event loop.
-        # Equivalent to: loop.run_in_executor(None, feedparser.parse, feed.url)
+        # feedparser.parse is synchronous/blocking; run it off the event loop.
         parsed = await asyncio.to_thread(feedparser.parse, feed.url)
     except Exception as exc:
-        # Log the failure with structured fields so you can grep for
-        # "feed_fetch_failed" in log aggregation tools.
         log.warning("feed_fetch_failed", title=feed.title, url=feed.url, error=str(exc))
         return []
 
@@ -69,28 +65,23 @@ async def _fetch_one_feed(feed: FeedConfig, hours_cutoff: int) -> list[RawArticl
     articles: list[RawArticle] = []
 
     for entry in parsed.entries:
-        # feedparser returns times as struct_time (from the C time library).
-        # mktime() converts struct_time → Unix timestamp → datetime.
-        # We wrap in try/except because some entries have malformed or missing
-        # published dates; continue skips them rather than crashing.
+        # Some entries have malformed or missing published dates; skip rather
+        # than crash the whole feed over one bad entry.
         try:
             dt = datetime.datetime.fromtimestamp(mktime(entry.published_parsed))
         except Exception:
             continue
 
-        # Skip articles older than the cutoff window.
         if dt < cutoff:
             continue
 
         try:
-            # RSS entries can have multiple content blocks; we always take [0].
             raw = entry.content[0]["value"]
-            # Many feeds serve full HTML in the content field. Convert it to
-            # Markdown so the LLM gets clean, readable text without HTML tags.
+            # Many feeds serve full HTML; convert to Markdown so the LLM gets
+            # clean, readable text without HTML tags.
             if entry.content[0]["type"].strip() == "text/html":
                 raw = html_to_markdown.convert(raw).content
         except Exception:
-            # Entry has no content field at all — skip it.
             continue
 
         link = getattr(entry, "link", None)
@@ -103,7 +94,6 @@ async def _fetch_one_feed(feed: FeedConfig, hours_cutoff: int) -> list[RawArticl
                 content=raw.strip(),
                 link=link.strip(),
                 publish_date=dt,
-                # getattr with a default handles feeds that omit the summary field.
                 summary_from_feed=getattr(entry, "summary", "").strip(),
             )
         )
@@ -132,24 +122,15 @@ async def fetch_topic_articles(
       because it catches its own errors), the exception propagates from gather.
       The pipeline's error isolation then catches it at the topic level.
     """
-    # Load the feeds list from disk. topic.feeds_file is a Path object;
-    # .read_text() reads it as a string, json.loads() parses it.
     raw_config = json.loads(topic.feeds_file.read_text())
-
-    # Unpack each dict in the "feeds" list into a FeedConfig Pydantic model.
-    # FeedConfig(**f) is equivalent to FeedConfig(title=f["title"], url=f["url"]).
     feeds = [FeedConfig(**f) for f in raw_config["feeds"]]
 
     log.info("fetching_topic", topic=topic.title, feed_count=len(feeds))
 
-    # Launch all feed fetches simultaneously.
-    # The * unpacks the list of coroutines as positional arguments to gather.
     results = await asyncio.gather(
         *[_fetch_one_feed(f, hours_cutoff) for f in feeds],
         return_exceptions=False,
     )
-    # results is a list of lists: [[article, article], [article], [], ...]
-    # one inner list per feed, some empty (no recent articles or fetch failed)
 
     # Flatten + deduplicate by URL using a set for O(1) membership checks.
     # The order of insertion matters here: we process feeds in order, so

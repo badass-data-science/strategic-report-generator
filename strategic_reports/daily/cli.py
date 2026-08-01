@@ -26,44 +26,11 @@ typer's single-command auto-invoke shorthand only applies to a one-command app):
     archive_query.py and pipeline.answer_archive_question. Read-only;
     doesn't touch --output-dir.
 
-WHY TYPER INSTEAD OF ARGPARSE
-------------------------------
-typer generates a CLI from function type annotations. This means:
-  1. No separate add_argument() calls — the function signature IS the CLI spec
-  2. Types are enforced: --batch-size 5.5 raises an error because it's int
-  3. --help is generated automatically from docstrings and help= strings
-  4. envvar= on each Option means the same parameter can be set by CLI flag
-     or environment variable without any extra code:
-       $ LLM_MODEL=gpt-4o python -m strategic_reports.daily.cli run
-       # is equivalent to:
-       $ python -m strategic_reports.daily.cli run --model gpt-4o
-
-ASYNCIO BRIDGE PATTERN
------------------------
-typer calls the run() function synchronously (it's a normal def, not async def).
-The pipeline is async. asyncio.run() is the standard bridge:
-  - It creates a new event loop
-  - Runs the async coroutine until it's done
-  - Returns the result (list of TopicResults)
-  - Closes the event loop
-
-This is the correct pattern for a sync entry point that needs to call async code.
-Don't use loop.run_until_complete() — it requires manually managing the loop.
-
 SEPARATION OF CONCERNS
 -----------------------
-The CLI layer is responsible for:
-  - Reading configuration (CLI args + env vars)
-  - Printing human-readable status
-  - Bridging sync (CLI) to async (pipeline)
-  - Calling setup functions (logging, tracing, run_id)
-
-The CLI is NOT responsible for:
-  - Business logic (that's in pipeline.py)
-  - Rendering (that's in renderer.py)
-  - LLM calls (that's in llm_client.py)
-
-This separation makes each layer independently testable.
+This layer only reads config, prints status, and bridges sync (CLI) to
+async (pipeline) — business logic lives in pipeline.py, rendering in
+renderer.py, LLM calls in llm_client.py.
 """
 
 import asyncio
@@ -107,6 +74,7 @@ from strategic_reports.daily.core.models import TopicConfig
 from strategic_reports.daily.core.pipeline import synthesize_cross_topic
 from strategic_reports.daily.core.renderer import render_report
 from strategic_reports.daily.core.tracing import generate_run_id, setup_tracing
+from strategic_reports.daily.paths import default_data_dir
 
 # Maps CLI string → instructor.Mode enum value.
 # TOOLS requires model-level function-calling support (OpenAI, Anthropic, capable Ollama).
@@ -117,14 +85,8 @@ _INSTRUCTOR_MODES: dict[str, instructor.Mode] = {
     "MD_JSON": instructor.Mode.MD_JSON,
 }
 
-# typer.Typer() creates the CLI application.
-# add_completion=False disables shell completion setup — optional feature we don't need.
 app = typer.Typer(add_completion=False)
 
-# Read defaults from environment variables at module load time.
-# This lets users set project-wide defaults via a .env file or CI secrets
-# rather than passing flags on every invocation.
-_DEFAULT_HOME = Path(os.environ.get("STRATEGIC_REPORTS_HOME", Path.cwd()))
 _DEFAULT_MODEL = os.environ.get("LLM_MODEL", "ollama_chat/glm-5.2:cloud")
 
 
@@ -160,10 +122,6 @@ def _build_topic_configs(data_dir: Path) -> list[TopicConfig]:
 
 @app.command()
 def run(
-    # typer.Option() creates a CLI flag. Arguments:
-    #   first arg: default value (shown in --help)
-    #   envvar:    environment variable name; CLI flag takes precedence if both are set
-    #   help:      shown in --help output
     model: str = typer.Option(
         _DEFAULT_MODEL,
         envvar="LLM_MODEL",
@@ -179,7 +137,7 @@ def run(
              "WARNING: wiped and recreated on every run.",
     ),
     data_dir: Path = typer.Option(
-        _DEFAULT_HOME / "data" / "rss_feeds",
+        default_data_dir(),
         envvar="STRATEGIC_REPORTS_DATA_DIR",
         help="Directory containing rss_feeds/*.json files",
     ),
@@ -269,8 +227,6 @@ def run(
     # Build the ordered list of topic configs, skipping any with missing feeds files.
     topics = _build_topic_configs(data_dir)
     if not topics:
-        # raise typer.Exit(code=1) is typer's way to exit with a non-zero status code,
-        # signaling failure to the shell or CI system.
         typer.echo("No valid topic configs found. Check --data-dir.", err=True)
         raise typer.Exit(code=1)
 
@@ -299,9 +255,6 @@ def run(
         api_key=ollama_api_key,
     )
 
-    # asyncio.run() is the sync→async bridge:
-    # It starts a new event loop, runs the coroutine to completion, and returns
-    # the result. This is the correct top-level entry point for async code.
     results = asyncio.run(
         run_pipeline(
             topics=topics,
@@ -455,7 +408,6 @@ def run(
     typer.echo(f"  Topics with strategy:  {successful}")
     typer.echo(f"  Topics with no news:   {empty}")
     typer.echo(f"  Topics with errors:    {failed}")
-    # {:,} formats integers with thousands separators: 12345 → "12,345"
     typer.echo(f"  Total tokens used:     {client.total_usage.total_tokens:,}")
     typer.echo(f"  Report written to:     {output_dir / 'index.html'}")
     typer.echo(f"  Tag graph written to:  {output_dir / 'tag_graph.html'}")
@@ -549,6 +501,4 @@ def ask(
 
 
 if __name__ == "__main__":
-    # Allows running as: python cli.py run
-    # The @app.command() decorator is what registers the run() function.
     app()

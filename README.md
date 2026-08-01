@@ -180,7 +180,13 @@ token counts, and cost visible at a glance.
 ## Quick start
 
 ```bash
-pip install -r requirements.txt
+pip install -e .
+```
+
+The `flow` extra adds Prefect (see [Scheduling with Prefect](#scheduling-with-prefect)); the `test` extra adds pytest:
+
+```bash
+pip install -e ".[flow,test]"
 ```
 
 Set your model and credentials:
@@ -227,7 +233,7 @@ default. `--output-dir` and `--db-path` are the exception: both are required.
 | `--output-dir` | — | *(required)* | HTML output directory — wiped and recreated on every run |
 | `--model` | `LLM_MODEL` | `ollama_chat/glm-5.2:cloud` | litellm model string |
 | `--hours-cutoff` | — | `24` | Article age window in hours |
-| `--data-dir` | `STRATEGIC_REPORTS_DATA_DIR` | `data/rss_feeds` | RSS feed config directory |
+| `--data-dir` | `STRATEGIC_REPORTS_DATA_DIR` | bundled `rss_feeds/` package data | RSS feed config directory |
 | `--db-path` | — | *(required)* | SQLite tracking database — created on first use if missing, persists across runs, never wiped. Must not be inside `--output-dir` (checked at startup). |
 | `--batch-size` | — | `50` | Articles per LLM summarization call |
 | `--max-concurrent` | — | `3` | Max topics hitting the LLM API simultaneously |
@@ -360,8 +366,7 @@ These can also be placed in a `.env` file and loaded with `source .env`, or refe
 **4. Start the scheduler** (keep this terminal open):
 
 ```bash
-cd <project-root>
-python flows/daily_report.py
+python -m strategic_reports.daily.flows.daily_report
 ```
 
 This registers the deployment with the local server and polls for scheduled runs. The flow defaults to `instructor_mode=JSON` and reads `OLLAMA_API_BASE` / `OLLAMA_API_KEY` from the environment automatically.
@@ -379,7 +384,7 @@ After=network.target
 User=<your-user>
 WorkingDirectory=<project-root>
 EnvironmentFile=<project-root>/.env
-ExecStart=/path/to/venv/bin/python flows/daily_report.py
+ExecStart=/path/to/venv/bin/python -m strategic_reports.daily.flows.daily_report
 Restart=on-failure
 RestartSec=30
 
@@ -544,35 +549,41 @@ tests/test_tag_normalizer.py  Tag synonym normalization
 ## Project structure
 
 ```
-strategic_reports/daily/
-  core/
-    models.py          Pydantic data models (RawArticle → ArticleSummary → TopicResult → CrossTopicSynthesis → BulletDiff)
-    llm_client.py      Async LLMClient: litellm + instructor + tenacity retry
-    ingestion.py       Async RSS fetching; returns list[RawArticle]
-    prompts.py         System messages and user-message builder functions
-    pipeline.py        Two-phase async orchestrator + cross-topic synthesis + summarize_communities() + answer_archive_question()
-    renderer.py        Jinja2 HTML rendering
-    tag_normalizer.py  Tag synonym map and normalize_tags(); applied via Pydantic validator
-    tag_graph.py       Tag co-occurrence graph builder; full tag_graph.json + pruned/community tag_graph_display.json + tag_graph.html; find_bridge_tags(), group_articles_by_community()
-    urgency.py         Urgency alert logic: absolute threshold + z-score baseline (SQLite-backed)
-    bullet_diff.py     Historical bullet diffing: load/append history, concurrent per-topic LLM diff (SQLite-backed)
-    db.py              SQLite tracking database: schema, connection helper, output_dir/db_path safety guard, run registration
-    article_archive.py Persists each run's article summaries (source material), linked to run_id
-    archive_query.py   Graph-guided retrieval: find_relevant_communities() for the `ask` CLI command
-    tag_tracking.py    Per-run tag-graph persistence (linked to run_id) + emerging-tag z-score alerting + community-summary persistence
-    tracing.py         Langfuse and Phoenix setup (opt-in)
-  templates/
-    base.html.j2       Shared layout and styles
-    index.html.j2      Main strategic report (Strategic Overview + per-topic sections)
-    topic.html.j2      Per-topic article summaries
-  cli.py               typer CLI entrypoint
-  config/
-    topic_order.py     Ordered list of topic slugs and display titles
-data/
-  rss_feeds/           One JSON file per topic listing RSS feed URLs
+strategic_reports/
+  py.typed             PEP 561 marker — this package ships inline type hints
+  daily/
+    core/
+      models.py          Pydantic data models (RawArticle → ArticleSummary → TopicResult → CrossTopicSynthesis → BulletDiff)
+      llm_client.py      Async LLMClient: litellm + instructor + tenacity retry
+      ingestion.py       Async RSS fetching; returns list[RawArticle]
+      prompts.py         System messages and user-message builder functions
+      pipeline.py        Two-phase async orchestrator + cross-topic synthesis + summarize_communities() + answer_archive_question()
+      renderer.py        Jinja2 HTML rendering
+      tag_normalizer.py  Tag synonym map and normalize_tags(); applied via Pydantic validator
+      tag_graph.py       Tag co-occurrence graph builder; full tag_graph.json + pruned/community tag_graph_display.json + tag_graph.html; find_bridge_tags(), group_articles_by_community()
+      urgency.py         Urgency alert logic: absolute threshold + z-score baseline (SQLite-backed)
+      bullet_diff.py     Historical bullet diffing: load/append history, concurrent per-topic LLM diff (SQLite-backed)
+      db.py              SQLite tracking database: schema, connection helper, output_dir/db_path safety guard, run registration
+      article_archive.py Persists each run's article summaries (source material), linked to run_id
+      archive_query.py   Graph-guided retrieval: find_relevant_communities() for the `ask` CLI command
+      tag_tracking.py    Per-run tag-graph persistence (linked to run_id) + emerging-tag z-score alerting + community-summary persistence
+      tracing.py         Langfuse and Phoenix setup (opt-in)
+    templates/
+      base.html.j2       Shared layout and styles
+      index.html.j2      Main strategic report (Strategic Overview + per-topic sections)
+      topic.html.j2      Per-topic article summaries
+    data/
+      rss_feeds/         One JSON file per topic listing RSS feed URLs — packaged as wheel data
+    flows/
+      daily_report.py    Prefect flow (see Scheduling with Prefect)
+    config/
+      topic_order.py     Ordered list of topic slugs and display titles
+    cli.py               typer CLI entrypoint
+    paths.py             default_data_dir() — resolves the bundled rss_feeds/ via importlib.resources
 tests/
   conftest.py          Shared fixtures and feedparser mock helpers
   test_*.py            Per-module test files
+pyproject.toml         Package metadata, dependencies, and the `strategic-reports` console script
 ```
 
 ---
