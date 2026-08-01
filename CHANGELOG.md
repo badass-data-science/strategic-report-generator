@@ -4,9 +4,44 @@ All notable changes to this project are documented here. Entries are
 grouped by date rather than a semantic version number, since this project
 doesn't tag releases.
 
-## Unreleased (`prefect-pipeline-updates-0001` branch)
+## 2026-08-02
 
 ### Added
+- New `ask` CLI command: `python -m strategic_reports.daily.cli ask
+  "<question>" --db-path ...` answers free-text questions about the
+  accumulated archive — across every past run, not just today's — via
+  graph-guided retrieval, not full GraphRAG. `pipeline.extract_query_tags()`
+  pulls candidate tags from the question; `archive_query.find_relevant_communities()`
+  matches them against `community_summaries` (exact tag membership first,
+  substring fallback second, across all runs); `pipeline.answer_archive_question()`
+  synthesizes an answer grounded strictly in what's retrieved. No
+  embeddings, no hierarchical multi-level community summarization —
+  deliberately out of scope, a considered choice for this project's
+  single-user use case.
+- New `QueryTags`/`ArchiveAnswer` Pydantic models, `SYSTEM_QUERY_TAGS`/
+  `SYSTEM_ARCHIVE_ANSWER` system messages, `build_query_tags_prompt()`/
+  `build_archive_answer_prompt()`.
+- `ask` is the one deliberate exception to the "add every pipeline step to
+  both entry points" convention: no Prefect equivalent, since it's an
+  interactive human-in-the-loop command, not a scheduled batch step.
+- New `export-rdf` CLI command: `python -m strategic_reports.daily.cli
+  export-rdf --db-path ... --output knowledge_graph.ttl [--since
+  <run_id-or-timestamp>]` exports the accumulated archive as an RDF
+  (Turtle) knowledge graph. Complements `tag_graph.py`'s per-run
+  co-occurrence JSON/HTML output — doesn't replace or recompute it, and
+  the two are otherwise unconnected code paths. `export-rdf` is a third
+  CLI-only command, alongside `ask` — a deliberate exception to the
+  run/flow parity convention.
+- New `rdf_export.py`: reuses standard vocabularies rather than inventing
+  a bespoke schema — SKOS (tags as `skos:Concept`, Louvain communities as
+  `skos:Collection`), PROV-O (every fact traces to the run that produced
+  it via `prov:wasGeneratedBy`), schema.org (article bibliographic
+  fields). A small custom `stratrep:` namespace covers what's genuinely
+  domain-specific (topics, urgency scores, bridge-tag observations, the
+  cross-topic overview). `--since` filters which runs are included in a
+  given export (a `run_id` or ISO timestamp) but does not merge into an
+  existing `.ttl` file — each invocation writes a fresh file; a
+  deliberate v1 scope choice, not an oversight.
 - New `flows/export_rdf_flow.py`: wraps `export-rdf` as a Prefect
   `@flow`/`@task`, in its own file rather than folded into
   `daily_report.py`, since `export-rdf` is deliberately independent of the
@@ -16,75 +51,6 @@ doesn't tag releases.
   --output ...`, same flags as the CLI command. Scheduling cadence,
   full-vs-incremental-on-schedule, and single- vs. two-process serving
   were deliberately deferred rather than decided.
-
-### Removed
-- **The remote-upload step** (`upload-to-web-server` task) from
-  `daily_report_flow` — no more SCP/SSH to badassdatascience.com. Removed
-  `upload_enabled`/`ssh_key_path`/`remote_host`/`remote_user`/
-  `remote_staging_dir`/`remote_web_dir` flow parameters and the `subprocess`
-  import. The flow now has 10 tasks (was 11) and is at **full** feature
-  parity with `cli.py run` — previously the flow's one documented
-  difference from the CLI was this upload step; that asymmetry no longer
-  exists.
-
-### Fixed
-- `daily_report_flow` now validates `instructor_mode` up front (raises
-  `ValueError` before any task runs) instead of silently falling back to
-  `TOOLS` on an invalid value — matches `cli.py run`'s existing
-  fail-loudly behavior for the same input. A full functionality audit
-  against `cli.py run` (prompted by adding this fix) confirmed this was
-  the only real behavioral gap; every persistence/business-logic step
-  (including `record_overview`, added earlier on this branch's history)
-  was already present in both entry points.
-
-### Changed
-- The scheduled deployment's fixed `output_dir`/`db_path` (set once in
-  `daily_report_flow.serve()`'s `parameters={}`, since a cron-triggered
-  run has no CLI invocation to supply them) now point at
-  `$HOME/output/daily-strategic-report-from-RSS-feeds/{daily-report,
-  strategic-reports.db}`, anchored via `Path.home()` rather than the
-  process's working directory. Removed the now-unused `_DEFAULT_HOME`
-  module variable this replaced (it had no other callers).
-
-## Unreleased (`schema-org-html-markup` branch)
-
-### Added
-- `{topic}_summaries.html` pages now carry `schema:Article` JSON-LD markup
-  per article (`headline`/`url`/`datePublished`), matching the same fields
-  `rdf_export.py` already maps onto `schema:Article` — for structured-data
-  consumers (search engines, scrapers) that only have access to the HTML,
-  not `--db-path`. `index.html` is deliberately left unmarked: the
-  Strategic Overview and per-topic bullets have no schema.org type, and
-  inventing one would misuse the vocabulary the same way `rdf_export.py`'s
-  `stratrep:` namespace exists to avoid.
-- The JSON-LD payload is built and escaped in Python
-  (`renderer._build_article_jsonld()`) before being embedded — RSS-sourced
-  article titles are escaped (`<`, `>`, `&` → `\uXXXX`) so a title
-  containing `</script>` can't break out of the block, the same threat
-  model as the existing HTML autoescaping.
-- 2 new tests (`tests/test_renderer.py`): JSON-LD field correctness, and
-  the `</script>` breakout case. 204 tests total, up from 202.
-
-## Unreleased (`rdf-export` branch)
-
-### Added
-- New `export-rdf` CLI command: `python -m strategic_reports.daily.cli
-  export-rdf --db-path ... --output knowledge_graph.ttl [--since
-  <run_id-or-timestamp>]` exports the accumulated archive as an RDF
-  (Turtle) knowledge graph. Complements `tag_graph.py`'s per-run
-  co-occurrence JSON/HTML output — doesn't replace or recompute it, and
-  the two are otherwise unconnected code paths.
-- New `rdf_export.py`: reuses standard vocabularies rather than inventing
-  a bespoke schema — SKOS (tags as `skos:Concept`, Louvain communities as
-  `skos:Collection`), PROV-O (every fact traces to the run that produced
-  it via `prov:wasGeneratedBy`), schema.org (article bibliographic
-  fields). A small custom `stratrep:` namespace covers what's genuinely
-  domain-specific (topics, urgency scores, bridge-tag observations, the
-  cross-topic overview).
-- `--since` filters which runs are included in a given export (a `run_id`
-  or ISO timestamp) but does not merge into an existing `.ttl` file —
-  each invocation writes a fresh file; a deliberate v1 scope choice, not
-  an oversight.
 - New `cross_topic_overviews` table + `overview_archive.py`
   (`record_overview()`): the cross-topic synthesis overview was previously
   rendered into `index.html` but never persisted anywhere. Now persisted
@@ -93,16 +59,36 @@ doesn't tag releases.
   one-line persist tied directly to that task's own output), following
   the same "never blocks rendering on failure" pattern as the other
   optional persistence steps.
+- `{topic}_summaries.html` pages now carry `schema:Article` JSON-LD markup
+  per article (`headline`/`url`/`datePublished`), matching the same fields
+  `rdf_export.py` maps onto `schema:Article` — for structured-data
+  consumers (search engines, scrapers) that only have access to the HTML,
+  not `--db-path`. `index.html` is deliberately left unmarked: the
+  Strategic Overview and per-topic bullets have no schema.org type, and
+  inventing one would misuse the vocabulary the same way `rdf_export.py`'s
+  `stratrep:` namespace exists to avoid. The JSON-LD payload is built and
+  escaped in Python (`renderer._build_article_jsonld()`) before being
+  embedded — RSS-sourced article titles are escaped (`<`, `>`, `&` →
+  `\uXXXX`) so a title containing `</script>` can't break out of the
+  block, the same threat model as the existing HTML autoescaping.
 - Added `rdflib>=7.0.0` as a core dependency.
-- `export-rdf` is a fourth CLI-only command, like `ask` — a deliberate
-  exception to the run/flow parity convention; no Prefect equivalent yet.
-- 13 new tests (`tests/test_overview_archive.py`,
-  `tests/test_rdf_export.py`): overview bullet round-trip/ordering,
-  ontology mapping for articles/tags/communities/bridge
-  tags/urgency/bullets/overview, `--since` filtering, Turtle
-  serialization round-trip. 202 tests total, up from 189.
-
-## Unreleased (`pypi-friendly-refactor` branch)
+- **Breaking CLI invocation change**: `cli.py` now has three commands
+  (`run`, `ask`, `export-rdf`), so naming one explicitly is required going
+  forward (`... cli.py run --output-dir ...`) — typer's single-command
+  auto-invoke shorthand (bare `... cli.py --output-dir ...`) no longer
+  applies once there's more than one command.
+- New tests across `tests/test_archive_query.py` (`find_relevant_communities()`
+  exact/substring matching, dedup, ordering, limit), `tests/test_pipeline.py`
+  (`extract_query_tags()`/`answer_archive_question()`),
+  `tests/test_overview_archive.py` and `tests/test_rdf_export.py` (overview
+  bullet round-trip/ordering, ontology mapping for
+  articles/tags/communities/bridge tags/urgency/bullets/overview, `--since`
+  filtering, Turtle serialization round-trip), and `tests/test_renderer.py`
+  (JSON-LD field correctness, `</script>` breakout case). 204 tests total,
+  up from 177. Verified end-to-end with integration smoke tests (the real
+  `ask` command failing cleanly against an unreachable model and the full
+  success path against a seeded archive; `export-rdf` and its Prefect flow
+  run against a real seeded database, producing valid, parseable Turtle).
 
 ### Changed
 - Restructured the project as a proper (if unpublished) Python package:
@@ -132,38 +118,32 @@ doesn't tag releases.
 - Verified via a real `pip install`/`python -m build --wheel` round-trip
   (not just editable install) that package data resolves correctly and the
   console script runs from an installed wheel, not just the source tree.
+- The scheduled deployment's fixed `output_dir`/`db_path` (set once in
+  `daily_report_flow.serve()`'s `parameters={}`, since a cron-triggered
+  run has no CLI invocation to supply them) now point at
+  `$HOME/output/daily-strategic-report-from-RSS-feeds/{daily-report,
+  strategic-reports.db}`, anchored via `Path.home()` rather than the
+  process's working directory. Removed the now-unused `_DEFAULT_HOME`
+  module variable this replaced (it had no other callers).
 
-## Unreleased (`archive-query` branch)
+### Removed
+- **The remote-upload step** (`upload-to-web-server` task) from
+  `daily_report_flow` — no more SCP/SSH to badassdatascience.com. Removed
+  `upload_enabled`/`ssh_key_path`/`remote_host`/`remote_user`/
+  `remote_staging_dir`/`remote_web_dir` flow parameters and the `subprocess`
+  import. The flow now has 10 tasks (was 11) and is at **full** feature
+  parity with `cli.py run` — previously the flow's one documented
+  difference from the CLI was this upload step; that asymmetry no longer
+  exists.
 
-### Added
-- New `ask` CLI command: `python -m strategic_reports.daily.cli ask
-  "<question>" --db-path ...` answers free-text questions about the
-  accumulated archive — across every past run, not just today's — via
-  graph-guided retrieval, not full GraphRAG. `pipeline.extract_query_tags()`
-  pulls candidate tags from the question; `archive_query.find_relevant_communities()`
-  matches them against `community_summaries` (exact tag membership first,
-  substring fallback second, across all runs); `pipeline.answer_archive_question()`
-  synthesizes an answer grounded strictly in what's retrieved. No
-  embeddings, no hierarchical multi-level community summarization —
-  deliberately out of scope, a considered choice for this project's
-  single-user use case.
-- New `QueryTags`/`ArchiveAnswer` Pydantic models, `SYSTEM_QUERY_TAGS`/
-  `SYSTEM_ARCHIVE_ANSWER` system messages, `build_query_tags_prompt()`/
-  `build_archive_answer_prompt()`.
-- `ask` is the one deliberate exception to the "add every pipeline step to
-  both entry points" convention: no Prefect equivalent, since it's an
-  interactive human-in-the-loop command, not a scheduled batch step.
-- **Breaking CLI invocation change**: `cli.py` now has two commands (`run`,
-  `ask`), so naming one explicitly is required going forward
-  (`... cli.py run --output-dir ...`) — typer's single-command auto-invoke
-  shorthand (bare `... cli.py --output-dir ...`) no longer applies once
-  there's more than one command.
-- 20 new tests (`tests/test_archive_query.py`: `find_relevant_communities()`
-  exact/substring matching, dedup, ordering, limit; `tests/test_pipeline.py`:
-  `extract_query_tags()`/`answer_archive_question()`). 189 tests total, up
-  from 177. Verified end-to-end with two integration smoke tests (the real
-  `ask` command failing cleanly against an unreachable model, and the full
-  success path with a mocked LLM against a seeded archive).
+### Fixed
+- `daily_report_flow` now validates `instructor_mode` up front (raises
+  `ValueError` before any task runs) instead of silently falling back to
+  `TOOLS` on an invalid value — matches `cli.py run`'s existing
+  fail-loudly behavior for the same input. A full functionality audit
+  against `cli.py run` confirmed this was the only real behavioral gap;
+  every persistence/business-logic step (including `record_overview`) was
+  already present in both entry points.
 
 ## 2026-08-01
 
