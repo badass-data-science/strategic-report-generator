@@ -27,6 +27,16 @@ doesn't tag releases.
   difference from the CLI was this upload step; that asymmetry no longer
   exists.
 
+### Fixed
+- `daily_report_flow` now validates `instructor_mode` up front (raises
+  `ValueError` before any task runs) instead of silently falling back to
+  `TOOLS` on an invalid value — matches `cli.py run`'s existing
+  fail-loudly behavior for the same input. A full functionality audit
+  against `cli.py run` (prompted by adding this fix) confirmed this was
+  the only real behavioral gap; every persistence/business-logic step
+  (including `record_overview`, added earlier on this branch's history)
+  was already present in both entry points.
+
 ## Unreleased (`schema-org-html-markup` branch)
 
 ### Added

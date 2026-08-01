@@ -511,6 +511,15 @@ async def daily_report_flow(
     # this one, since a sqlite3.Connection isn't picklable across tasks.
     connect_db(db_path).close()
 
+    # Validate before doing any real work — otherwise an invalid instructor_mode
+    # silently falls back to TOOLS inside each task's own _INSTRUCTOR_MODES.get(),
+    # rather than failing loudly the way cli.py run does.
+    if instructor_mode.upper() not in _INSTRUCTOR_MODES:
+        raise ValueError(
+            f"Invalid instructor_mode '{instructor_mode}'. "
+            f"Valid options: {', '.join(_INSTRUCTOR_MODES)}"
+        )
+
     configure_logging(log_level)
     setup_tracing()
     run_id = generate_run_id()
