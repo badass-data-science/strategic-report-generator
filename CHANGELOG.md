@@ -4,6 +4,28 @@ All notable changes to this project are documented here. Entries are
 grouped by date rather than a semantic version number, since this project
 doesn't tag releases.
 
+## 2026-08-03
+
+### Added
+- `export-rdf` is now scheduled: `flows/export_rdf_flow.py` runs daily at
+  **04:00 America/Los_Angeles** via its own `.serve()` call — a separate
+  process from `daily_report_flow` (own systemd unit), not a task folded
+  into it, keeping the same independence from the daily pipeline that the
+  CLI command already has. Always a full rebuild (no `--since` watermark
+  tracking on the scheduled run). The deployment's `db_path` reads from
+  the same tracking database `daily_report_flow`'s deployment writes to
+  (`$HOME/output/daily-strategic-report-from-RSS-feeds/strategic-reports.db`),
+  and writes to `knowledge_graph.ttl` alongside it — both anchored via
+  `Path.home()`, not cwd.
+
+### Removed
+- `export_rdf_flow.py`'s typer/CLI-args entry point (`--db-path`/
+  `--output`/`--since` invoked directly via `python -m
+  ...flows.export_rdf_flow`) — superseded by `prefect deployment run
+  'export-rdf/export-rdf' --param since=...` now that a deployment
+  exists. `cli.py export-rdf` remains available for genuinely
+  Prefect-independent ad-hoc use.
+
 ## 2026-08-02
 
 ### Added

@@ -181,9 +181,11 @@ standard vocabularies rather than inventing a bespoke schema was a
 deliberate choice — the whole point of this export is to avoid the
 knowledge base reinventing a graph standard it could just adopt.
 
-Like `ask`, this is CLI-only for now (see `AGENTS.md`) — a scheduled
-Prefect equivalent may be added later, but isn't required for the export
-to be useful today.
+Unlike `ask` (which has no Prefect equivalent by design — see
+`AGENTS.md`), `export-rdf` does have a scheduled Prefect flow
+(`flows/export_rdf_flow.py`), running as its own separate process rather
+than a task inside `daily_report_flow` — keeping the same independence
+from the daily pipeline that the CLI command already has.
 
 ### Observability
 
@@ -387,18 +389,26 @@ file at `--output`; combining a full export with later incremental exports
 whatever tool consumes them. Read-only against `--db-path`; never touches
 `--output-dir`. See `rdf_export.py`.
 
-This is a third CLI-only command, like `ask` — a deliberate exception to
-the run/flow parity convention (see `AGENTS.md`); a scheduled Prefect
-equivalent may be added later.
+On the CLI, this is a third command, like `ask` — a deliberate exception
+to the run/flow parity convention (see `AGENTS.md`).
 
-A Prefect flow wrapping the same logic already exists
-(`flows/export_rdf_flow.py`), but it isn't scheduled yet — run it directly
-for now, same flags as the CLI command:
+A Prefect flow wrapping the same logic (`flows/export_rdf_flow.py`) is
+scheduled separately from `daily_report_flow` — its own process, its own
+`.serve()` call, so a crash/restart of one never touches the other:
 
 ```bash
-python -m strategic_reports.daily.flows.export_rdf_flow \
-  --db-path output/daily/strategic_reports.db \
-  --output output/daily/knowledge_graph.ttl
+python -m strategic_reports.daily.flows.export_rdf_flow
+```
+
+Runs daily at **04:00 America/Los_Angeles** — well after
+`daily_report_flow`'s 00:30 run, so the day's data has finished writing to
+the tracking database first. Always a full rebuild (no `--since`
+watermark tracking on the scheduled run, same v1 scope choice as the CLI
+command). Trigger a one-off run, optionally overriding `since`:
+
+```bash
+prefect deployment run 'export-rdf/export-rdf'
+prefect deployment run 'export-rdf/export-rdf' --param since=2026-08-01
 ```
 
 ---
@@ -467,6 +477,27 @@ User=<your-user>
 WorkingDirectory=<project-root>
 EnvironmentFile=<project-root>/.env
 ExecStart=/path/to/venv/bin/python -m strategic_reports.daily.flows.daily_report
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
+```
+
+`export_rdf_flow.py` runs as its own separate process (see [Exporting an
+RDF knowledge graph](#exporting-an-rdf-knowledge-graph)) — a second unit,
+so it can restart independently of the daily report scheduler:
+
+```ini
+[Unit]
+Description=Strategic Reports RDF export scheduler
+After=network.target
+
+[Service]
+User=<your-user>
+WorkingDirectory=<project-root>
+EnvironmentFile=<project-root>/.env
+ExecStart=/path/to/venv/bin/python -m strategic_reports.daily.flows.export_rdf_flow
 Restart=on-failure
 RestartSec=30
 
@@ -623,7 +654,7 @@ strategic_reports/
       rss_feeds/         One JSON file per topic listing RSS feed URLs — packaged as wheel data
     flows/
       daily_report.py    Prefect flow (see Scheduling with Prefect)
-      export_rdf_flow.py Prefect flow wrapping export-rdf — not yet scheduled, run directly
+      export_rdf_flow.py Prefect flow wrapping export-rdf — scheduled daily, own process
     config/
       topic_order.py     Ordered list of topic slugs and display titles
     cli.py               typer CLI entrypoint
