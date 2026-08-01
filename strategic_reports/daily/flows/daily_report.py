@@ -92,9 +92,6 @@ from strategic_reports.daily.core.tag_graph import (
 from strategic_reports.daily.core.tracing import generate_run_id, setup_tracing
 from strategic_reports.daily.paths import default_data_dir
 
-# Anchors output_dir/db_path defaults for the scheduled deployment (see
-# .serve() below) — must never point inside the installed package itself.
-_DEFAULT_HOME = Path(os.environ.get("STRATEGIC_REPORTS_HOME", Path.cwd()))
 _DEFAULT_MODEL = os.environ.get("LLM_MODEL", "ollama_chat/glm-5.2:cloud")
 
 _INSTRUCTOR_MODES: dict[str, instructor.Mode] = {
@@ -627,9 +624,10 @@ if __name__ == "__main__":
         # output_dir and db_path have no function default (see
         # daily_report_flow) — the scheduled cron run has no CLI invocation to
         # supply them, so their values are fixed here, once, at deployment
-        # registration time.
+        # registration time. Path.home() (not cwd) so these stay correct
+        # regardless of the working directory the process is started from.
         parameters={
-            "output_dir": _DEFAULT_HOME / "output" / "daily" / "strategic-report",
-            "db_path": _DEFAULT_HOME / "output" / "daily" / "strategic_reports.db",
+            "output_dir": Path.home() / "output" / "daily-strategic-report-from-RSS-feeds" / "daily-report",
+            "db_path": Path.home() / "output" / "daily-strategic-report-from-RSS-feeds" / "strategic-reports.db",
         },
     )
