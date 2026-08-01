@@ -67,7 +67,7 @@ matching provider credentials (see README's Quick Start).
 pytest
 ```
 
-- 202 tests across `tests/test_*.py`, no real network or LLM calls, runs in
+- 204 tests across `tests/test_*.py`, no real network or LLM calls, runs in
   under a second. CI (`.github/workflows/tests.yml`) runs the same suite on
   every push/PR to `main`, no credentials needed there either.
 - `pytest.ini` sets `asyncio_mode = auto` — async test functions don't need
@@ -181,6 +181,20 @@ LICENSE                 MIT
   does not merge into an existing `.ttl` file; don't add merge/watermark
   logic without discussing it first, since this was a deliberate v1 scope
   choice, not an oversight.
+- **`{topic}_summaries.html` carries `schema:Article` JSON-LD per article,
+  built by `renderer._build_article_jsonld()` — kept in sync with
+  `rdf_export.py`'s schema.org mapping (`headline`/`url`/`datePublished`),
+  same fields, same vocabulary.** `index.html` deliberately does not get
+  JSON-LD: the Strategic Overview and per-topic bullets are LLM-synthesized
+  content with no schema.org type, and inventing one there would be the
+  same vocabulary misuse `rdf_export.py`'s `stratrep:` namespace exists to
+  avoid. The JSON-LD string is built and escaped in Python (`<`, `>`, `&` →
+  `\uXXXX`) before being marked `| safe` in the template — article titles
+  are RSS content we don't control, so a title containing `</script>` must
+  not be able to break out of the block, same threat model as the HTML
+  autoescaping above it. Don't switch this to a Jinja2 `tojson` filter
+  without keeping that same escaping; a bare `jinja2.Environment` (unlike
+  Flask's) doesn't provide `tojson` by default.
 - **`archive_query.find_relevant_communities()` has no LLM dependency —
   keep it that way.** It's pure SQL (two-pass: exact tag membership, then
   a label/summary substring fallback). LLM orchestration (extracting query

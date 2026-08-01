@@ -595,7 +595,7 @@ python -m strategic_reports.daily.cli run \
 pytest
 ```
 
-202 tests across 15 files. No real API calls — the LLM client is fully mocked.
+204 tests across 15 files. No real API calls — the LLM client is fully mocked.
 Runs in under a second. A GitHub Actions workflow
 (`.github/workflows/tests.yml`) runs the same suite on every push and pull
 request to `main` — no LLM credentials needed there either.
@@ -675,7 +675,7 @@ pyproject.toml         Package metadata, dependencies, and the `strategic-report
 The pipeline writes the following files to `--output-dir`:
 
 - **`index.html`** — the main report. Opens with a highlighted **Strategic Overview** section (3–4 cross-cutting bullets synthesized across all topics), followed by one section per topic with 3–5 strategic bullet points. On runs after the first, each topic also shows a **Since yesterday** annotation: new bullets highlighted in green, dropped bullets in muted strikethrough. Errors and empty topics are surfaced inline rather than hidden.
-- **`{topic}_summaries.html`** — per-article summaries and tags for every article that fed into that topic's strategic synthesis.
+- **`{topic}_summaries.html`** — per-article summaries and tags for every article that fed into that topic's strategic synthesis. Each article is also marked up as a `schema:Article` JSON-LD block (`headline`/`url`/`datePublished`) — the same fields `export-rdf` maps onto `schema:Article` — for structured-data consumers (search engines, scrapers) that only have access to the HTML, not `--db-path`.
 - **`tag_graph.html`** — interactive D3.js force-directed graph of tag co-occurrences. Self-contained: graph data is inlined at build time so it opens directly from the filesystem (`file://`) without a web server. Node color = Louvain community cluster; node size = article count; edge thickness = co-occurrence count. Sliders allow further filtering by minimum co-occurrence and minimum article count. Hovering a node shows its community label (named after the highest-count tag in that cluster).
 - **`tag_graph_display.json`** — pruned and community-annotated graph consumed by `tag_graph.html`. Nodes with fewer than 3 article appearances and edges with fewer than 2 co-occurrences are dropped before Louvain community detection runs. Typically ~200 nodes and ~800 edges.
 - **`tag_graph.json`** — full graph (all tags and co-occurrence edges, unfiltered) for downstream data science use.

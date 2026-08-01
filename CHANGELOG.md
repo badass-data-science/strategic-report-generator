@@ -4,6 +4,25 @@ All notable changes to this project are documented here. Entries are
 grouped by date rather than a semantic version number, since this project
 doesn't tag releases.
 
+## Unreleased (`schema-org-html-markup` branch)
+
+### Added
+- `{topic}_summaries.html` pages now carry `schema:Article` JSON-LD markup
+  per article (`headline`/`url`/`datePublished`), matching the same fields
+  `rdf_export.py` already maps onto `schema:Article` — for structured-data
+  consumers (search engines, scrapers) that only have access to the HTML,
+  not `--db-path`. `index.html` is deliberately left unmarked: the
+  Strategic Overview and per-topic bullets have no schema.org type, and
+  inventing one would misuse the vocabulary the same way `rdf_export.py`'s
+  `stratrep:` namespace exists to avoid.
+- The JSON-LD payload is built and escaped in Python
+  (`renderer._build_article_jsonld()`) before being embedded — RSS-sourced
+  article titles are escaped (`<`, `>`, `&` → `\uXXXX`) so a title
+  containing `</script>` can't break out of the block, the same threat
+  model as the existing HTML autoescaping.
+- 2 new tests (`tests/test_renderer.py`): JSON-LD field correctness, and
+  the `</script>` breakout case. 204 tests total, up from 202.
+
 ## Unreleased (`rdf-export` branch)
 
 ### Added
