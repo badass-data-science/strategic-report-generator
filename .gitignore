@@ -19,3 +19,9 @@ output/
 *.egg-info/
 dist/
 build/
+
+# graphify — keep only the report, HTML viewer, and raw graph data
+graphify-out/*
+!graphify-out/GRAPH_REPORT.md
+!graphify-out/graph.html
+!graphify-out/graph.json
