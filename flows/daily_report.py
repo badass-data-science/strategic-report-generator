@@ -68,7 +68,7 @@ from prefect.client.schemas.schedules import CronSchedule
 from strategic_reports.daily.config.topic_order import list_directories_and_titles
 from strategic_reports.daily.core import configure_logging, LLMClient, run_pipeline
 from strategic_reports.daily.core.models import BulletDiff, CrossTopicSynthesis, TopicConfig, TopicResult
-from strategic_reports.daily.core.pipeline import synthesize_cross_topic
+from strategic_reports.daily.core.pipeline import summarize_communities, synthesize_cross_topic
 from strategic_reports.daily.core.urgency import (
     UrgencyAlert,
     append_run,
@@ -90,11 +90,17 @@ from strategic_reports.daily.core.tag_tracking import (
     check_emerging_tags,
     load_tag_rate_history,
     record_bridge_tags,
+    record_community_summaries,
     record_emerging_tag_alerts,
     record_tags,
 )
 from strategic_reports.daily.core.renderer import render_report
-from strategic_reports.daily.core.tag_graph import build_graph_data, find_bridge_tags, write_tag_graph
+from strategic_reports.daily.core.tag_graph import (
+    build_display_graph,
+    build_graph_data,
+    find_bridge_tags,
+    write_tag_graph,
+)
 from strategic_reports.daily.core.tracing import generate_run_id, setup_tracing
 
 # Anchor defaults to the project root (flows/../) regardless of the working
@@ -367,7 +373,51 @@ def check_emerging_tag_alerts(
 
 
 # ---------------------------------------------------------------------------
-# Task 8: Historical bullet diffing
+# Task 8: Summarize tag communities
+# ---------------------------------------------------------------------------
+# One LLM call per Louvain tag-community, grounded in that community's
+# articles — replaces "labeled by top tag" with an actual paragraph.
+# Recomputes graph_data/display_data (cheap, pure) rather than sharing
+# check_emerging_tag_alerts' — Prefect tasks don't share local variables.
+#
+# Fails gracefully: a failure here logs a warning but does not prevent
+# rendering, the tag graph HTML/JSON files, or upload.
+
+@task(name="summarize-communities", retries=2, retry_delay_seconds=60)
+async def summarize_community_tags(
+    results: list[TopicResult],
+    run_id: str,
+    db_path: Path,
+    model: str,
+    temperature: float,
+    instructor_mode_str: str,
+    api_base: str | None = None,
+    api_key: str | None = None,
+) -> None:
+    """Generate and persist an LLM-written summary for each Louvain tag-community."""
+    logger = get_run_logger()
+    try:
+        display_data = build_display_graph(build_graph_data(results))
+        mode = _INSTRUCTOR_MODES.get(instructor_mode_str.upper(), instructor.Mode.TOOLS)
+        client = LLMClient(
+            model=model,
+            temperature=temperature,
+            run_metadata={"trace_id": run_id, "trace_name": "strategic-report-community-summary"},
+            instructor_mode=mode,
+            api_base=api_base,
+            api_key=api_key,
+        )
+        community_summaries = await summarize_communities(results, display_data, client)
+        record_community_summaries(db_path, run_id, community_summaries)
+        logger.info(
+            f"Community summaries: {len(community_summaries)} of {display_data['n_communities']} communities"
+        )
+    except Exception as exc:
+        logger.warning(f"Community summarization failed: {exc} — continuing without community summaries")
+
+
+# ---------------------------------------------------------------------------
+# Task 9: Historical bullet diffing
 # ---------------------------------------------------------------------------
 # Compares today's strategic bullets against yesterday's using an LLM to
 # classify changes as new / continued / dropped.
@@ -420,7 +470,7 @@ async def run_bullet_diff(
 
 
 # ---------------------------------------------------------------------------
-# Task 9: Build tag co-occurrence network graph
+# Task 10: Build tag co-occurrence network graph
 # ---------------------------------------------------------------------------
 
 @task(name="build-tag-graph")
@@ -432,7 +482,7 @@ def build_tag_graph(results: list[TopicResult], output_dir: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Task 10: Upload HTML output to web server
+# Task 11: Upload HTML output to web server
 # ---------------------------------------------------------------------------
 # Two steps mirror the manual workflow:
 #   1. scp: copy all HTML files from output_dir to remote_staging_dir
@@ -602,6 +652,17 @@ async def daily_report_flow(
         db_path=db_path,
         article_count=article_count,
         tag_z_score_threshold=tag_z_score_threshold,
+    )
+
+    await summarize_community_tags(
+        results=results,
+        run_id=run_id,
+        db_path=db_path,
+        model=model,
+        temperature=temperature,
+        instructor_mode_str=instructor_mode,
+        api_base=ollama_api_base,
+        api_key=ollama_api_key,
     )
 
     diffs = await run_bullet_diff(

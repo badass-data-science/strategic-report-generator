@@ -1,17 +1,35 @@
 """
-Tests for strategic_reports.daily.core.tag_graph.find_bridge_tags().
+Tests for strategic_reports.daily.core.tag_graph: find_bridge_tags() and
+group_articles_by_community().
 
-Uses hand-built graph_data dicts (the {"nodes": [...], "links": [...]}
-shape build_graph_data() produces) rather than routing through
-build_graph_data() itself, to keep these tests focused on find_bridge_tags'
-own filtering/sorting/limiting logic.
+Uses hand-built graph_data/display_data dicts (the shapes build_graph_data()/
+build_display_graph() produce) rather than routing through those functions,
+to keep these tests focused on find_bridge_tags'/group_articles_by_community's
+own logic.
 """
 
-from strategic_reports.daily.core.tag_graph import find_bridge_tags
+from strategic_reports.daily.core.models import ArticleSummary, TopicConfig, TopicResult
+from strategic_reports.daily.core.tag_graph import find_bridge_tags, group_articles_by_community
 
 
 def _node(tag: str, count: int, topics: list[str]) -> dict:
     return {"id": tag, "count": count, "topics": topics}
+
+
+def _display_node(tag: str, count: int, community: int, community_label: str) -> dict:
+    return {"id": tag, "count": count, "topics": [], "community": community, "community_label": community_label}
+
+
+def _article(title: str, link: str, tags: list[str]) -> ArticleSummary:
+    return ArticleSummary(
+        title=title, link=link, publish_date="2026-07-31T09:00:00",
+        summary=["Bullet one.", "Bullet two.", "Bullet three."], tags=tags,
+    )
+
+
+def _results(articles: list[ArticleSummary], topic_title: str = "Artificial Intelligence") -> list[TopicResult]:
+    config = TopicConfig(slug=f"feeds_{topic_title.lower()}", title=topic_title, feeds_file="/dev/null")
+    return [TopicResult(config=config, articles=articles)]
 
 
 class TestFindBridgeTags:
@@ -71,3 +89,58 @@ class TestFindBridgeTags:
             "links": [],
         }
         assert find_bridge_tags(graph_data, min_topics=3) == []
+
+
+class TestGroupArticlesByCommunity:
+    # Two communities: 0 = policy/regulation, 1 = biotech/genomics.
+    _DISPLAY_DATA = {
+        "nodes": [
+            _display_node("policy", 10, community=0, community_label="policy"),
+            _display_node("regulation", 8, community=0, community_label="policy"),
+            _display_node("biotech", 12, community=1, community_label="biotech"),
+            _display_node("genomics", 6, community=1, community_label="biotech"),
+        ],
+        "links": [],
+    }
+    _FILLER = ["tech", "research", "innovation", "markets"]
+
+    def test_article_grouped_under_matching_community(self):
+        results = _results([_article("A", "https://example.com/a", ["policy"] + self._FILLER)])
+        grouped = group_articles_by_community(results, self._DISPLAY_DATA)
+        assert set(grouped.keys()) == {0}
+        assert grouped[0]["label"] == "policy"
+        assert grouped[0]["tags"] == ["policy", "regulation"]
+        assert [a.title for a in grouped[0]["articles"]] == ["A"]
+
+    def test_article_with_no_matching_tags_excluded(self):
+        results = _results([_article("A", "https://example.com/a", self._FILLER + ["unrelated"])])
+        grouped = group_articles_by_community(results, self._DISPLAY_DATA)
+        assert grouped == {}
+
+    def test_article_spanning_two_communities_appears_in_both(self):
+        results = _results([
+            _article("A", "https://example.com/a", ["policy", "biotech"] + self._FILLER[:3])
+        ])
+        grouped = group_articles_by_community(results, self._DISPLAY_DATA)
+        assert set(grouped.keys()) == {0, 1}
+        assert [a.title for a in grouped[0]["articles"]] == ["A"]
+        assert [a.title for a in grouped[1]["articles"]] == ["A"]
+
+    def test_duplicate_link_deduped_within_community(self):
+        """The same article (by link) appearing via two tags in one community counts once."""
+        results = _results([
+            _article("A", "https://example.com/a", ["policy", "regulation"] + self._FILLER[:3])
+        ])
+        grouped = group_articles_by_community(results, self._DISPLAY_DATA)
+        assert len(grouped[0]["articles"]) == 1
+
+    def test_multiple_articles_same_community(self):
+        results = _results([
+            _article("A", "https://example.com/a", ["policy"] + self._FILLER),
+            _article("B", "https://example.com/b", ["regulation"] + self._FILLER),
+        ])
+        grouped = group_articles_by_community(results, self._DISPLAY_DATA)
+        assert {a.title for a in grouped[0]["articles"]} == {"A", "B"}
+
+    def test_no_articles_returns_empty(self):
+        assert group_articles_by_community([], self._DISPLAY_DATA) == {}

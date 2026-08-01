@@ -48,10 +48,11 @@ import structlog
 
 from .ingestion import fetch_topic_articles
 from .llm_client import LLMClient
-from .tag_graph import build_graph_data, find_bridge_tags
+from .tag_graph import build_graph_data, find_bridge_tags, group_articles_by_community
 from .models import (
     ArticleSummary,
     ArticleSummaryBatch,
+    CommunitySummary,
     CrossTopicSynthesis,
     RawArticle,
     StrategicInsight,
@@ -60,9 +61,11 @@ from .models import (
     TopicResult,
 )
 from .prompts import (
+    SYSTEM_COMMUNITY_SUMMARY,
     SYSTEM_CROSS_TOPIC,
     SYSTEM_STRATEGIST,
     SYSTEM_SUMMARIZER,
+    build_community_summary_prompt,
     build_cross_topic_prompt,
     build_strategy_prompt,
     build_summarize_prompt,
@@ -233,6 +236,80 @@ async def synthesize_cross_topic(
         system=SYSTEM_CROSS_TOPIC,
     )
     return synthesis
+
+
+async def _summarize_one_community(
+    community_id: int,
+    label: str,
+    tags: list[str],
+    articles: list[ArticleSummary],
+    client: LLMClient,
+    sem: asyncio.Semaphore,
+    max_articles: int,
+) -> tuple[int, dict | None]:
+    async with sem:
+        try:
+            summary, _ = await client.complete_structured(
+                prompt=build_community_summary_prompt(label, tags, articles[:max_articles]),
+                response_model=CommunitySummary,
+                system=SYSTEM_COMMUNITY_SUMMARY,
+            )
+            return community_id, {
+                "label": label,
+                "tags": tags,
+                "summary": summary.summary,
+                "article_count": len(articles),
+            }
+        except Exception as exc:
+            log.warning("community_summary_failed", community_id=community_id, error=str(exc))
+            return community_id, None
+
+
+async def summarize_communities(
+    results: list[TopicResult],
+    display_data: dict,
+    client: LLMClient,
+    max_concurrent: int = 3,
+    max_articles: int = 12,
+) -> dict[int, dict]:
+    """
+    Generate an LLM-written paragraph summary for each Louvain community in
+    display_data (see tag_graph.build_display_graph), grounded in the
+    articles whose tags belong to that community
+    (tag_graph.group_articles_by_community).
+
+    max_articles caps how many of a community's articles are included per
+    prompt — communities can have far more matching articles than are
+    useful (or fit comfortably) in one summarization call.
+
+    Communities with no matching articles are skipped. A per-community
+    failure logs a warning and is omitted from the result — one bad call
+    never blocks the others. Returns {community_id: {"label", "tags",
+    "summary", "article_count"}}.
+    """
+    grouped = group_articles_by_community(results, display_data)
+    sem = asyncio.Semaphore(max_concurrent)
+    tasks = [
+        _summarize_one_community(
+            comm_id, info["label"], info["tags"], info["articles"], client, sem, max_articles
+        )
+        for comm_id, info in grouped.items()
+    ]
+    if not tasks:
+        return {}
+
+    pairs = await asyncio.gather(*tasks, return_exceptions=True)
+    summaries: dict[int, dict] = {}
+    for item in pairs:
+        if isinstance(item, Exception):
+            log.warning("community_summary_gather_error", error=str(item))
+            continue
+        comm_id, data = item
+        if data is not None:
+            summaries[comm_id] = data
+
+    log.info("summarize_communities_complete", communities=len(summaries))
+    return summaries
 
 
 async def run_pipeline(

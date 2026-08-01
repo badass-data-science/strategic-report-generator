@@ -121,6 +121,21 @@ is also persisted (`bridge_tags`/`bridge_tag_topics` — see
 whether the resulting Strategic Overview actually reflected what the graph
 pointed to.
 
+### LLM-written summaries per tag community
+
+The tag graph's Louvain communities (used for `tag_graph.html`'s color
+coding) were previously labeled only by their highest-count member tag —
+"policy," "biotech," and so on. `pipeline.summarize_communities()` replaces
+that with an actual paragraph: one LLM call per community, grounded in the
+article summaries whose tags belong to that community
+(`tag_graph.group_articles_by_community()`), describing what the cluster
+of coverage is substantively about — not just its label. A per-community
+failure is isolated (logged, omitted) and never blocks the others or the
+rest of the report. Persisted to `community_summaries`/
+`community_summary_tags` (see [Output](#output)), this is explicitly the
+foundation for a future interactive archive-query feature — see
+`article_archive.py`'s design note.
+
 ### Observability
 
 Every LLM call is traced via [Langfuse](https://langfuse.com) or
@@ -323,7 +338,7 @@ prefect deployment run 'daily-strategic-report/daily-strategic-report' \
 
 ### Flow structure
 
-The flow contains ten tasks, each tracked independently in the Prefect UI:
+The flow contains eleven tasks, each tracked independently in the Prefect UI:
 
 ```
 daily_report_flow
@@ -338,6 +353,9 @@ daily_report_flow
   │                                        inserts into --db-path (urgency_scores table)
   ├── check-emerging-tags         (sync)   compare today's tag rates vs. each tag's baseline
   │                                        inserts into --db-path (tag_counts/tag_topics/tag_edges)
+  ├── summarize-communities       (async)  one LLM call per Louvain tag-community
+  │                                        retries=2; fails gracefully, continues without summaries
+  │                                        inserts into --db-path (community_summaries/community_summary_tags)
   ├── run-bullet-diff             (async)  diff today's bullets vs. yesterday's per topic
   │                                        retries=2; fails gracefully to {}
   │                                        skipped (no diff) on first run
@@ -434,7 +452,7 @@ python -m strategic_reports.daily.cli \
 pytest
 ```
 
-161 tests across 12 files. No real API calls — the LLM client is fully mocked.
+177 tests across 12 files. No real API calls — the LLM client is fully mocked.
 Runs in under a second. A GitHub Actions workflow
 (`.github/workflows/tests.yml`) runs the same suite on every push and pull
 request to `main` — no LLM credentials needed there either.
@@ -444,12 +462,12 @@ tests/test_models.py      Pydantic validation and TokenUsage arithmetic
 tests/test_prompts.py     Prompt builder output shape and content
 tests/test_renderer.py    HTML rendering for all three result states + XSS
 tests/test_ingestion.py   RSS fetching with mocked feedparser
-tests/test_pipeline.py    Async orchestration with mocked LLMClient
+tests/test_pipeline.py    Async orchestration with mocked LLMClient; summarize_communities() concurrency + failure isolation
 tests/test_urgency.py     Urgency alerting: absolute threshold, z-score, std==0 fallback, history persistence
 tests/test_bullet_diff.py Bullet-history storage: most-recent-run lookup, ordering, multi-topic
 tests/test_db.py          Tracking-db safety guard, schema creation, run registration
-tests/test_tag_tracking.py  Tag-graph db round-trip, rate-history normalization, emerging-tag z-score, bridge-tag audit trail
-tests/test_tag_graph.py    find_bridge_tags(): topic-breadth filtering, sorting, limiting
+tests/test_tag_tracking.py  Tag-graph db round-trip, rate-history normalization, emerging-tag z-score, bridge-tag/community-summary audit trails
+tests/test_tag_graph.py    find_bridge_tags(), group_articles_by_community(): filtering, sorting, dedup, multi-community span
 tests/test_article_archive.py  Article-summary db round-trip, ordering, multi-topic, error/empty topics
 tests/test_tag_normalizer.py  Tag synonym normalization
 ```
@@ -465,15 +483,15 @@ strategic_reports/daily/
     llm_client.py      Async LLMClient: litellm + instructor + tenacity retry
     ingestion.py       Async RSS fetching; returns list[RawArticle]
     prompts.py         System messages and user-message builder functions
-    pipeline.py        Two-phase async orchestrator + cross-topic synthesis
+    pipeline.py        Two-phase async orchestrator + cross-topic synthesis + summarize_communities()
     renderer.py        Jinja2 HTML rendering
     tag_normalizer.py  Tag synonym map and normalize_tags(); applied via Pydantic validator
-    tag_graph.py       Tag co-occurrence graph builder; full tag_graph.json + pruned/community tag_graph_display.json + tag_graph.html; find_bridge_tags() for cross-topic synthesis grounding
+    tag_graph.py       Tag co-occurrence graph builder; full tag_graph.json + pruned/community tag_graph_display.json + tag_graph.html; find_bridge_tags(), group_articles_by_community()
     urgency.py         Urgency alert logic: absolute threshold + z-score baseline (SQLite-backed)
     bullet_diff.py     Historical bullet diffing: load/append history, concurrent per-topic LLM diff (SQLite-backed)
     db.py              SQLite tracking database: schema, connection helper, output_dir/db_path safety guard, run registration
     article_archive.py Persists each run's article summaries (source material), linked to run_id
-    tag_tracking.py    Per-run tag-graph persistence (linked to run_id) + emerging-tag z-score alerting
+    tag_tracking.py    Per-run tag-graph persistence (linked to run_id) + emerging-tag z-score alerting + community-summary persistence
     tracing.py         Langfuse and Phoenix setup (opt-in)
   templates/
     base.html.j2       Shared layout and styles
@@ -517,6 +535,7 @@ Cross-run history is kept separately, in the SQLite database at `--db-path`
 - **`tag_counts`**, **`tag_topics`**, **`tag_edges`** — one run's tag graph (per-tag counts, per-tag topic membership, and tag-pair co-occurrence edges), linked to `run_id`. Together these let `tag_graph.json` be reconstructed for any past run directly from the database. `tag_counts` also backs the emerging-tag z-score alert: a tag's rate (count ÷ that run's `article_count`) is compared against its own historical rate once it has 7+ prior runs; tags with less history (including brand-new tags) are skipped rather than guessed at, since — unlike urgency scores — tag rates have no meaningful absolute cutoff to fall back on.
 - **`emerging_tag_alerts`** — an audit trail of the alerts that actually fired: `tag`, `count`, `rate`, `mean`, `std`, `z_score`, linked to `run_id`. Only fired alerts are stored here, not every tag's rate/z-score every run — those stay recomputable on demand from `tag_counts` + `runs.article_count`.
 - **`bridge_tags`**, **`bridge_tag_topics`** — an audit trail of the bridge tags (`tag_graph.find_bridge_tags()`) actually surfaced to the cross-topic synthesis prompt each run: `tag`, `count`, `rank`, and each tag's topic list, linked to `run_id`. Answers "which tags did we point the synthesis at on day N" directly, without recomputing from `results`.
+- **`community_summaries`**, **`community_summary_tags`** — an LLM-written paragraph per Louvain tag-community (`label`, `summary`, `article_count`, and each community's member tags), linked to `run_id`. Grounded in the articles whose tags belong to that community; replaces "labeled by top tag" with real substance.
 
 Every row carries its own `created_at` timestamp in addition to `run_id`, and
 nothing is pruned — unlike the JSON files this replaced, which capped bullet

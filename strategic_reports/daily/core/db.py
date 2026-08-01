@@ -172,6 +172,34 @@ CREATE TABLE IF NOT EXISTS article_tags (
 );
 CREATE INDEX IF NOT EXISTS idx_article_tags_article ON article_tags(article_id);
 CREATE INDEX IF NOT EXISTS idx_article_tags_tag ON article_tags(tag, created_at);
+
+-- LLM-written summary of each Louvain tag-community's news coverage this
+-- run (see tag_graph.group_articles_by_community and
+-- pipeline.summarize_communities) — replaces "labeled by top tag" with an
+-- actual paragraph describing what the cluster is substantively about.
+-- Self-contained: stores each community's own member tags rather than
+-- reconstructing them from tag_counts, since community membership is
+-- itself only ever computed transiently (build_display_graph is never
+-- persisted).
+CREATE TABLE IF NOT EXISTS community_summaries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL REFERENCES runs(run_id),
+    created_at TEXT NOT NULL,
+    community_id INTEGER NOT NULL,
+    label TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    article_count INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_community_summaries_run ON community_summaries(run_id);
+
+CREATE TABLE IF NOT EXISTS community_summary_tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL REFERENCES runs(run_id),
+    created_at TEXT NOT NULL,
+    community_id INTEGER NOT NULL,
+    tag TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_community_summary_tags_run_comm ON community_summary_tags(run_id, community_id);
 """
 
 
