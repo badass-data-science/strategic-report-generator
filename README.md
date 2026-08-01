@@ -8,6 +8,18 @@ A daily briefing pipeline that reads recent news across 12 topic feeds — AI,
 biotech, economics, geopolitics, defense, and more — and synthesizes strategic
 recommendations into a linked HTML report.
 
+The pipeline doesn't just summarize each day's news — it builds a graph from
+it: tags connected whenever they co-occur on the same article, clustered into
+communities via Louvain community detection, each community given its own
+LLM-written summary of what it's actually about. Structural signals are read
+directly off that graph rather than guessed at by an LLM: which tags bridge
+otherwise-unrelated domains, which tags' rates are spiking above their own
+historical baseline. Every run's graph accumulates into a queryable SQLite
+archive spanning every past run, and `ask` lets you pose free-text questions
+against that accumulated structure directly. The HTML report is this
+pipeline's most visible output today; the graph and its growing archive are
+the parts meant to matter more over time.
+
 > **Caveat emptor.** LLM-generated strategic analysis is a starting point, not
 > a substitute for human judgment. Apply your own reasoning and follow-up
 > research before acting on any recommendation.
