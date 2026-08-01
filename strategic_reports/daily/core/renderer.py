@@ -35,12 +35,8 @@ from jinja2 import Environment, FileSystemLoader
 
 from .models import BulletDiff, CrossTopicSynthesis, TokenUsage, TopicResult
 
-# Resolve the templates directory relative to THIS file's location.
-# Path(__file__) is the path to renderer.py.
-# .parent       is core/
-# .parent       is daily/
-# / "templates" is daily/templates/
-# This avoids hardcoded paths and works regardless of where the package is installed.
+# Resolved relative to this file (core/renderer.py -> daily/templates/), so
+# this works regardless of where the package is installed.
 _TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 
 

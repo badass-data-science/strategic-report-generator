@@ -132,17 +132,14 @@ def build_summarize_prompt(articles: list[RawArticle]) -> str:
     parts = [
         f"Summarize and tag each of the {len(articles)} articles below.\n"
     ]
-    for i, article in enumerate(articles, 1):  # enumerate(start=1) gives 1-based numbering
+    for i, article in enumerate(articles, 1):
         parts.append(
             f"--- ARTICLE {i} ---\n"
             f"Title: {article.title}\n"
             f"URL: {article.link}\n"
-            # isoformat() gives "2026-06-27T10:00:00" — unambiguous and standard
             f"Published: {article.publish_date.isoformat()}\n\n"
             f"{article.content}\n"
         )
-    # "\n".join(parts) is more efficient than repeated += on strings,
-    # because strings are immutable in Python — += creates a new string each time.
     return "\n".join(parts)
 
 

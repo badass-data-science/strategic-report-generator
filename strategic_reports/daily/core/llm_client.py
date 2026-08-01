@@ -32,20 +32,15 @@ from pydantic import BaseModel
 
 from .models import TokenUsage
 
-# structlog logger — use log.info(), log.debug(), log.warning(), etc.
-# __name__ scopes the logger to this module ("core.llm_client") so log output
-# shows where it came from.
+# __name__ scopes the logger to this module ("core.llm_client") in log output.
 log = structlog.get_logger(__name__)
 
 # litellm prints a lot of internal debug output by default; suppress it so our
 # structlog output stays readable.
 litellm.suppress_debug_info = True
 
-# TypeVar constrains T to be some subclass of BaseModel.
-# This lets complete_structured be generic: it returns whatever Pydantic type
-# you pass in as response_model, not just "BaseModel".
-# Usage:  result, usage = await client.complete_structured(prompt, ArticleSummaryBatch, ...)
-#         result  ← is typed as ArticleSummaryBatch, not just BaseModel
+# Lets complete_structured be generic: it returns whatever Pydantic type is
+# passed in as response_model, not just "BaseModel".
 T = TypeVar("T", bound=BaseModel)
 
 # tenacity's before_sleep_log requires a stdlib logger, not a structlog logger.
@@ -140,16 +135,8 @@ class LLMClient:
         except Exception:
             return TokenUsage()
 
-    # @retry from tenacity decorates the method below.
-    # stop_after_attempt(5)         — give up after 5 total tries
-    # wait_exponential(min=2, max=30) — wait 2s, 4s, 8s, 16s, 30s between tries
-    # before_sleep_log(...)         — log a WARNING before each sleep so we
-    #                                 know a retry is happening
-    # reraise=True                  — after all retries exhausted, re-raise the
-    #                                 last exception (don't swallow it)
-    #
-    # tenacity detects that this is an async function and uses AsyncRetrying
-    # internally, so await works correctly inside the decorated method.
+    # Up to 5 tries, waiting 2s/4s/8s/16s/30s between attempts; re-raises the
+    # last exception once retries are exhausted rather than swallowing it.
     @retry(
         stop=stop_after_attempt(5),
         wait=wait_exponential(multiplier=1, min=2, max=30),

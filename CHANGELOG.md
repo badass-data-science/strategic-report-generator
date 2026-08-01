@@ -4,6 +4,37 @@ All notable changes to this project are documented here. Entries are
 grouped by date rather than a semantic version number, since this project
 doesn't tag releases.
 
+## Unreleased (`pypi-friendly-refactor` branch)
+
+### Changed
+- Restructured the project as a proper (if unpublished) Python package:
+  added `pyproject.toml` (setuptools backend) as the sole source of truth
+  for metadata, dependencies, and extras — `prefect` moved to an optional
+  `flow` extra since nothing inside `strategic_reports` imports it directly,
+  and `pytest`/`pytest-asyncio` moved to a `test` extra. `requirements.txt`
+  is removed; CI now installs via `pip install ".[test]"`.
+- `data/rss_feeds/*.json` and `flows/daily_report.py` moved inside the
+  package (`strategic_reports/daily/data/rss_feeds/`,
+  `strategic_reports/daily/flows/`) as wheel-included package data, so a
+  built wheel is fully self-contained.
+- Added `strategic_reports/daily/paths.py` (`default_data_dir()`), which
+  resolves the bundled `rss_feeds/` directory via `importlib.resources`
+  regardless of install method. `cli.py` and `flows/daily_report.py` both
+  use it for `--data-dir`'s default; runtime state defaults (`--output-dir`,
+  `--db-path`) still anchor to `Path.cwd()`/`STRATEGIC_REPORTS_HOME`, never
+  to the installed package.
+- Added `strategic_reports/py.typed` (PEP 561) and `__version__` in
+  `strategic_reports/__init__.py`; added a `strategic-reports` console
+  script entry point (`strategic_reports.daily.cli:app`).
+- Trimmed tutorial-style comments (library-mechanics explainers, restating
+  what standard-library/decorator syntax does) across `cli.py`,
+  `flows/daily_report.py`, `core/__init__.py`, `llm_client.py`,
+  `ingestion.py`, `pipeline.py`, `renderer.py`, and `prompts.py` in favor of
+  comments that explain non-obvious design rationale.
+- Verified via a real `pip install`/`python -m build --wheel` round-trip
+  (not just editable install) that package data resolves correctly and the
+  console script runs from an installed wheel, not just the source tree.
+
 ## Unreleased (`archive-query` branch)
 
 ### Added
