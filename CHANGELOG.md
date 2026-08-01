@@ -4,6 +4,19 @@ All notable changes to this project are documented here. Entries are
 grouped by date rather than a semantic version number, since this project
 doesn't tag releases.
 
+## 2026-08-04
+
+### Added
+- New `blog-posts/` directory: human-written companion articles about
+  this project, not code and not shipped with the package. First entry,
+  `strategic-intelligence-knowledge-graph.md`, covers the nightly tag
+  co-occurrence graph (Louvain community detection, bridge tags),
+  graph-guided archive retrieval, and the RDF export (ontology reuse via
+  SKOS/PROV-O/schema.org, why RDF over a property graph, why it runs as
+  its own scheduled process) — a companion to the earlier "Daily
+  Strategic Intelligence, Automated" post. Includes a screenshot of the
+  tag co-occurrence graph (`web-based-tag-graph.png`).
+
 ## 2026-08-03
 
 ### Added
