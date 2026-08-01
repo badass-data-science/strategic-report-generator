@@ -4,6 +4,48 @@ All notable changes to this project are documented here. Entries are
 grouped by date rather than a semantic version number, since this project
 doesn't tag releases.
 
+## Unreleased (`prefect-pipeline-updates-0001` branch)
+
+### Added
+- New `flows/export_rdf_flow.py`: wraps `export-rdf` as a Prefect
+  `@flow`/`@task`, in its own file rather than folded into
+  `daily_report.py`, since `export-rdf` is deliberately independent of the
+  daily pipeline (see `AGENTS.md`). **Not scheduled** — no
+  `CronSchedule`/`.serve()` call yet; run it directly:
+  `python -m strategic_reports.daily.flows.export_rdf_flow --db-path ...
+  --output ...`, same flags as the CLI command. Scheduling cadence,
+  full-vs-incremental-on-schedule, and single- vs. two-process serving
+  were deliberately deferred rather than decided.
+
+### Removed
+- **The remote-upload step** (`upload-to-web-server` task) from
+  `daily_report_flow` — no more SCP/SSH to badassdatascience.com. Removed
+  `upload_enabled`/`ssh_key_path`/`remote_host`/`remote_user`/
+  `remote_staging_dir`/`remote_web_dir` flow parameters and the `subprocess`
+  import. The flow now has 10 tasks (was 11) and is at **full** feature
+  parity with `cli.py run` — previously the flow's one documented
+  difference from the CLI was this upload step; that asymmetry no longer
+  exists.
+
+### Fixed
+- `daily_report_flow` now validates `instructor_mode` up front (raises
+  `ValueError` before any task runs) instead of silently falling back to
+  `TOOLS` on an invalid value — matches `cli.py run`'s existing
+  fail-loudly behavior for the same input. A full functionality audit
+  against `cli.py run` (prompted by adding this fix) confirmed this was
+  the only real behavioral gap; every persistence/business-logic step
+  (including `record_overview`, added earlier on this branch's history)
+  was already present in both entry points.
+
+### Changed
+- The scheduled deployment's fixed `output_dir`/`db_path` (set once in
+  `daily_report_flow.serve()`'s `parameters={}`, since a cron-triggered
+  run has no CLI invocation to supply them) now point at
+  `$HOME/output/daily-strategic-report-from-RSS-feeds/{daily-report,
+  strategic-reports.db}`, anchored via `Path.home()` rather than the
+  process's working directory. Removed the now-unused `_DEFAULT_HOME`
+  module variable this replaced (it had no other callers).
+
 ## Unreleased (`schema-org-html-markup` branch)
 
 ### Added

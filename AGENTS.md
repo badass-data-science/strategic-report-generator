@@ -8,36 +8,43 @@ orientation for making changes.
 
 A daily briefing pipeline: fetches RSS across 12 topics, summarizes and
 synthesizes strategic recommendations via an LLM (provider-agnostic via
-litellm), renders an HTML report + tag co-occurrence graph, tracks urgency
-scores/strategic bullets/article summaries/community summaries across runs
-in a SQLite database, and optionally uploads the report via SCP/SSH. Two
-scheduled/batch entry points, kept at feature parity with each other:
+litellm), renders an HTML report + tag co-occurrence graph, and tracks
+urgency scores/strategic bullets/article summaries/community summaries
+across runs in a SQLite database. Two scheduled/batch entry points, kept
+at full feature parity with each other:
 
 - `python -m strategic_reports.daily.cli run` — the batch pipeline, run once, manually
 - `strategic_reports/daily/flows/daily_report.py` — the same pipeline as a
-  Prefect flow, scheduled daily via cron; adds only the optional
-  remote-upload step, which the CLI doesn't do
+  Prefect flow, scheduled daily via cron
 
 If you add a pipeline step to one entry point (cross-topic synthesis,
 urgency alerts, bullet diffing, tag graph, community summaries), add it to
 the other too unless told otherwise — this parity was an explicit,
 deliberate decision.
 
-A third command, `python -m strategic_reports.daily.cli ask "<question>"`,
+A second command, `python -m strategic_reports.daily.cli ask "<question>"`,
 is a deliberate exception: an interactive, human-in-the-loop archive
 query (graph-guided retrieval over `community_summaries` — see
 `archive_query.py`), not a scheduled batch step. It has no Prefect
 equivalent, and that's intentional, not a parity gap to fix.
 
-A fourth command, `python -m strategic_reports.daily.cli export-rdf`, is
+A third command, `python -m strategic_reports.daily.cli export-rdf`, is
 the same kind of exception: an on-demand export of the tracking database
 to RDF/Turtle (see `rdf_export.py`), not a pipeline step. It complements
 `tag_graph.py`'s per-run co-occurrence JSON/HTML — it does not replace or
-recompute it, and touching one should not require touching the other. No
-Prefect equivalent yet; one may be added later, but its absence is not a
-parity gap to fix in the meantime.
+recompute it, and touching one should not require touching the other.
 
-**CLI invocation shape**: `cli.py` now has four commands (`run`, `ask`,
+`export-rdf` also has a Prefect flow (`flows/export_rdf_flow.py`) — a
+separate file from `daily_report.py`, not a task folded into it, since
+`export-rdf` is deliberately independent of the daily pipeline. It is
+**not scheduled** (no `CronSchedule`/`.serve()` call) — run it directly
+(`python -m strategic_reports.daily.flows.export_rdf_flow --db-path ...
+--output ...`). Don't add scheduling to it without discussing cadence,
+full-vs-incremental-on-schedule, and whether it stays a second process
+or gets folded into `daily_report.py`'s `serve()` call first — those were
+deliberately deferred, not decided.
+
+**CLI invocation shape**: `cli.py` now has three commands (`run`, `ask`,
 `export-rdf`), so naming one explicitly is required (`... cli.py run
 --output-dir ...`) — typer's single-command auto-invoke shorthand (bare
 `... cli.py --output-dir ...`) only applies when there's exactly one
@@ -104,8 +111,9 @@ strategic_reports/
       tracing.py          Langfuse / Phoenix instrumentation (opt-in)
     templates/            Jinja2 templates (base, index, topic)
     data/rss_feeds/       One JSON file per topic listing feed URLs — packaged as wheel data
-    flows/daily_report.py Prefect flow (11 tasks) for scheduled runs — no `ask` equivalent, deliberately (see above)
-    cli.py                typer CLI entrypoint — two commands: run, ask
+    flows/daily_report.py Prefect flow (10 tasks) for scheduled runs — no `ask` equivalent, deliberately (see above)
+    flows/export_rdf_flow.py Prefect flow wrapping export-rdf — not yet scheduled (see above)
+    cli.py                typer CLI entrypoint — three commands: run, ask, export-rdf
     paths.py              default_data_dir() — resolves bundled rss_feeds/ via importlib.resources
     config/topic_order.py Ordered topic slugs + display titles
 tests/                  Per-module test files + conftest.py fixtures

@@ -46,7 +46,6 @@ RUNNING WITH LOCAL PREFECT (no cloud account required)
 """
 
 import os
-import subprocess
 from pathlib import Path
 
 import instructor
@@ -93,9 +92,6 @@ from strategic_reports.daily.core.tag_graph import (
 from strategic_reports.daily.core.tracing import generate_run_id, setup_tracing
 from strategic_reports.daily.paths import default_data_dir
 
-# Anchors output_dir/db_path defaults for the scheduled deployment (see
-# .serve() below) — must never point inside the installed package itself.
-_DEFAULT_HOME = Path(os.environ.get("STRATEGIC_REPORTS_HOME", Path.cwd()))
 _DEFAULT_MODEL = os.environ.get("LLM_MODEL", "ollama_chat/glm-5.2:cloud")
 
 _INSTRUCTOR_MODES: dict[str, instructor.Mode] = {
@@ -268,7 +264,7 @@ async def run_cross_topic_synthesis(
 # during this run.
 #
 # Fails gracefully: a failure here logs a warning but does not prevent
-# rendering or upload.
+# rendering.
 
 @task(name="archive-articles")
 def archive_articles(results: list[TopicResult], run_id: str, db_path: Path) -> None:
@@ -290,7 +286,7 @@ def archive_articles(results: list[TopicResult], run_id: str, db_path: Path) -> 
 # The current run is never part of its own baseline.
 #
 # Fails gracefully: a failure here logs a warning but does not prevent
-# rendering or upload.
+# rendering.
 
 @task(name="check-urgency-alerts")
 def check_urgency_alerts(
@@ -329,7 +325,7 @@ def check_urgency_alerts(
 # today's tag graph (current run never biases its own baseline).
 #
 # Fails gracefully: a failure here logs a warning but does not prevent
-# rendering, the tag graph HTML/JSON files, or upload.
+# rendering or the tag graph HTML/JSON files.
 
 @task(name="check-emerging-tags")
 def check_emerging_tag_alerts(
@@ -368,7 +364,7 @@ def check_emerging_tag_alerts(
 # check_emerging_tag_alerts' — Prefect tasks don't share local variables.
 #
 # Fails gracefully: a failure here logs a warning but does not prevent
-# rendering, the tag graph HTML/JSON files, or upload.
+# rendering or the tag graph HTML/JSON files.
 
 @task(name="summarize-communities", retries=2, retry_delay_seconds=60)
 async def summarize_community_tags(
@@ -469,56 +465,6 @@ def build_tag_graph(results: list[TopicResult], output_dir: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Task 11: Upload HTML output to web server
-# ---------------------------------------------------------------------------
-# Two steps mirror the manual workflow:
-#   1. scp: copy all HTML files from output_dir to remote_staging_dir
-#   2. ssh: sudo-move them from the staging dir into the web root
-#
-# subprocess.run with a list (not shell=True) avoids shell-injection risk and
-# makes each argument explicitly visible.
-#
-# -o BatchMode=yes: fail immediately rather than hanging on an interactive
-# password or host-key prompt — critical for unattended scheduled runs.
-# -o StrictHostKeyChecking=yes: don't silently accept unknown host keys.
-
-@task(name="upload-to-web-server")
-def upload_to_web_server(
-    output_dir: Path,
-    ssh_key_path: str,
-    remote_host: str,
-    remote_user: str,
-    remote_staging_dir: str,
-    remote_web_dir: str,
-) -> None:
-    """SCP HTML files to the remote staging directory, then SSH to move them into the web root."""
-    logger = get_run_logger()
-
-    if not output_dir.is_dir():
-        logger.warning(f"Output directory not found: {output_dir} — skipping upload")
-        return
-
-    remote_target = f"{remote_user}@{remote_host}:{remote_staging_dir}"
-    ssh_opts = ["-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes"]
-
-    logger.info(f"Uploading {output_dir} recursively to {remote_target}")
-    subprocess.run(
-        ["scp", "-r", "-i", ssh_key_path, *ssh_opts, str(output_dir), remote_target],
-        check=True,
-    )
-
-    remote_uploaded_dir = f"{remote_staging_dir}/{output_dir.name}"
-    remote_cp_cmd = f"sudo cp {remote_uploaded_dir}/*.html {remote_uploaded_dir}/*.json {remote_web_dir}"
-    logger.info(f"Moving files on remote: {remote_cp_cmd}")
-    subprocess.run(
-        ["ssh", "-i", ssh_key_path, *ssh_opts, f"{remote_user}@{remote_host}", remote_cp_cmd],
-        check=True,
-    )
-
-    logger.info(f"Upload complete — files live at {remote_host}:{remote_web_dir}")
-
-
-# ---------------------------------------------------------------------------
 # Flow — the top-level unit that Prefect schedules and tracks
 # ---------------------------------------------------------------------------
 # All parameters have defaults so the flow runs without any arguments on
@@ -551,15 +497,6 @@ async def daily_report_flow(
     absolute_threshold: float = 0.8,
     z_score_threshold: float = 2.0,
     tag_z_score_threshold: float = 2.0,
-    upload_enabled: bool = True,
-    ssh_key_path: str = os.environ.get(
-        "SSH_KEY_PATH",
-        str(Path.home() / "api_keys" / "keys" / "emily-bds-key.pem"),
-    ),
-    remote_host: str = os.environ.get("REMOTE_HOST", "badassdatascience.com"),
-    remote_user: str = os.environ.get("REMOTE_USER", "ubuntu"),
-    remote_staging_dir: str = os.environ.get("REMOTE_STAGING_DIR", "/home/ubuntu"),
-    remote_web_dir: str = os.environ.get("REMOTE_WEB_DIR", "/var/www/html/strategic-review-daily"),
 ) -> None:
     """Daily strategic report: ingest RSS feeds, summarize, synthesize, render HTML."""
     # output_dir is deleted and recreated on every run (see render_report()),
@@ -570,6 +507,15 @@ async def daily_report_flow(
     # below each open their own short connection per call rather than sharing
     # this one, since a sqlite3.Connection isn't picklable across tasks.
     connect_db(db_path).close()
+
+    # Validate before doing any real work — otherwise an invalid instructor_mode
+    # silently falls back to TOOLS inside each task's own _INSTRUCTOR_MODES.get(),
+    # rather than failing loudly the way cli.py run does.
+    if instructor_mode.upper() not in _INSTRUCTOR_MODES:
+        raise ValueError(
+            f"Invalid instructor_mode '{instructor_mode}'. "
+            f"Valid options: {', '.join(_INSTRUCTOR_MODES)}"
+        )
 
     configure_logging(log_level)
     setup_tracing()
@@ -654,16 +600,6 @@ async def daily_report_flow(
     render_html_report(results, output_dir, hours_cutoff, overview, diffs)
     build_tag_graph(results, output_dir)
 
-    if upload_enabled:
-        upload_to_web_server(
-            output_dir=output_dir,
-            ssh_key_path=ssh_key_path,
-            remote_host=remote_host,
-            remote_user=remote_user,
-            remote_staging_dir=remote_staging_dir,
-            remote_web_dir=remote_web_dir,
-        )
-
 
 # ---------------------------------------------------------------------------
 # Entry point — registers the deployment and starts the local scheduler
@@ -688,9 +624,10 @@ if __name__ == "__main__":
         # output_dir and db_path have no function default (see
         # daily_report_flow) — the scheduled cron run has no CLI invocation to
         # supply them, so their values are fixed here, once, at deployment
-        # registration time.
+        # registration time. Path.home() (not cwd) so these stay correct
+        # regardless of the working directory the process is started from.
         parameters={
-            "output_dir": _DEFAULT_HOME / "output" / "daily" / "strategic-report",
-            "db_path": _DEFAULT_HOME / "output" / "daily" / "strategic_reports.db",
+            "output_dir": Path.home() / "output" / "daily-strategic-report-from-RSS-feeds" / "daily-report",
+            "db_path": Path.home() / "output" / "daily-strategic-report-from-RSS-feeds" / "strategic-reports.db",
         },
     )

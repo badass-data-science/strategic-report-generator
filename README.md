@@ -227,8 +227,9 @@ export OPENAI_API_KEY="..."
 ```
 
 Run, specifying where the report gets written and where the tracking
-database lives (both required). The CLI has two commands (`run` and
-`ask` — see [Asking questions about the archive](#asking-questions-about-the-archive)),
+database lives (both required). The CLI has three commands (`run`,
+`ask`, and `export-rdf` — see [Asking questions about the archive](#asking-questions-about-the-archive)
+and [Exporting an RDF knowledge graph](#exporting-an-rdf-knowledge-graph)),
 so naming one explicitly is required:
 
 ```bash
@@ -268,8 +269,7 @@ default. `--output-dir` and `--db-path` are the exception: both are required.
 ingestion, per-topic summarization/strategy, cross-topic synthesis, urgency
 alerting, bullet diffing, HTML rendering, and the tag co-occurrence graph —
 the same steps the [Prefect flow](#scheduling-with-prefect) runs on a
-schedule. The one thing it does *not* do is the optional remote upload
-step, which is Prefect-only.
+schedule.
 
 ### `--instructor-mode`
 
@@ -391,6 +391,16 @@ This is a third CLI-only command, like `ask` — a deliberate exception to
 the run/flow parity convention (see `AGENTS.md`); a scheduled Prefect
 equivalent may be added later.
 
+A Prefect flow wrapping the same logic already exists
+(`flows/export_rdf_flow.py`), but it isn't scheduled yet — run it directly
+for now, same flags as the CLI command:
+
+```bash
+python -m strategic_reports.daily.flows.export_rdf_flow \
+  --db-path output/daily/strategic_reports.db \
+  --output output/daily/knowledge_graph.ttl
+```
+
 ---
 
 ## Scheduling with Prefect
@@ -441,7 +451,7 @@ These can also be placed in a `.env` file and loaded with `source .env`, or refe
 python -m strategic_reports.daily.flows.daily_report
 ```
 
-This registers the deployment with the local server and polls for scheduled runs. The flow defaults to `instructor_mode=JSON` and reads `OLLAMA_API_BASE` / `OLLAMA_API_KEY` from the environment automatically.
+This registers the deployment with the local server and polls for scheduled runs. The flow defaults to `instructor_mode=TOOLS` (override to `JSON` if your model doesn't support tool calling — see `--instructor-mode` below) and reads `OLLAMA_API_BASE` / `OLLAMA_API_KEY` from the environment automatically. An invalid `instructor_mode` value fails the flow run immediately, before any task runs.
 
 The process must stay alive — run it under `systemd` or in a `tmux`/`screen` session.
 
@@ -481,7 +491,7 @@ prefect deployment run 'daily-strategic-report/daily-strategic-report' \
 
 ### Flow structure
 
-The flow contains eleven tasks, each tracked independently in the Prefect UI:
+The flow contains ten tasks, each tracked independently in the Prefect UI:
 
 ```
 daily_report_flow
@@ -504,52 +514,13 @@ daily_report_flow
   │                                        skipped (no diff) on first run
   │                                        inserts into --db-path (bullets table)
   ├── render-html-report          (sync)   Jinja2 → HTML output files
-  ├── build-tag-graph             (sync)   tag co-occurrence graph → tag_graph.json + tag_graph.html
-  └── upload-to-web-server        (sync)   SCP output to remote host; SSH to move into web root
-                                           skipped if upload_enabled=false
+  └── build-tag-graph             (sync)   tag co-occurrence graph → tag_graph.json + tag_graph.html
 ```
 
-### Upload parameters
-
-The upload step is enabled by default. All connection details have env-var-backed defaults and can be overridden from the Prefect UI or via `--param`.
-
-| Flow parameter | Env var | Default | Description |
-|---|---|---|---|
-| `absolute_threshold` | — | `0.8` | Urgency score (0–1) above which an alert fires unconditionally |
-| `z_score_threshold` | — | `2.0` | Standard deviations above a topic's historical mean that triggers a statistical alert (requires ≥7 prior runs for that topic) |
-| `upload_enabled` | — | `true` | Set to `false` to skip the upload entirely |
-| `ssh_key_path` | `SSH_KEY_PATH` | `~/api_keys/keys/emily-bds-key.pem` | Path to the SSH private key |
-| `remote_host` | `REMOTE_HOST` | `badassdatascience.com` | Hostname of the web server |
-| `remote_user` | `REMOTE_USER` | `ubuntu` | SSH login user |
-| `remote_staging_dir` | `REMOTE_STAGING_DIR` | `/home/ubuntu` | Writable landing directory on the remote; `output_dir` is SCP'd here recursively (e.g. `/home/ubuntu/strategic-report/`) |
-| `remote_web_dir` | `REMOTE_WEB_DIR` | `/var/www/html/strategic-review-daily` | Web root directory; HTML and JSON files are sudo-copied here from the staged subdirectory |
-
-To skip the upload on a one-off run:
-
-```bash
-prefect deployment run 'daily-strategic-report/daily-strategic-report' \
-    --param upload_enabled=false
-```
-
-To point at a different server:
-
-```bash
-prefect deployment run 'daily-strategic-report/daily-strategic-report' \
-    --param remote_host=myserver.example.com \
-    --param remote_user=deploy \
-    --param ssh_key_path=/home/emily/.ssh/mykey.pem \
-    --param remote_web_dir=/var/www/html/reports
-```
-
-To set the defaults permanently via env vars, add them to your `.env` file or the `EnvironmentFile` in the systemd unit:
-
-```bash
-export SSH_KEY_PATH=/home/emily/api_keys/keys/emily-bds-key.pem
-export REMOTE_HOST=badassdatascience.com
-export REMOTE_USER=ubuntu
-export REMOTE_STAGING_DIR=/home/ubuntu
-export REMOTE_WEB_DIR=/var/www/html/strategic-review-daily
-```
+Flow parameters share names with their CLI-flag counterparts (e.g.
+`absolute_threshold` ↔ `--absolute-threshold` — see
+[Configuration](#configuration)); override any of them from the Prefect UI
+or via `--param`.
 
 ---
 
@@ -652,6 +623,7 @@ strategic_reports/
       rss_feeds/         One JSON file per topic listing RSS feed URLs — packaged as wheel data
     flows/
       daily_report.py    Prefect flow (see Scheduling with Prefect)
+      export_rdf_flow.py Prefect flow wrapping export-rdf — not yet scheduled, run directly
     config/
       topic_order.py     Ordered list of topic slugs and display titles
     cli.py               typer CLI entrypoint
