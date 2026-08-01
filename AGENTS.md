@@ -119,7 +119,7 @@ strategic_reports/
     templates/            Jinja2 templates (base, index, topic)
     data/rss_feeds/       One JSON file per topic listing feed URLs — packaged as wheel data
     flows/daily_report.py Prefect flow (10 tasks) for scheduled runs — no `ask` equivalent, deliberately (see above)
-    flows/export_rdf_flow.py Prefect flow wrapping export-rdf — not yet scheduled (see above)
+    flows/export_rdf_flow.py Prefect flow wrapping export-rdf — scheduled daily, own process (see above)
     cli.py                typer CLI entrypoint — three commands: run, ask, export-rdf
     paths.py              default_data_dir() — resolves bundled rss_feeds/ via importlib.resources
     config/topic_order.py Ordered topic slugs + display titles
