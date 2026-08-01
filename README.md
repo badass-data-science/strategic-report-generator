@@ -132,9 +132,28 @@ article summaries whose tags belong to that community
 of coverage is substantively about — not just its label. A per-community
 failure is isolated (logged, omitted) and never blocks the others or the
 rest of the report. Persisted to `community_summaries`/
-`community_summary_tags` (see [Output](#output)), this is explicitly the
-foundation for a future interactive archive-query feature — see
-`article_archive.py`'s design note.
+`community_summary_tags` (see [Output](#output)), this is the retrieval
+material the `ask` command reads (see next section).
+
+### `ask` is graph-guided retrieval, not full GraphRAG
+
+`python -m strategic_reports.daily.cli ask "<question>"` (see
+[Asking questions about the archive](#asking-questions-about-the-archive))
+answers free-text questions over the accumulated archive — across every
+past run, not just today's. The retrieval unit is the Louvain
+tag-community, not raw article text or embeddings: `extract_query_tags()`
+pulls candidate tags from the question, `archive_query.find_relevant_communities()`
+matches them against `community_summaries` (exact tag membership first,
+substring fallback second), and the final answer is synthesized strictly
+from what's retrieved. Deliberately not a full GraphRAG implementation —
+no embeddings, no hierarchical multi-level community summarization. That
+scope was a considered choice for this project's single-user use case, not
+a first step assumed to need deepening; see `AGENTS.md`.
+
+`ask` is the one deliberate exception to this project's "add every pipeline
+step to both entry points" convention: it has no Prefect equivalent,
+because it's an interactive, human-in-the-loop command, not a scheduled
+batch step.
 
 ### Observability
 
@@ -172,10 +191,12 @@ export OPENAI_API_KEY="..."
 ```
 
 Run, specifying where the report gets written and where the tracking
-database lives (both required):
+database lives (both required). The CLI has two commands (`run` and
+`ask` — see [Asking questions about the archive](#asking-questions-about-the-archive)),
+so naming one explicitly is required:
 
 ```bash
-python -m strategic_reports.daily.cli \
+python -m strategic_reports.daily.cli run \
   --output-dir output/daily/strategic-report \
   --db-path output/daily/strategic_reports.db
 ```
@@ -207,12 +228,12 @@ default. `--output-dir` and `--db-path` are the exception: both are required.
 | `--tag-z-score-threshold` | — | `2.0` | Standard deviations above a tag's historical mean rate (tag count ÷ articles considered) that trigger an emerging-tag alert (requires ≥7 prior runs for that tag) |
 | `--log-level` | — | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
 
-`python -m strategic_reports.daily.cli` performs the full pipeline — RSS
+`python -m strategic_reports.daily.cli run` performs the full pipeline — RSS
 ingestion, per-topic summarization/strategy, cross-topic synthesis, urgency
 alerting, bullet diffing, HTML rendering, and the tag co-occurrence graph —
 the same steps the [Prefect flow](#scheduling-with-prefect) runs on a
-schedule. The one thing the CLI does *not* do is the optional remote
-upload step, which is Prefect-only.
+schedule. The one thing it does *not* do is the optional remote upload
+step, which is Prefect-only.
 
 ### `--instructor-mode`
 
@@ -229,7 +250,7 @@ If you see the error `No tool calls or function call found in response (mode: TO
 Example — run against Claude with higher concurrency and debug logging:
 
 ```bash
-python -m strategic_reports.daily.cli \
+python -m strategic_reports.daily.cli run \
   --output-dir output/daily/strategic-report \
   --db-path output/daily/strategic_reports.db \
   --model anthropic/claude-sonnet-4-6 \
@@ -240,12 +261,45 @@ python -m strategic_reports.daily.cli \
 Example — run against an Ollama model without tool-calling support:
 
 ```bash
-python -m strategic_reports.daily.cli \
+python -m strategic_reports.daily.cli run \
   --output-dir output/daily/strategic-report \
   --db-path output/daily/strategic_reports.db \
   --model ollama_chat/gpt-oss:120b \
   --instructor-mode JSON
 ```
+
+---
+
+## Asking questions about the archive
+
+`python -m strategic_reports.daily.cli ask "<question>"` lets you ask a
+free-text question about everything the pipeline has archived so far —
+not just today's report:
+
+```bash
+python -m strategic_reports.daily.cli ask \
+  "What's happening with export controls?" \
+  --db-path output/daily/strategic_reports.db
+```
+
+This is **graph-guided retrieval, not full GraphRAG**: it extracts a
+handful of candidate tags from your question, matches them against the
+LLM-written summaries `run` writes for each Louvain tag-community every day
+(`community_summaries` — see [Output](#output)), and answers grounded only
+in what's retrieved — no embeddings, no hierarchical multi-level community
+summarization, no outside knowledge. It's read-only against `--db-path`
+and never touches `--output-dir`. See `archive_query.py` and
+`pipeline.answer_archive_question()`.
+
+| Flag | Env var | Default | Description |
+|------|---------|---------|-------------|
+| `question` (positional) | — | *(required)* | Free-text question about the archive |
+| `--db-path` | — | *(required)* | SQLite tracking database to query — the same one `run` writes to |
+| `--max-communities` | — | `8` | Max matching archived tag-communities to include as retrieved context |
+| `--model`, `--temperature`, `--instructor-mode`, `--ollama-api-base`, `--ollama-api-key`, `--log-level` | — | same as `run` | See [Configuration](#configuration) |
+
+If nothing archived matches the question (including on a brand-new,
+still-empty archive), it says so plainly rather than guessing.
 
 ---
 
@@ -439,7 +493,7 @@ pip install arize-phoenix openinference-instrumentation-litellm \
             opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
 
 export PHOENIX_TRACING=true
-python -m strategic_reports.daily.cli \
+python -m strategic_reports.daily.cli run \
   --output-dir output/daily/strategic-report \
   --db-path output/daily/strategic_reports.db
 ```
@@ -452,7 +506,7 @@ python -m strategic_reports.daily.cli \
 pytest
 ```
 
-177 tests across 12 files. No real API calls — the LLM client is fully mocked.
+189 tests across 13 files. No real API calls — the LLM client is fully mocked.
 Runs in under a second. A GitHub Actions workflow
 (`.github/workflows/tests.yml`) runs the same suite on every push and pull
 request to `main` — no LLM credentials needed there either.
@@ -462,13 +516,14 @@ tests/test_models.py      Pydantic validation and TokenUsage arithmetic
 tests/test_prompts.py     Prompt builder output shape and content
 tests/test_renderer.py    HTML rendering for all three result states + XSS
 tests/test_ingestion.py   RSS fetching with mocked feedparser
-tests/test_pipeline.py    Async orchestration with mocked LLMClient; summarize_communities() concurrency + failure isolation
+tests/test_pipeline.py    Async orchestration with mocked LLMClient; summarize_communities() and answer_archive_question()/extract_query_tags() concurrency + failure isolation
 tests/test_urgency.py     Urgency alerting: absolute threshold, z-score, std==0 fallback, history persistence
 tests/test_bullet_diff.py Bullet-history storage: most-recent-run lookup, ordering, multi-topic
 tests/test_db.py          Tracking-db safety guard, schema creation, run registration
 tests/test_tag_tracking.py  Tag-graph db round-trip, rate-history normalization, emerging-tag z-score, bridge-tag/community-summary audit trails
 tests/test_tag_graph.py    find_bridge_tags(), group_articles_by_community(): filtering, sorting, dedup, multi-community span
 tests/test_article_archive.py  Article-summary db round-trip, ordering, multi-topic, error/empty topics
+tests/test_archive_query.py  find_relevant_communities(): exact/substring matching, dedup, ordering, limit
 tests/test_tag_normalizer.py  Tag synonym normalization
 ```
 
@@ -483,7 +538,7 @@ strategic_reports/daily/
     llm_client.py      Async LLMClient: litellm + instructor + tenacity retry
     ingestion.py       Async RSS fetching; returns list[RawArticle]
     prompts.py         System messages and user-message builder functions
-    pipeline.py        Two-phase async orchestrator + cross-topic synthesis + summarize_communities()
+    pipeline.py        Two-phase async orchestrator + cross-topic synthesis + summarize_communities() + answer_archive_question()
     renderer.py        Jinja2 HTML rendering
     tag_normalizer.py  Tag synonym map and normalize_tags(); applied via Pydantic validator
     tag_graph.py       Tag co-occurrence graph builder; full tag_graph.json + pruned/community tag_graph_display.json + tag_graph.html; find_bridge_tags(), group_articles_by_community()
@@ -491,6 +546,7 @@ strategic_reports/daily/
     bullet_diff.py     Historical bullet diffing: load/append history, concurrent per-topic LLM diff (SQLite-backed)
     db.py              SQLite tracking database: schema, connection helper, output_dir/db_path safety guard, run registration
     article_archive.py Persists each run's article summaries (source material), linked to run_id
+    archive_query.py   Graph-guided retrieval: find_relevant_communities() for the `ask` CLI command
     tag_tracking.py    Per-run tag-graph persistence (linked to run_id) + emerging-tag z-score alerting + community-summary persistence
     tracing.py         Langfuse and Phoenix setup (opt-in)
   templates/
@@ -529,7 +585,7 @@ Cross-run history is kept separately, in the SQLite database at `--db-path`
 (never inside `--output-dir` — see [Configuration](#configuration)):
 
 - **`runs`** — one row per pipeline run: `run_id`, `created_at` timestamp, and `article_count` (total articles considered that run — the denominator for comparing tag weights across runs, since a raw tag count means something different on a 400-article day than a 50-article one).
-- **`articles`**, **`article_summary_bullets`**, **`article_tags`** — every article's title, link, publish date, summary bullets, and tags, linked to `run_id`. This is the source material every derived signal below (tags, bullets, urgency scores) is computed from — otherwise it exists only in memory during a run and is lost once `{topic}_summaries.html` (in the wiped `--output-dir`) is gone. The foundation any future archive-query feature reads from.
+- **`articles`**, **`article_summary_bullets`**, **`article_tags`** — every article's title, link, publish date, summary bullets, and tags, linked to `run_id`. This is the source material every derived signal below (tags, bullets, urgency scores) is computed from — otherwise it exists only in memory during a run and is lost once `{topic}_summaries.html` (in the wiped `--output-dir`) is gone. Not currently read by `ask` (which reads `community_summaries` instead) — available for a future retrieval mode grounded in raw article text.
 - **`urgency_scores`** — one row per topic per run; used by the z-score baseline after 7 runs per topic.
 - **`bullets`** — one row per strategic bullet per topic per run; used by the bullet diff to identify what changed since the most recent prior run.
 - **`tag_counts`**, **`tag_topics`**, **`tag_edges`** — one run's tag graph (per-tag counts, per-tag topic membership, and tag-pair co-occurrence edges), linked to `run_id`. Together these let `tag_graph.json` be reconstructed for any past run directly from the database. `tag_counts` also backs the emerging-tag z-score alert: a tag's rate (count ÷ that run's `article_count`) is compared against its own historical rate once it has 7+ prior runs; tags with less history (including brand-new tags) are skipped rather than guessed at, since — unlike urgency scores — tag rates have no meaningful absolute cutoff to fall back on.

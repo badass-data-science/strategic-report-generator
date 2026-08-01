@@ -1,10 +1,13 @@
 """
 Daily strategic report pipeline — CLI entrypoint.
 
-Usage:
-    python -m strategic_reports.daily.cli run --output-dir /path/to/output
+Two commands (naming one explicitly is required now that there are two —
+typer's single-command auto-invoke shorthand only applies to a one-command app):
 
-Key options:
+    python -m strategic_reports.daily.cli run --output-dir /path/to/output --db-path /path/to/db
+    python -m strategic_reports.daily.cli ask "What's happening with export controls?" --db-path /path/to/db
+
+`run` key options:
     --output-dir        Where to write HTML output (required)
     --model             litellm model string  (default: env LLM_MODEL or ollama_chat/glm-5.2:cloud)
     --hours-cutoff      Article age window in hours (default: 24)
@@ -14,6 +17,14 @@ Key options:
     --batch-size        Articles per LLM summarization call
     --max-concurrent    Max concurrent LLM calls (semaphore width)
     --log-level         Logging verbosity
+
+`ask` key options:
+    question (positional)  Free-text question about the accumulated archive
+    --db-path              SQLite tracking database to query (required)
+    --max-communities       Max matching tag-communities used as context (default: 8)
+    Graph-guided retrieval over community_summaries written by `run` — see
+    archive_query.py and pipeline.answer_archive_question. Read-only;
+    doesn't touch --output-dir.
 
 WHY TYPER INSTEAD OF ARGPARSE
 ------------------------------
@@ -64,6 +75,7 @@ import typer
 
 from strategic_reports.daily.config.topic_order import list_directories_and_titles
 from strategic_reports.daily.core import (
+    answer_archive_question,
     append_bullet_run,
     append_run,
     build_display_graph,
@@ -447,6 +459,93 @@ def run(
     typer.echo(f"  Total tokens used:     {client.total_usage.total_tokens:,}")
     typer.echo(f"  Report written to:     {output_dir / 'index.html'}")
     typer.echo(f"  Tag graph written to:  {output_dir / 'tag_graph.html'}")
+
+
+@app.command()
+def ask(
+    question: str = typer.Argument(..., help="Question to ask about the accumulated archive"),
+    db_path: Path = typer.Option(
+        ...,
+        help="SQLite tracking database to query (required) — the same one "
+             "--db-path pointed at during `run` invocations.",
+    ),
+    model: str = typer.Option(
+        _DEFAULT_MODEL,
+        envvar="LLM_MODEL",
+        help="litellm model string (e.g. 'ollama_chat/llama3.1:70b', 'anthropic/claude-sonnet-4-6')",
+    ),
+    temperature: float = typer.Option(0.1, help="LLM sampling temperature"),
+    instructor_mode: str = typer.Option(
+        "TOOLS",
+        help="Structured output mode: TOOLS (default, requires tool-calling support), "
+             "JSON (for Ollama models without tool calling), MD_JSON (JSON in markdown fences)",
+    ),
+    ollama_api_base: str | None = typer.Option(
+        None,
+        envvar="OLLAMA_API_BASE",
+        help="Ollama server base URL (e.g. http://my-server:11434). "
+             "Also read from OLLAMA_API_BASE env var.",
+    ),
+    ollama_api_key: str | None = typer.Option(
+        None,
+        envvar="OLLAMA_API_KEY",
+        help="API key for authenticated Ollama instances. "
+             "Also read from OLLAMA_API_KEY env var.",
+    ),
+    max_communities: int = typer.Option(
+        8,
+        help="Max matching archived tag-communities to include as retrieved context",
+    ),
+    log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR)"),
+) -> None:
+    """
+    Ask a free-text question about the accumulated strategic-reports archive.
+
+    Graph-guided retrieval, not full GraphRAG: extracts candidate tags from
+    the question, matches them against archived tag-community summaries
+    (see tag_tracking.record_community_summaries — written by `run` each
+    day), then answers grounded only in what's retrieved. Doesn't touch
+    --output-dir; read-only against --db-path.
+    """
+    mode_upper = instructor_mode.upper()
+    if mode_upper not in _INSTRUCTOR_MODES:
+        typer.echo(
+            f"Invalid --instructor-mode '{instructor_mode}'. "
+            f"Valid options: {', '.join(_INSTRUCTOR_MODES)}",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    resolved_mode = _INSTRUCTOR_MODES[mode_upper]
+
+    configure_logging(log_level)
+
+    # connect_db() creates the database (and schema) if it doesn't exist yet
+    # — harmless; a fresh archive just has nothing to retrieve from.
+    connect_db(db_path).close()
+
+    client = LLMClient(
+        model=model,
+        temperature=temperature,
+        run_metadata={"trace_id": generate_run_id(), "trace_name": "strategic-report-archive-query"},
+        instructor_mode=resolved_mode,
+        api_base=ollama_api_base,
+        api_key=ollama_api_key,
+    )
+
+    try:
+        result = asyncio.run(answer_archive_question(question, db_path, client, max_communities))
+    except Exception as exc:
+        typer.echo(f"Archive query failed: {exc}", err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo("")
+    typer.echo(result["answer"])
+    if result["communities"]:
+        typer.echo("")
+        typer.echo(f"Grounded in {len(result['communities'])} archived cluster(s):")
+        for c in result["communities"]:
+            date = c["created_at"].split("T")[0]
+            typer.echo(f"  - {date} — {c['label']} ({c['article_count']} articles)")
 
 
 if __name__ == "__main__":

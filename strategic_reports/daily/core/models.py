@@ -250,6 +250,44 @@ class CommunitySummary(BaseModel):
     )
 
 
+class QueryTags(BaseModel):
+    """
+    LLM-extracted candidate tags for a free-text archive question.
+
+    Used for graph-guided retrieval (see archive_query.find_relevant_communities):
+    these are matched against community_summary_tags/community_summaries in
+    the tracking database to find which archived tag-communities are
+    relevant to the question, rather than a full-text scan of everything.
+    """
+    tags: list[str] = Field(
+        description=(
+            "3 to 8 short tags or phrases capturing the entities/topics this question "
+            "is asking about, in the same style as the pipeline's own tags: lowercase, "
+            "singular nouns, no abbreviations (e.g. 'export controls', 'biotech', "
+            "'artificial intelligence'). Prefer specific terms over generic ones."
+        ),
+        min_length=1,
+        max_length=8,
+    )
+
+
+class ArchiveAnswer(BaseModel):
+    """
+    LLM-synthesized answer to a free-text question about the accumulated
+    archive, grounded in retrieved community summaries
+    (see pipeline.answer_archive_question).
+    """
+    answer: str = Field(
+        description=(
+            "A direct answer to the question, grounded only in the provided community "
+            "summaries. Mention which dates/clusters support each point. If the provided "
+            "material doesn't actually address the question, say so plainly rather than "
+            "speculating."
+        ),
+        min_length=20,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Observability model — tracks API cost across calls
 # ---------------------------------------------------------------------------

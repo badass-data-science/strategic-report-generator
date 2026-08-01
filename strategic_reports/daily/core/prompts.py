@@ -93,6 +93,21 @@ actually about — the substance, not just the shared topic label. Ground every 
 in the provided material; do not speculate or add information beyond it.\
 """
 
+SYSTEM_QUERY_TAGS = """\
+You extract short, specific tags from a user's question, in the same style as this \
+pipeline's own article tags: lowercase, singular nouns, spelled out (no abbreviations), \
+American spelling. These tags are used to search an archive of tagged news coverage, \
+so favor concrete entities and topics over generic words.\
+"""
+
+SYSTEM_ARCHIVE_ANSWER = """\
+You are a research analyst answering a question using only a set of retrieved \
+summaries of past news coverage, each dated and labeled by topic cluster. Ground \
+your answer strictly in the provided material — cite which date/cluster supports \
+each point. If the material doesn't actually address the question, say so plainly \
+rather than speculating or filling gaps with outside knowledge.\
+"""
+
 
 # ---------------------------------------------------------------------------
 # User-message builders — format typed data into the user turn
@@ -186,6 +201,37 @@ def build_community_summary_prompt(label: str, tags: list[str], articles: list[A
             parts.append(f"- {bullet}")
         parts.append("")
     parts.append("Write a 2-4 sentence summary of what this cluster of coverage is actually about.")
+    return "\n".join(parts)
+
+
+def build_query_tags_prompt(question: str) -> str:
+    """Format a free-text archive question into the user message for tag extraction."""
+    return (
+        f'Question: "{question}"\n\n'
+        f"Extract 3-8 short tags or phrases that capture the entities/topics this "
+        f"question is asking about."
+    )
+
+
+def build_archive_answer_prompt(question: str, communities: list[dict]) -> str:
+    """
+    Format retrieved community summaries into the user message for
+    archive-question answering.
+
+    communities is archive_query.find_relevant_communities()'s output:
+    [{"run_id", "created_at", "community_id", "label", "summary",
+    "article_count"}, ...], already filtered/capped by the caller.
+    """
+    parts = [
+        f'Question: "{question}"\n',
+        f"Here are {len(communities)} retrieved summaries of past coverage that may be relevant:\n",
+    ]
+    for c in communities:
+        date = c["created_at"].split("T")[0]
+        parts.append(f'## {date} — "{c["label"]}" ({c["article_count"]} articles)')
+        parts.append(c["summary"])
+        parts.append("")
+    parts.append("Answer the question using only the material above.")
     return "\n".join(parts)
 
 
