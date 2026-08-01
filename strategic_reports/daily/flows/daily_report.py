@@ -74,6 +74,7 @@ from strategic_reports.daily.core.db import (
     record_run,
 )
 from strategic_reports.daily.core.article_archive import record_articles
+from strategic_reports.daily.core.overview_archive import record_overview
 from strategic_reports.daily.core.tag_tracking import (
     check_emerging_tags,
     load_tag_rate_history,
@@ -218,7 +219,10 @@ def render_html_report(
 # ---------------------------------------------------------------------------
 # Fails gracefully: a synthesis failure returns None rather than crashing the
 # flow. The renderer omits the overview section when overview is None, so the
-# rest of the report is unaffected.
+# rest of the report is unaffected. Also persists the overview (see
+# overview_archive.py) — folded into this task rather than a separate one
+# since it's a one-line persist directly tied to this task's own output, not
+# an independently-failing concern.
 
 @task(name="run-cross-topic-synthesis", retries=2, retry_delay_seconds=60)
 async def run_cross_topic_synthesis(
@@ -227,6 +231,7 @@ async def run_cross_topic_synthesis(
     temperature: float,
     instructor_mode_str: str,
     run_id: str,
+    db_path: Path,
     api_base: str | None = None,
     api_key: str | None = None,
 ) -> CrossTopicSynthesis | None:
@@ -244,6 +249,10 @@ async def run_cross_topic_synthesis(
     try:
         synthesis = await synthesize_cross_topic(results, client)
         logger.info("Cross-topic synthesis complete")
+        try:
+            record_overview(db_path, run_id, synthesis.bullets)
+        except Exception as exc:
+            logger.warning(f"Overview archiving failed: {exc} — continuing without archiving")
         return synthesis
     except Exception as exc:
         logger.warning(f"Cross-topic synthesis failed: {exc} — report will render without overview")
@@ -599,6 +608,7 @@ async def daily_report_flow(
         temperature=temperature,
         instructor_mode_str=instructor_mode,
         run_id=run_id,
+        db_path=db_path,
         api_base=ollama_api_base,
         api_key=ollama_api_key,
     )

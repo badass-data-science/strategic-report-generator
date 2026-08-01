@@ -167,6 +167,24 @@ step to both entry points" convention: it has no Prefect equivalent,
 because it's an interactive, human-in-the-loop command, not a scheduled
 batch step.
 
+### RDF export complements the tag graph, not replaces it
+
+`export-rdf` (see [Exporting an RDF knowledge graph](#exporting-an-rdf-knowledge-graph))
+is a separate, on-demand export of the tracking database — not part of
+`run`'s pipeline, and not a recomputation of `tag_graph.py`'s per-run
+co-occurrence graph. That distinction matters because the two serve
+different audiences: `tag_graph.json`/`tag_graph.html` are for a single
+run's D3 viewer; the RDF export is for integrating this pipeline's output
+into a larger, multi-source knowledge base, where a standard vocabulary
+(SKOS/PROV-O/schema.org) matters more than any one run's view. Reusing
+standard vocabularies rather than inventing a bespoke schema was a
+deliberate choice — the whole point of this export is to avoid the
+knowledge base reinventing a graph standard it could just adopt.
+
+Like `ask`, this is CLI-only for now (see `AGENTS.md`) — a scheduled
+Prefect equivalent may be added later, but isn't required for the export
+to be useful today.
+
 ### Observability
 
 Every LLM call is traced via [Langfuse](https://langfuse.com) or
@@ -318,6 +336,60 @@ and never touches `--output-dir`. See `archive_query.py` and
 
 If nothing archived matches the question (including on a brand-new,
 still-empty archive), it says so plainly rather than guessing.
+
+---
+
+## Exporting an RDF knowledge graph
+
+`python -m strategic_reports.daily.cli export-rdf` exports the accumulated
+archive as an RDF (Turtle) knowledge graph — intended for integration into
+a broader, multi-source knowledge base, not as a replacement for anything
+else this pipeline produces:
+
+```bash
+python -m strategic_reports.daily.cli export-rdf \
+  --db-path output/daily/strategic_reports.db \
+  --output output/daily/knowledge_graph.ttl
+```
+
+This **complements `tag_graph.py`'s per-run co-occurrence JSON/HTML output
+— it doesn't replace or recompute it.** `tag_graph.json`/`tag_graph.html`
+keep being written exactly as before, per run, for that run's D3 viewer.
+`export-rdf` instead reads the durable, cross-run archive already in
+`--db-path` (articles, tags, community summaries, bridge tags, per-topic
+strategic bullets, urgency scores, cross-topic overviews — see
+[Output](#output)) and gives it a standard, portable RDF shape:
+
+- **SKOS** — tags are `skos:Concept`; Louvain communities are
+  `skos:Collection` with `skos:member` tags. Tags are already normalized to
+  a canonical form by `tag_normalizer.py` before they reach the database,
+  so this mostly formalizes an existing vocabulary rather than modeling
+  something new.
+- **PROV-O** — every fact traces back to the run (`prov:Activity`) that
+  produced it via `prov:wasGeneratedBy`, mirroring the `run_id` foreign key
+  already threaded through every table in `db.py`.
+- **schema.org** — article bibliographic fields (`headline`, `url`,
+  `datePublished`).
+- A small custom namespace (`stratrep:`) for what's genuinely
+  domain-specific and has no standard equivalent: topics, urgency scores,
+  bridge-tag observations, and the cross-topic overview.
+
+| Flag | Env var | Default | Description |
+|------|---------|---------|-------------|
+| `--db-path` | — | *(required)* | SQLite tracking database to export — the same one `run` writes to |
+| `--output` | — | *(required)* | Turtle (`.ttl`) file to write the export to |
+| `--since` | — | *(none — full rebuild)* | Only include runs at or after this point — a `run_id` or an ISO 8601 timestamp. With no cutoff, rebuilds from every run in the database. |
+
+`--since` only filters which runs are included in this export — it does
+**not** merge into an existing `.ttl` file. Each invocation writes a fresh
+file at `--output`; combining a full export with later incremental exports
+(e.g. loading multiple `.ttl` files into a triple store) is left to
+whatever tool consumes them. Read-only against `--db-path`; never touches
+`--output-dir`. See `rdf_export.py`.
+
+This is a third CLI-only command, like `ask` — a deliberate exception to
+the run/flow parity convention (see `AGENTS.md`); a scheduled Prefect
+equivalent may be added later.
 
 ---
 
@@ -523,7 +595,7 @@ python -m strategic_reports.daily.cli run \
 pytest
 ```
 
-189 tests across 13 files. No real API calls — the LLM client is fully mocked.
+202 tests across 15 files. No real API calls — the LLM client is fully mocked.
 Runs in under a second. A GitHub Actions workflow
 (`.github/workflows/tests.yml`) runs the same suite on every push and pull
 request to `main` — no LLM credentials needed there either.
@@ -542,6 +614,8 @@ tests/test_tag_graph.py    find_bridge_tags(), group_articles_by_community(): fi
 tests/test_article_archive.py  Article-summary db round-trip, ordering, multi-topic, error/empty topics
 tests/test_archive_query.py  find_relevant_communities(): exact/substring matching, dedup, ordering, limit
 tests/test_tag_normalizer.py  Tag synonym normalization
+tests/test_overview_archive.py  Cross-topic overview bullet round-trip, ordering, multi-run
+tests/test_rdf_export.py  RDF ontology mapping (articles/tags/communities/bridge tags/urgency/bullets/overview), --since filtering, Turtle serialization
 ```
 
 ---
@@ -565,8 +639,10 @@ strategic_reports/
       bullet_diff.py     Historical bullet diffing: load/append history, concurrent per-topic LLM diff (SQLite-backed)
       db.py              SQLite tracking database: schema, connection helper, output_dir/db_path safety guard, run registration
       article_archive.py Persists each run's article summaries (source material), linked to run_id
+      overview_archive.py  Persists each run's cross-topic synthesis overview bullets, linked to run_id
       archive_query.py   Graph-guided retrieval: find_relevant_communities() for the `ask` CLI command
       tag_tracking.py    Per-run tag-graph persistence (linked to run_id) + emerging-tag z-score alerting + community-summary persistence
+      rdf_export.py      Builds an RDF (Turtle) export of the tracking database for the `export-rdf` CLI command
       tracing.py         Langfuse and Phoenix setup (opt-in)
     templates/
       base.html.j2       Shared layout and styles
@@ -615,6 +691,7 @@ Cross-run history is kept separately, in the SQLite database at `--db-path`
 - **`emerging_tag_alerts`** — an audit trail of the alerts that actually fired: `tag`, `count`, `rate`, `mean`, `std`, `z_score`, linked to `run_id`. Only fired alerts are stored here, not every tag's rate/z-score every run — those stay recomputable on demand from `tag_counts` + `runs.article_count`.
 - **`bridge_tags`**, **`bridge_tag_topics`** — an audit trail of the bridge tags (`tag_graph.find_bridge_tags()`) actually surfaced to the cross-topic synthesis prompt each run: `tag`, `count`, `rank`, and each tag's topic list, linked to `run_id`. Answers "which tags did we point the synthesis at on day N" directly, without recomputing from `results`.
 - **`community_summaries`**, **`community_summary_tags`** — an LLM-written paragraph per Louvain tag-community (`label`, `summary`, `article_count`, and each community's member tags), linked to `run_id`. Grounded in the articles whose tags belong to that community; replaces "labeled by top tag" with real substance.
+- **`cross_topic_overviews`** — one row per Strategic Overview bullet per run, linked to `run_id`. The cross-topic synthesis is rendered into `index.html` but was otherwise never persisted anywhere — this is what `export-rdf` (see [Exporting an RDF knowledge graph](#exporting-an-rdf-knowledge-graph)) reads to include it in the knowledge graph.
 
 Every row carries its own `created_at` timestamp in addition to `run_id`, and
 nothing is pruned — unlike the JSON files this replaced, which capped bullet

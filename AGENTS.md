@@ -24,17 +24,26 @@ the other too unless told otherwise — this parity was an explicit,
 deliberate decision.
 
 A third command, `python -m strategic_reports.daily.cli ask "<question>"`,
-is the one deliberate exception: an interactive, human-in-the-loop archive
+is a deliberate exception: an interactive, human-in-the-loop archive
 query (graph-guided retrieval over `community_summaries` — see
 `archive_query.py`), not a scheduled batch step. It has no Prefect
 equivalent, and that's intentional, not a parity gap to fix.
 
-**CLI invocation shape**: `cli.py` now has two commands (`run`, `ask`), so
-naming one explicitly is required (`... cli.py run --output-dir ...`) —
-typer's single-command auto-invoke shorthand (bare `... cli.py
---output-dir ...`) only applies when there's exactly one command, and no
-longer applies here. If you ever reduce back to one command, that
-shorthand returns; don't assume it's available with two or more.
+A fourth command, `python -m strategic_reports.daily.cli export-rdf`, is
+the same kind of exception: an on-demand export of the tracking database
+to RDF/Turtle (see `rdf_export.py`), not a pipeline step. It complements
+`tag_graph.py`'s per-run co-occurrence JSON/HTML — it does not replace or
+recompute it, and touching one should not require touching the other. No
+Prefect equivalent yet; one may be added later, but its absence is not a
+parity gap to fix in the meantime.
+
+**CLI invocation shape**: `cli.py` now has four commands (`run`, `ask`,
+`export-rdf`), so naming one explicitly is required (`... cli.py run
+--output-dir ...`) — typer's single-command auto-invoke shorthand (bare
+`... cli.py --output-dir ...`) only applies when there's exactly one
+command, and no longer applies here. If you ever reduce back to one
+command, that shorthand returns; don't assume it's available with two or
+more.
 
 ## Setup
 
@@ -58,7 +67,7 @@ matching provider credentials (see README's Quick Start).
 pytest
 ```
 
-- 189 tests across `tests/test_*.py`, no real network or LLM calls, runs in
+- 202 tests across `tests/test_*.py`, no real network or LLM calls, runs in
   under a second. CI (`.github/workflows/tests.yml`) runs the same suite on
   every push/PR to `main`, no credentials needed there either.
 - `pytest.ini` sets `asyncio_mode = auto` — async test functions don't need
@@ -88,8 +97,10 @@ strategic_reports/
       bullet_diff.py      Historical diffing vs. yesterday's bullets (SQLite-backed)
       db.py               SQLite tracking db: schema, connection helper, output_dir/db_path safety guard, run registration
       article_archive.py  Persists each run's article summaries (source material), linked to run_id
+      overview_archive.py Persists each run's cross-topic synthesis overview bullets, linked to run_id
       archive_query.py    Graph-guided retrieval: find_relevant_communities() — pure SQL, no LLM calls
       tag_tracking.py     Per-run tag-graph persistence (linked to run_id) + emerging-tag z-score + community-summary persistence (SQLite-backed)
+      rdf_export.py        Builds an RDF/Turtle export of the tracking db (SKOS/PROV-O/schema.org + a custom stratrep: namespace) for `export-rdf`
       tracing.py          Langfuse / Phoenix instrumentation (opt-in)
     templates/            Jinja2 templates (base, index, topic)
     data/rss_feeds/       One JSON file per topic listing feed URLs — packaged as wheel data
@@ -157,6 +168,19 @@ LICENSE                 MIT
   community hierarchy without discussing it first; this scope was a
   considered choice for a single-user tool, not a first step assumed to
   need deepening.
+- **`rdf_export.py` complements `tag_graph.py`, it doesn't replace it.**
+  `export-rdf` reads the tracking database (articles, tags, community
+  summaries, bridge tags, per-topic strategic bullets, urgency scores,
+  cross-topic overviews) and builds an RDF graph reusing standard
+  vocabularies — SKOS for tags/communities, PROV-O for run lineage,
+  schema.org for article metadata, a small custom `stratrep:` namespace
+  for everything domain-specific. `tag_graph.py`'s Louvain computation and
+  its JSON/HTML output are untouched; don't fold RDF export logic into
+  that module or make one depend on the other. `--since` (a run_id or ISO
+  timestamp) only filters which runs are included in a given export — it
+  does not merge into an existing `.ttl` file; don't add merge/watermark
+  logic without discussing it first, since this was a deliberate v1 scope
+  choice, not an oversight.
 - **`archive_query.find_relevant_communities()` has no LLM dependency —
   keep it that way.** It's pure SQL (two-pass: exact tag membership, then
   a label/summary substring fallback). LLM orchestration (extracting query
