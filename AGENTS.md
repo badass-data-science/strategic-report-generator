@@ -124,6 +124,7 @@ strategic_reports/
     paths.py              default_data_dir() — resolves bundled rss_feeds/ via importlib.resources
     config/topic_order.py Ordered topic slugs + display titles
 tests/                  Per-module test files + conftest.py fixtures
+blog-posts/             Human-written companion articles about this project — not code, not shipped
 pyproject.toml          Package metadata, dependencies, extras, console script
 LICENSE                 MIT
 ```
@@ -248,6 +249,10 @@ LICENSE                 MIT
   reference `run_id` as a foreign key). `article_count` is the total
   articles considered that run — the denominator for comparing tag/urgency
   weights across runs of different sizes.
+- **`blog-posts/` is the user's own editorial voice, not generated
+  documentation.** Unlike `AGENTS.md`/`README.md`/`CHANGELOG.md`, don't
+  edit or add to it proactively when updating docs after a code change —
+  only touch it when explicitly asked to draft or revise a post.
 
 ## Git identity
 

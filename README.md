@@ -662,6 +662,7 @@ strategic_reports/
 tests/
   conftest.py          Shared fixtures and feedparser mock helpers
   test_*.py            Per-module test files
+blog-posts/            Human-written companion articles about this project — not code, not shipped
 pyproject.toml         Package metadata, dependencies, and the `strategic-reports` console script
 ```
 
