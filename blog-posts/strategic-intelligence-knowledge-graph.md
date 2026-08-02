@@ -22,7 +22,7 @@ The first graph you can actually look at: a *tag co-occurrence network*, one nod
 
 ![Tag co-occurrence network](web-based-tag-graph.png)
 
-The second graph is where the story gets more interesting. The nightly D3 graph is useful for one thing and one thing only: looking at a single day's news expressed as a tag network. It is rebuilt from scratch with every pipeline run and therefore carries no memory of previous tag/topic interconnections.
+The second graph is where the story gets interesting. The nightly D3 graph is useful for one thing and one thing only: looking at a single day's news expressed as a tag network. It is rebuilt from scratch with every pipeline run and therefore carries no memory of previous tag/topic interconnections.
 
 But our heroine is no longer building a personal strategic intelligence resource — she's building the foundation of a multi-henchman supervillain empire. It follows that her daily strategic report archive must also communicate effectively with whatever other data archives she maintains (e.g., death-ray electricity consumption records, henchman performance review files, villainous business KPI metrics, etc.) A pile of nightly D3 displays, gorgeous as they are, simply cannot do that. What's needed is a durable, standard, portable export of everything the daily reports' tracking database has accumulated across every run. "Standard" turned out to be the operative word.
 
