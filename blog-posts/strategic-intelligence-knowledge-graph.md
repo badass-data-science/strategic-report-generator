@@ -12,7 +12,7 @@ This is the story of how our heroine built graphs that illuminate underlying the
 
 ## What is a Knowledge Graph?
 
-(FILL THIS SECTION IN)
+(FILL THIS SECTION IN--INCLUDE A DISCUSSION OF WHY THEY MATTER)
 
 ## Two Graphs, Not One
 
