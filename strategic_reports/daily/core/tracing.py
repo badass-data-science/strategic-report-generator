@@ -41,7 +41,6 @@ tracing is observability infrastructure, not business logic. It should never
 be the reason a report fails to run.
 """
 
-import logging
 import os
 import uuid
 

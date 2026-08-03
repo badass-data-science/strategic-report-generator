@@ -6,11 +6,13 @@ Covers:
   - multiple runs kept separate
 """
 
+from pathlib import Path
+
 from strategic_reports.daily.core.db import connect, record_run
 from strategic_reports.daily.core.overview_archive import record_overview
 
 
-def _bullets_for_run(db_path, run_id):
+def _bullets_for_run(db_path: Path, run_id: str) -> list[str]:
     conn = connect(db_path)
     try:
         rows = conn.execute(
@@ -24,13 +26,13 @@ def _bullets_for_run(db_path, run_id):
 
 
 class TestRecordOverview:
-    def test_round_trip_bullet_order_preserved(self, db_path):
+    def test_round_trip_bullet_order_preserved(self, db_path: Path) -> None:
         record_run(db_path, "run-0", article_count=10)
         bullets = ["First cross-cutting theme.", "Second theme.", "Third theme."]
         record_overview(db_path, "run-0", bullets)
         assert _bullets_for_run(db_path, "run-0") == bullets
 
-    def test_two_runs_kept_separate(self, db_path):
+    def test_two_runs_kept_separate(self, db_path: Path) -> None:
         record_run(db_path, "run-0", article_count=10)
         record_overview(db_path, "run-0", ["Day 1 bullet."])
         record_run(db_path, "run-1", article_count=12)
@@ -39,7 +41,7 @@ class TestRecordOverview:
         assert _bullets_for_run(db_path, "run-0") == ["Day 1 bullet."]
         assert _bullets_for_run(db_path, "run-1") == ["Day 2 bullet A.", "Day 2 bullet B."]
 
-    def test_empty_bullets_is_a_noop(self, db_path):
+    def test_empty_bullets_is_a_noop(self, db_path: Path) -> None:
         record_run(db_path, "run-0", article_count=10)
         record_overview(db_path, "run-0", [])
         assert _bullets_for_run(db_path, "run-0") == []

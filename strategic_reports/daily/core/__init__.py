@@ -14,6 +14,7 @@ what's public.
 """
 
 import logging
+
 import structlog
 
 
@@ -49,6 +50,13 @@ def configure_logging(level: str = "INFO") -> None:
 # Placed after configure_logging() so submodule-level code that calls
 # structlog doesn't run before configure_logging() is defined.
 
+from .archive_query import find_relevant_communities
+from .article_archive import load_articles, record_articles
+from .bullet_diff import append_bullet_run, diff_all_topics, load_bullet_history
+from .db import connect as connect_db
+from .db import ensure_safe_db_path, record_run
+from .ingestion import fetch_topic_articles
+from .llm_client import LLMClient
 from .models import (
     ArchiveAnswer,
     ArticleSummary,
@@ -64,11 +72,22 @@ from .models import (
     TopicConfig,
     TopicResult,
 )
-from .llm_client import LLMClient
-from .ingestion import fetch_topic_articles
-from .pipeline import answer_archive_question, extract_query_tags, run_pipeline, summarize_communities
+from .overview_archive import record_overview
+from .pipeline import (
+    answer_archive_question,
+    extract_query_tags,
+    run_pipeline,
+    summarize_communities,
+)
+from .prompts import (
+    SYSTEM_STRATEGIST,
+    SYSTEM_SUMMARIZER,
+    build_strategy_prompt,
+    build_summarize_prompt,
+)
+from .rdf_export import build_graph as build_rdf_graph
+from .rdf_export import export_rdf
 from .renderer import render_report
-from .archive_query import find_relevant_communities
 from .tag_graph import (
     build_display_graph,
     build_graph_data,
@@ -76,12 +95,6 @@ from .tag_graph import (
     group_articles_by_community,
     write_tag_graph,
 )
-from .urgency import UrgencyAlert, append_run, check_alerts, load_history
-from .bullet_diff import append_bullet_run, diff_all_topics, load_bullet_history
-from .db import connect as connect_db, ensure_safe_db_path, record_run
-from .article_archive import load_articles, record_articles
-from .overview_archive import record_overview
-from .rdf_export import build_graph as build_rdf_graph, export_rdf
 from .tag_tracking import (
     EmergingTagAlert,
     check_emerging_tags,
@@ -92,12 +105,7 @@ from .tag_tracking import (
     record_emerging_tag_alerts,
     record_tags,
 )
-from .prompts import (
-    SYSTEM_SUMMARIZER,
-    SYSTEM_STRATEGIST,
-    build_summarize_prompt,
-    build_strategy_prompt,
-)
+from .urgency import UrgencyAlert, append_run, check_alerts, load_history
 
 __all__ = [
     "configure_logging",
@@ -135,6 +143,13 @@ __all__ = [
     "load_articles",
     "record_articles",
     "record_overview",
+    "append_bullet_run",
+    "diff_all_topics",
+    "load_bullet_history",
+    "UrgencyAlert",
+    "append_run",
+    "check_alerts",
+    "load_history",
     "build_rdf_graph",
     "export_rdf",
     "EmergingTagAlert",

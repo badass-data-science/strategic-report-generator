@@ -42,8 +42,9 @@ silently skipped rather than guessed at.
 
 import math
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from .db import connect
 
@@ -68,7 +69,7 @@ class EmergingTagAlert:
         )
 
 
-def record_tags(db_path: Path, run_id: str, graph_data: dict) -> None:
+def record_tags(db_path: Path, run_id: str, graph_data: dict[str, Any]) -> None:
     """
     Insert this run's tag graph into the tracking database, linked to
     run_id: per-tag counts, per-tag topics, and tag-pair co-occurrence
@@ -79,7 +80,7 @@ def record_tags(db_path: Path, run_id: str, graph_data: dict) -> None:
     Assumes db.record_run(db_path, run_id, ...) has already been called
     this run, so the run_id foreign key exists.
     """
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     nodes = graph_data["nodes"]
     links = graph_data["links"]
 
@@ -94,15 +95,16 @@ def record_tags(db_path: Path, run_id: str, graph_data: dict) -> None:
             [(run_id, now, n["id"], topic) for n in nodes for topic in n["topics"]],
         )
         conn.executemany(
-            "INSERT INTO tag_edges (run_id, created_at, tag_a, tag_b, weight) VALUES (?, ?, ?, ?, ?)",
-            [(run_id, now, l["source"], l["target"], l["weight"]) for l in links],
+            "INSERT INTO tag_edges (run_id, created_at, tag_a, tag_b, weight) "
+            "VALUES (?, ?, ?, ?, ?)",
+            [(run_id, now, link["source"], link["target"], link["weight"]) for link in links],
         )
         conn.commit()
     finally:
         conn.close()
 
 
-def rebuild_graph_data(db_path: Path, run_id: str) -> dict:
+def rebuild_graph_data(db_path: Path, run_id: str) -> dict[str, Any]:
     """
     Reconstruct tag_graph.json's {"nodes": [...], "links": [...]} shape
     from the tracking database for a single run_id.
@@ -163,7 +165,7 @@ def load_tag_rate_history(db_path: Path) -> dict[str, list[float]]:
 
 
 def check_emerging_tags(
-    current_graph_data: dict,
+    current_graph_data: dict[str, Any],
     current_article_count: int,
     history: dict[str, list[float]],
     z_score_threshold: float = 2.0,
@@ -224,7 +226,7 @@ def record_emerging_tag_alerts(db_path: Path, run_id: str, alerts: list[Emerging
     if not alerts:
         return
 
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     conn = connect(db_path)
     try:
         conn.executemany(
@@ -241,7 +243,7 @@ def record_emerging_tag_alerts(db_path: Path, run_id: str, alerts: list[Emerging
         conn.close()
 
 
-def record_bridge_tags(db_path: Path, run_id: str, bridge_tags: list[dict]) -> None:
+def record_bridge_tags(db_path: Path, run_id: str, bridge_tags: list[dict[str, Any]]) -> None:
     """
     Persist the bridge tags surfaced to the cross-topic synthesis prompt
     this run (tag_graph.find_bridge_tags()'s output: [{"tag", "topics",
@@ -259,7 +261,7 @@ def record_bridge_tags(db_path: Path, run_id: str, bridge_tags: list[dict]) -> N
     if not bridge_tags:
         return
 
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     conn = connect(db_path)
     try:
         conn.executemany(
@@ -285,7 +287,7 @@ def record_bridge_tags(db_path: Path, run_id: str, bridge_tags: list[dict]) -> N
 def record_community_summaries(
     db_path: Path,
     run_id: str,
-    community_summaries: dict[int, dict],
+    community_summaries: dict[int, dict[str, Any]],
 ) -> None:
     """
     Persist this run's LLM-written community summaries
@@ -302,7 +304,7 @@ def record_community_summaries(
     if not community_summaries:
         return
 
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     conn = connect(db_path)
     try:
         conn.executemany(

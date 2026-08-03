@@ -49,19 +49,12 @@ import os
 from pathlib import Path
 
 import instructor
-from prefect import flow, task, get_run_logger
+from prefect import flow, get_run_logger, task
 from prefect.client.schemas.schedules import CronSchedule
 
 from strategic_reports.daily.config.topic_order import list_directories_and_titles
-from strategic_reports.daily.core import configure_logging, LLMClient, run_pipeline
-from strategic_reports.daily.core.models import BulletDiff, CrossTopicSynthesis, TopicConfig, TopicResult
-from strategic_reports.daily.core.pipeline import summarize_communities, synthesize_cross_topic
-from strategic_reports.daily.core.urgency import (
-    UrgencyAlert,
-    append_run,
-    check_alerts,
-    load_history,
-)
+from strategic_reports.daily.core import LLMClient, configure_logging, run_pipeline
+from strategic_reports.daily.core.article_archive import record_articles
 from strategic_reports.daily.core.bullet_diff import (
     append_bullet_run,
     diff_all_topics,
@@ -69,11 +62,26 @@ from strategic_reports.daily.core.bullet_diff import (
 )
 from strategic_reports.daily.core.db import (
     connect as connect_db,
+)
+from strategic_reports.daily.core.db import (
     ensure_safe_db_path,
     record_run,
 )
-from strategic_reports.daily.core.article_archive import record_articles
+from strategic_reports.daily.core.models import (
+    BulletDiff,
+    CrossTopicSynthesis,
+    TopicConfig,
+    TopicResult,
+)
 from strategic_reports.daily.core.overview_archive import record_overview
+from strategic_reports.daily.core.pipeline import summarize_communities, synthesize_cross_topic
+from strategic_reports.daily.core.renderer import render_report
+from strategic_reports.daily.core.tag_graph import (
+    build_display_graph,
+    build_graph_data,
+    find_bridge_tags,
+    write_tag_graph,
+)
 from strategic_reports.daily.core.tag_tracking import (
     check_emerging_tags,
     load_tag_rate_history,
@@ -82,14 +90,12 @@ from strategic_reports.daily.core.tag_tracking import (
     record_emerging_tag_alerts,
     record_tags,
 )
-from strategic_reports.daily.core.renderer import render_report
-from strategic_reports.daily.core.tag_graph import (
-    build_display_graph,
-    build_graph_data,
-    find_bridge_tags,
-    write_tag_graph,
-)
 from strategic_reports.daily.core.tracing import generate_run_id, setup_tracing
+from strategic_reports.daily.core.urgency import (
+    append_run,
+    check_alerts,
+    load_history,
+)
 from strategic_reports.daily.paths import default_data_dir
 
 _DEFAULT_MODEL = os.environ.get("LLM_MODEL", "ollama_chat/glm-5.2:cloud")
@@ -167,7 +173,10 @@ async def run_llm_pipeline(
         api_key=api_key,
     )
 
-    logger.info(f"Pipeline starting: {len(topics)} topics, model={model}, instructor_mode={instructor_mode_str}")
+    logger.info(
+        f"Pipeline starting: {len(topics)} topics, model={model}, "
+        f"instructor_mode={instructor_mode_str}"
+    )
 
     results = await run_pipeline(
         topics=topics,
@@ -206,7 +215,9 @@ def render_html_report(
 ) -> None:
     """Render TopicResults into the HTML report using Jinja2 templates."""
     logger = get_run_logger()
-    render_report(results, output_dir=output_dir, hours_cutoff=hours_cutoff, overview=overview, diffs=diffs)
+    render_report(
+        results, output_dir=output_dir, hours_cutoff=hours_cutoff, overview=overview, diffs=diffs
+    )
     logger.info(f"Report written to {output_dir / 'index.html'}")
 
 
@@ -393,10 +404,13 @@ async def summarize_community_tags(
         community_summaries = await summarize_communities(results, display_data, client)
         record_community_summaries(db_path, run_id, community_summaries)
         logger.info(
-            f"Community summaries: {len(community_summaries)} of {display_data['n_communities']} communities"
+            f"Community summaries: {len(community_summaries)} of "
+            f"{display_data['n_communities']} communities"
         )
     except Exception as exc:
-        logger.warning(f"Community summarization failed: {exc} — continuing without community summaries")
+        logger.warning(
+            f"Community summarization failed: {exc} — continuing without community summaries"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -524,7 +538,9 @@ async def daily_report_flow(
     topics = build_topic_configs(data_dir)
 
     if not topics:
-        raise ValueError(f"No valid topic configs found in {data_dir}. Check the data_dir parameter.")
+        raise ValueError(
+            f"No valid topic configs found in {data_dir}. Check the data_dir parameter."
+        )
 
     results = await run_llm_pipeline(
         topics=topics,
@@ -627,7 +643,13 @@ if __name__ == "__main__":
         # registration time. Path.home() (not cwd) so these stay correct
         # regardless of the working directory the process is started from.
         parameters={
-            "output_dir": Path.home() / "output" / "daily-strategic-report-from-RSS-feeds" / "daily-report",
-            "db_path": Path.home() / "output" / "daily-strategic-report-from-RSS-feeds" / "strategic-reports.db",
+            "output_dir": Path.home()
+            / "output"
+            / "daily-strategic-report-from-RSS-feeds"
+            / "daily-report",
+            "db_path": Path.home()
+            / "output"
+            / "daily-strategic-report-from-RSS-feeds"
+            / "strategic-reports.db",
         },
     )

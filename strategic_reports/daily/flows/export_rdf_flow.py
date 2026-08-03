@@ -19,8 +19,11 @@ America/Los_Angeles daily, well after daily_report_flow's 00:30 run, so
 the day's data has finished writing to the tracking database first).
 Trigger a one-off run, optionally with a different `--since`:
 
-    prefect deployment run 'daily-strategic-report-export-rdf/daily-strategic-report-export-rdf'
-    prefect deployment run 'daily-strategic-report-export-rdf/daily-strategic-report-export-rdf' --param since=2026-08-01
+    prefect deployment run \
+        'daily-strategic-report-export-rdf/daily-strategic-report-export-rdf'
+    prefect deployment run \
+        'daily-strategic-report-export-rdf/daily-strategic-report-export-rdf' \
+        --param since=2026-08-01
 
 See AGENTS.md and README.md's "Exporting an RDF knowledge graph" section
 for what export-rdf does and why it's kept separate from daily_report_flow.
@@ -28,7 +31,7 @@ for what export-rdf does and why it's kept separate from daily_report_flow.
 
 from pathlib import Path
 
-from prefect import flow, task, get_run_logger
+from prefect import flow, get_run_logger, task
 from prefect.client.schemas.schedules import CronSchedule
 
 from strategic_reports.daily.core.db import connect as connect_db
@@ -71,7 +74,13 @@ if __name__ == "__main__":
         # CLI invocation to supply them, so they're fixed here once. Read
         # from the same tracking database daily_report_flow writes to.
         parameters={
-            "db_path": Path.home() / "output" / "daily-strategic-report-from-RSS-feeds" / "strategic-reports.db",
-            "output": Path.home() / "output" / "daily-strategic-report-from-RSS-feeds" / "knowledge_graph.ttl",
+            "db_path": Path.home()
+            / "output"
+            / "daily-strategic-report-from-RSS-feeds"
+            / "strategic-reports.db",
+            "output": Path.home()
+            / "output"
+            / "daily-strategic-report-from-RSS-feeds"
+            / "knowledge_graph.ttl",
         },
     )

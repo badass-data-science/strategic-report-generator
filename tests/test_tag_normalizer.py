@@ -10,21 +10,21 @@ from strategic_reports.daily.core.tag_normalizer import normalize_tag, normalize
 
 
 class TestAmericanSpelling:
-    def test_standalone_word(self):
+    def test_standalone_word(self) -> None:
         assert normalize_tag("defence") == "defense"
 
-    def test_within_multi_word_tag(self):
+    def test_within_multi_word_tag(self) -> None:
         assert normalize_tag("defence budget") == "defense budget"
 
-    def test_case_and_hyphen_insensitive(self):
+    def test_case_and_hyphen_insensitive(self) -> None:
         assert normalize_tag("Cyber-Defence") == "cyber defense"
 
-    def test_plural_form(self):
+    def test_plural_form(self) -> None:
         assert normalize_tag("organisations") == "organizations"
 
-    def test_already_american_is_unchanged(self):
+    def test_already_american_is_unchanged(self) -> None:
         assert normalize_tag("defense") == "defense"
 
-    def test_dedupes_british_and_american_variants(self):
+    def test_dedupes_british_and_american_variants(self) -> None:
         result = normalize_tags(["defence", "defense", "Colour"])
         assert result == ["defense", "color"]

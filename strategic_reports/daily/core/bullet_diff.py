@@ -19,7 +19,7 @@ sqlite3.Connection can't be passed between tasks (it isn't picklable).
 """
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
@@ -71,7 +71,7 @@ def append_bullet_run(
     Assumes db.record_run(db_path, run_id, ...) has already been called this
     run, so the run_id foreign key exists.
     """
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     rows = [
         (run_id, now, r.config.title, i, bullet)
         for r in results

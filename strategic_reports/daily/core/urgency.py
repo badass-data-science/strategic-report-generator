@@ -25,7 +25,7 @@ passed between tasks (it isn't picklable).
 
 import math
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .db import connect
@@ -52,7 +52,10 @@ class UrgencyAlert:
                 f"{self.topic}: score={self.score:.2f} "
                 f"(z={self.z_score:.1f}, mean={self.mean:.2f}±{self.std:.2f})"
             )
-        return f"{self.topic}: score={self.score:.2f} exceeds absolute threshold {self.threshold:.2f}"
+        return (
+            f"{self.topic}: score={self.score:.2f} "
+            f"exceeds absolute threshold {self.threshold:.2f}"
+        )
 
 
 def load_history(db_path: Path) -> dict[str, list[float]]:
@@ -85,7 +88,7 @@ def append_run(
     Assumes db.record_run(db_path, run_id, ...) has already been called this
     run, so the run_id foreign key exists.
     """
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     conn = connect(db_path)
     try:
         conn.executemany(

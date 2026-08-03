@@ -22,13 +22,13 @@ Why async?
 """
 
 import logging
-from typing import TypeVar, Type
+from typing import Any, TypeVar
 
 import instructor
 import litellm
 import structlog
-from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
 from pydantic import BaseModel
+from tenacity import before_sleep_log, retry, stop_after_attempt, wait_exponential
 
 from .models import TokenUsage
 
@@ -84,7 +84,7 @@ class LLMClient:
         self,
         model: str,
         temperature: float = 0.1,
-        run_metadata: dict | None = None,
+        run_metadata: dict[str, Any] | None = None,
         instructor_mode: instructor.Mode = instructor.Mode.TOOLS,
         api_base: str | None = None,
         api_key: str | None = None,
@@ -116,7 +116,7 @@ class LLMClient:
         """Read-only view of cumulative token usage across all calls."""
         return self._total_usage
 
-    def _parse_usage(self, completion) -> TokenUsage:
+    def _parse_usage(self, completion: Any) -> TokenUsage:
         """
         Extract token counts from a litellm completion response.
 
@@ -146,7 +146,7 @@ class LLMClient:
     async def complete_structured(
         self,
         prompt: str,
-        response_model: Type[T],    # the Pydantic class to parse into
+        response_model: type[T],    # the Pydantic class to parse into
         system: str | None = None,
     ) -> tuple[T, TokenUsage]:
         """
@@ -173,16 +173,28 @@ class LLMClient:
         # create_with_completion returns BOTH the parsed Pydantic model AND
         # the raw litellm completion object. We need the raw object to extract
         # token usage counts.
-        result, completion = await self._instructor.chat.completions.create_with_completion(
+        #
+        # mypy --strict can't verify this call: instructor's stub types
+        # create_with_completion as a plain tuple return rather than an
+        # Awaitable (it's still correctly awaitable at runtime -- instructor's
+        # own async client wraps it), messages is a plain dict rather than the
+        # exact ChatCompletion*MessageParam TypedDict union the stub wants, and
+        # the conditional-kwarg-spread pattern below (spreading a per-key dict
+        # only when that key is set, so we never send api_base=None to a
+        # provider that doesn't expect it) can't line up against the stub's
+        # specific named-parameter types. All of this is exercised by the test
+        # suite and real production calls; the ignores are for stub precision,
+        # not a masked runtime issue.
+        result, completion = await self._instructor.chat.completions.create_with_completion(  # type: ignore[misc]
             model=self.model,
             response_model=response_model,
-            messages=messages,
+            messages=messages,  # type: ignore[arg-type]
             temperature=self.temperature,
             # Spread optional kwargs only when set — avoids sending api_base=None
             # or api_key=None to providers that don't expect them.
-            **({"api_base": self._api_base} if self._api_base else {}),
-            **({"api_key": self._api_key} if self._api_key else {}),
-            **({"metadata": self._run_metadata} if self._run_metadata else {}),
+            **({"api_base": self._api_base} if self._api_base else {}),  # type: ignore[arg-type]
+            **({"api_key": self._api_key} if self._api_key else {}),  # type: ignore[arg-type]
+            **({"metadata": self._run_metadata} if self._run_metadata else {}),  # type: ignore[arg-type]
         )
 
         usage = self._parse_usage(completion)

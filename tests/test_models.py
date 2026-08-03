@@ -41,13 +41,13 @@ import datetime
 
 import pytest
 from pydantic import ValidationError
-
 from strategic_reports.daily.core.models import (
     ArticleSummary,
     FeedConfig,
     RawArticle,
     StrategicInsight,
     TokenUsage,
+    TopicConfig,
     TopicResult,
 )
 
@@ -55,7 +55,7 @@ from strategic_reports.daily.core.models import (
 class TestArticleSummary:
     """Tests for ArticleSummary.summary (exactly 3 bullets) and .tags (5-20)."""
 
-    def test_valid(self):
+    def test_valid(self) -> None:
         """Happy path: 3 bullets, 5 tags — both at their minimums."""
         s = ArticleSummary(
             title="t", link="https://x.com", publish_date="2026-06-27",
@@ -65,7 +65,7 @@ class TestArticleSummary:
         assert len(s.summary) == 3
         assert len(s.tags) == 5
 
-    def test_too_few_summary_bullets(self):
+    def test_too_few_summary_bullets(self) -> None:
         """
         Only 1 bullet — min_length=3 should reject this.
         This is the key validation we need to prevent truncated LLM output from
@@ -78,7 +78,7 @@ class TestArticleSummary:
                 tags=["a", "b", "c", "d", "e"],
             )
 
-    def test_too_many_summary_bullets(self):
+    def test_too_many_summary_bullets(self) -> None:
         """
         4 bullets — max_length=3 should reject this.
         Prevents the LLM from sneaking in extra bullets that inflate the report.
@@ -90,7 +90,7 @@ class TestArticleSummary:
                 tags=["a", "b", "c", "d", "e"],
             )
 
-    def test_too_few_tags(self):
+    def test_too_few_tags(self) -> None:
         """4 tags — min_length=5 should reject this."""
         with pytest.raises(ValidationError):
             ArticleSummary(
@@ -99,7 +99,7 @@ class TestArticleSummary:
                 tags=["only", "four", "tags", "here"],
             )
 
-    def test_too_many_tags(self):
+    def test_too_many_tags(self) -> None:
         """21 tags — max_length=20 should reject this."""
         with pytest.raises(ValidationError):
             ArticleSummary(
@@ -109,7 +109,7 @@ class TestArticleSummary:
                 tags=[f"tag{i}" for i in range(21)],
             )
 
-    def test_max_tags_accepted(self):
+    def test_max_tags_accepted(self) -> None:
         """20 tags — exactly at the max, should be accepted."""
         s = ArticleSummary(
             title="t", link="l", publish_date="2026-06-27",
@@ -122,25 +122,25 @@ class TestArticleSummary:
 class TestStrategicInsight:
     """Tests for StrategicInsight.bullets (3-5 bullets)."""
 
-    def test_valid_three_bullets(self):
+    def test_valid_three_bullets(self) -> None:
         """3 bullets — at the minimum."""
         s = StrategicInsight(bullets=["A.", "B.", "C."], urgency_score=0.5)
         assert len(s.bullets) == 3
 
-    def test_valid_five_bullets(self):
+    def test_valid_five_bullets(self) -> None:
         """5 bullets — at the maximum."""
         s = StrategicInsight(bullets=["A.", "B.", "C.", "D.", "E."], urgency_score=0.5)
         assert len(s.bullets) == 5
 
-    def test_too_few_bullets(self):
+    def test_too_few_bullets(self) -> None:
         """2 bullets — below min_length=3, should be rejected."""
         with pytest.raises(ValidationError):
-            StrategicInsight(bullets=["A.", "B."])
+            StrategicInsight(bullets=["A.", "B."], urgency_score=0.5)
 
-    def test_too_many_bullets(self):
+    def test_too_many_bullets(self) -> None:
         """6 bullets — above max_length=5, should be rejected."""
         with pytest.raises(ValidationError):
-            StrategicInsight(bullets=["A.", "B.", "C.", "D.", "E.", "F."])
+            StrategicInsight(bullets=["A.", "B.", "C.", "D.", "E.", "F."], urgency_score=0.5)
 
 
 class TestTokenUsage:
@@ -152,14 +152,14 @@ class TestTokenUsage:
     and the pipeline adds them together into per-topic and then total counts.
     """
 
-    def test_default_zeros(self):
+    def test_default_zeros(self) -> None:
         """A new TokenUsage starts at all zeros."""
         u = TokenUsage()
         assert u.prompt_tokens == 0
         assert u.completion_tokens == 0
         assert u.total_tokens == 0
 
-    def test_addition(self):
+    def test_addition(self) -> None:
         """Basic + operator: fields are summed independently."""
         a = TokenUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15)
         b = TokenUsage(prompt_tokens=20, completion_tokens=10, total_tokens=30)
@@ -168,13 +168,13 @@ class TestTokenUsage:
         assert c.completion_tokens == 15
         assert c.total_tokens == 45
 
-    def test_addition_with_zero(self):
+    def test_addition_with_zero(self) -> None:
         """Adding a zeroed TokenUsage is the identity operation."""
         a = TokenUsage(prompt_tokens=100, completion_tokens=50, total_tokens=150)
         result = a + TokenUsage()
         assert result.total_tokens == 150
 
-    def test_accumulation_loop(self):
+    def test_accumulation_loop(self) -> None:
         """
         Simulates how the pipeline accumulates usage across multiple LLM calls.
         The pattern:
@@ -200,7 +200,7 @@ class TestTopicResult:
     setting error produces the "error" state without needing strategy.
     """
 
-    def test_defaults(self, sample_topic_config):
+    def test_defaults(self, sample_topic_config: TopicConfig) -> None:
         """
         A minimal TopicResult (only config provided) should have safe defaults.
         This is the "empty" state: topic ran without error but found no articles.
@@ -211,7 +211,7 @@ class TestTopicResult:
         assert r.error is None            # not an error — just no news
         assert r.token_usage.total_tokens == 0  # default_factory=TokenUsage
 
-    def test_error_result(self, sample_topic_config):
+    def test_error_result(self, sample_topic_config: TopicConfig) -> None:
         """An error result has error set but strategy stays None."""
         r = TopicResult(config=sample_topic_config, error="Feed not found")
         assert r.error == "Feed not found"
@@ -221,7 +221,7 @@ class TestTopicResult:
 class TestFeedConfig:
     """Basic smoke test for FeedConfig — it's a simple model with no constraints."""
 
-    def test_valid(self):
+    def test_valid(self) -> None:
         f = FeedConfig(title="AI News", url="https://example.com/feed")
         assert f.title == "AI News"
 
@@ -235,7 +235,7 @@ class TestRawArticle:
     without a summary would require an empty string explicitly.
     """
 
-    def test_valid(self):
+    def test_valid(self) -> None:
         a = RawArticle(
             title="Test",
             content="Body",

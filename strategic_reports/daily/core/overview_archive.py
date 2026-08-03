@@ -10,7 +10,7 @@ summaries — the source rdf_export.py reads to build the RDF knowledge
 graph.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .db import connect
@@ -18,7 +18,7 @@ from .db import connect
 
 def record_overview(db_path: Path, run_id: str, bullets: list[str]) -> None:
     """Insert this run's cross-topic synthesis bullets into the database."""
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     conn = connect(db_path)
     try:
         conn.executemany(

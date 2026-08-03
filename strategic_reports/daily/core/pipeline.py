@@ -44,13 +44,13 @@ This refactor:
 
 import asyncio
 from pathlib import Path
+from typing import Any
 
 import structlog
 
 from .archive_query import find_relevant_communities
 from .ingestion import fetch_topic_articles
 from .llm_client import LLMClient
-from .tag_graph import build_graph_data, find_bridge_tags, group_articles_by_community
 from .models import (
     ArchiveAnswer,
     ArticleSummary,
@@ -78,11 +78,12 @@ from .prompts import (
     build_strategy_prompt,
     build_summarize_prompt,
 )
+from .tag_graph import build_graph_data, find_bridge_tags, group_articles_by_community
 
 log = structlog.get_logger(__name__)
 
 
-def _chunk(lst: list, n: int) -> list[list]:
+def _chunk[T](lst: list[T], n: int) -> list[list[T]]:
     """
     Split lst into sublists of at most n items.
 
@@ -239,7 +240,7 @@ async def _summarize_one_community(
     client: LLMClient,
     sem: asyncio.Semaphore,
     max_articles: int,
-) -> tuple[int, dict | None]:
+) -> tuple[int, dict[str, Any] | None]:
     async with sem:
         try:
             summary, _ = await client.complete_structured(
@@ -260,11 +261,11 @@ async def _summarize_one_community(
 
 async def summarize_communities(
     results: list[TopicResult],
-    display_data: dict,
+    display_data: dict[str, Any],
     client: LLMClient,
     max_concurrent: int = 3,
     max_articles: int = 12,
-) -> dict[int, dict]:
+) -> dict[int, dict[str, Any]]:
     """
     Generate an LLM-written paragraph summary for each Louvain community in
     display_data (see tag_graph.build_display_graph), grounded in the
@@ -292,7 +293,7 @@ async def summarize_communities(
         return {}
 
     pairs = await asyncio.gather(*tasks, return_exceptions=True)
-    summaries: dict[int, dict] = {}
+    summaries: dict[int, dict[str, Any]] = {}
     for item in pairs:
         if isinstance(item, BaseException):
             log.warning("community_summary_gather_error", error=str(item))
@@ -324,7 +325,7 @@ async def answer_archive_question(
     db_path: Path,
     client: LLMClient,
     max_communities: int = 8,
-) -> dict:
+) -> dict[str, Any]:
     """
     Answer a free-text question about the accumulated archive via
     graph-guided retrieval: extract candidate tags from the question, find
