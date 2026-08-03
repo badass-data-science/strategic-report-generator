@@ -48,20 +48,18 @@ Bridge tags then get handed, as a short list, into the prompt for the one LLM ca
 
 All of this — the nightly co-occurrence graph, the Louvain communities, the community summaries — gets persisted to a relational tracking database, linked by a pipeline run ID, which is what turns series of nightly reports into "the whole archive." But an archive you can't query is just a well-organized junk drawer, so the codebase also offers a graph-guided retrieval command: ask it a free-text question, and it extracts a handful of candidate tags from your question via an LLM call, matches those tags against every community summary ever written (exact tag membership first, a text-substring fallback second), and synthesizes an answer grounded strictly in whatever community summaries actually got retrieved. The codebase additionally offers an MCP server that encapsulates this functionality into a tool an agentic AI platform such as OpenClaw can interact with.
 
-## Building the Ontology Without Reinventing One
+## Building the Ontology Without Reinventing the Wheel
 
-The whole point of choosing RDF was to stop reinventing standards, so the actual schema design leans hard on vocabularies that already exist rather than inventing a bespoke one from scratch:
+The whole point of choosing RDF was to stop reinventing standards, so the actual schema design leans hard on vocabularies that already exist rather than inventing new ones from scratch:
 
-- **SKOS** gives every tag a home as a `skos:Concept`, which turns out to be almost embarrassingly easy since the tag normalizer already collapses spelling variants and synonyms into a canonical form before anything reaches the database — SKOS just gives that existing cleanup formal RDF shape. Louvain communities map onto `skos:Collection`, with each community's member tags linked via `skos:member`, which is a nicer fit than our heroine expected going in.
+- **SKOS** gives every tag a home as a `skos:Concept`, which turns out to be almost embarrassingly easy since the tag normalizer already collapses spelling variants and synonyms into a canonical form before anything reaches the database — SKOS just gives that existing cleanup formal RDF shape. Louvain communities map onto `skos:Collection`, with each community's member tags linked via `skos:member`.
 - **PROV-O** tracks provenance: every run becomes a `prov:Activity`, and every fact derived from that run — an article, a bullet, a community summary, the cross-topic overview — links back to it via `prov:wasGeneratedBy`. This is really just the `run_id` foreign key that's threaded through every table in the tracking database already, given a standard vocabulary instead of a bespoke column name.
-- **schema.org** covers article bibliographic fields — headline, URL, publish date — because there was no reason to invent a worse version of `schema:Article` when a perfectly good one already exists, and it's popular enough that search engines and scrapers already know how to read it. (It's popular enough, in fact, that the nightly per-article HTML pages now carry the same `schema:Article` JSON-LD markup directly, for anyone who only has the HTML and never touches the database at all.)
+- **schema.org** covers article bibliographic fields — headline, URL, publish date — because there was no reason to invent a worse version of `schema:Article` when a perfectly good one already exists, and it's popular enough that search engines and scrapers already know how to read it.
 - A small custom namespace, `stratrep:`, covers exactly the handful of things that are genuinely domain-specific and have no clean standard equivalent: topics, urgency scores, bridge-tag observations, and the cross-topic overview. It stays small on purpose. Every time our heroine was tempted to add a new custom term, the first question was "does schema.org, SKOS, or PROV-O already have a home for this," and more often than not, one of them did.
-
-The export itself is a separate, on-demand command that reads the tracking database and rebuilds the full Turtle file from scratch — every run, from every article, tag, community summary, bridge tag, strategic bullet, urgency score, and cross-topic overview ever recorded. Deliberately not incremental by default: a full rebuild is simple and always correct, and correctness beats cleverness until the database is large enough to actually need cleverness, which it is not yet.
 
 ## Complementary, Not Competing
 
-To say it one more time, because our heroine really did have to say it to herself several times during development: the RDF export does not replace the nightly D3 graph, and the nightly D3 graph does not get consulted when building the RDF export. They read from different places (this run's in-memory results versus the database's entire history), they serve different audiences (a human glancing at tonight's news versus a machine integrating years of archive into a bigger knowledge base), and they are not allowed to depend on each other. Keeping that boundary bright-line clear was, frankly, more work than writing the ontology mapping.
+To say it one more time, because our heroine really did have to say it to herself several times during development: the RDF export does not replace the nightly D3 graph, and the nightly D3 graph does not get consulted when building the RDF export. They read from different places (an individual run's in-memory results versus the database's entire history), they serve different audiences (a human glancing at tonight's news versus a machine integrating years of archive into a bigger knowledge base), and they are not allowed to depend on each other.
 
 ## Putting It on a Schedule (Its Own Schedule, in Its Own Corner)
 
@@ -69,8 +67,12 @@ The nightly report pipeline runs on its own Prefect-managed schedule, 00:30 Paci
 
 ## What's Deliberately Not Here Yet
 
-In the spirit of previous dispatches admitting what the Ultimate Cunning Master Plan™ does *not* yet do: there is no tag hierarchy in the SKOS layer (`skos:broader`/`skos:narrower` are supported by the standard and simply unused so far — nothing stops adding real hierarchy later without restructuring anything already built), there are no embeddings anywhere in the retrieval story, and the RDF export's `--since` flag filters which runs get included in a given export but does not merge into an existing file — every invocation is a fresh, complete rebuild, and stitching multiple exports together is left to whatever eventually loads them into a real triple store. All deliberate v1 scope choices, not oversights, and all candidates for a future dispatch once the multi-source knowledge base actually needs them.
+In the spirit of previous dispatches admitting what portions of the Ultimate Cunning Master Plan™ do *not* do yet: there is no tag hierarchy in the SKOS layer (`skos:broader`/`skos:narrower` are supported by the standard and simply unused so far — nothing stops adding real hierarchy later without restructuring anything already built), there are no embeddings anywhere in the retrieval story, and the RDF export's `--since` flag filters which runs get included in a given export but does not merge into an existing file — every invocation is a fresh, complete rebuild, and stitching multiple exports together is left to whatever eventually loads them into a real triple store. All deliberate v1 scope choices, not oversights, and all candidates for a future dispatch once the multi-source knowledge base actually needs them.
+
+## Conclusion
+
+(FILL THIS SECTION IN)
 
 ## AI Use Statement
 
-**Human-in-the-loop:** The author instructed Claude Code to produce the initial draft of this article based on its pre-existing knowledge of the codebase. Then the author ruthlessly edited the document to make it presentable.
+**Human-in-the-loop:** The author instructed Claude Code to produce the initial draft of this article based on its pre-existing knowledge of the codebase. Then the author ruthlessly edited the document.
