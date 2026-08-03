@@ -158,7 +158,7 @@ async def _synthesize_strategy(
 
 async def _process_topic(
     topic: TopicConfig,
-    articles: list[RawArticle] | Exception,  # Exception if Phase 1 ingestion failed
+    articles: list[RawArticle] | BaseException,  # BaseException if Phase 1 ingestion failed
     client: LLMClient,
     batch_size: int,
     sem: asyncio.Semaphore,
@@ -173,9 +173,9 @@ async def _process_topic(
       - If LLM calls raise, catch and return error result.
       - In none of these cases do we re-raise — the caller always gets a TopicResult.
     """
-    # Phase 1 failure arrives here as an Exception in the articles slot
+    # Phase 1 failure arrives here as a BaseException in the articles slot
     # because run_pipeline used return_exceptions=True in asyncio.gather.
-    if isinstance(articles, Exception):
+    if isinstance(articles, BaseException):
         log.error("topic_fetch_failed", topic=topic.title, error=str(articles))
         return TopicResult(config=topic, error=str(articles))
 
@@ -294,7 +294,7 @@ async def summarize_communities(
     pairs = await asyncio.gather(*tasks, return_exceptions=True)
     summaries: dict[int, dict] = {}
     for item in pairs:
-        if isinstance(item, Exception):
+        if isinstance(item, BaseException):
             log.warning("community_summary_gather_error", error=str(item))
             continue
         comm_id, data = item
@@ -383,10 +383,11 @@ async def run_pipeline(
     # Phase 1: Fetch all RSS content concurrently.
     # -------------------------------------------------------------------------
     # return_exceptions=True is critical here: if any topic's ingestion raises
-    # (e.g. missing JSON config file), the Exception is placed in the results
-    # list at that topic's index rather than propagating and cancelling ALL topics.
-    # _process_topic checks isinstance(articles, Exception) to handle this case.
-    article_lists: list[list[RawArticle] | Exception] = list(
+    # or is cancelled (e.g. missing JSON config file), the BaseException is
+    # placed in the results list at that topic's index rather than propagating
+    # and cancelling ALL topics. _process_topic checks
+    # isinstance(articles, BaseException) to handle this case.
+    article_lists: list[list[RawArticle] | BaseException] = list(
         await asyncio.gather(
             *[fetch_topic_articles(t, hours_cutoff) for t in topics],
             return_exceptions=True,
