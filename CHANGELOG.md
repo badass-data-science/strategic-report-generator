@@ -17,6 +17,14 @@ doesn't tag releases.
   Strategic Intelligence, Automated" post. Includes a screenshot of the
   tag co-occurrence graph (`web-based-tag-graph.png`).
 
+### Changed
+- Renamed the `export-rdf` Prefect flow (and its deployment) to
+  `daily-strategic-report-export-rdf`, so it's distinguishable in the
+  Prefect UI from other codebases' RDF-export flows now and in the future.
+  The CLI command name (`export-rdf`) is unaffected — only the Prefect
+  flow/deployment identifier changed. `prefect deployment run` invocations
+  now use `'daily-strategic-report-export-rdf/daily-strategic-report-export-rdf'`.
+
 ## 2026-08-03
 
 ### Added

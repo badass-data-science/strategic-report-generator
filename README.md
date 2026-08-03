@@ -407,8 +407,8 @@ watermark tracking on the scheduled run, same v1 scope choice as the CLI
 command). Trigger a one-off run, optionally overriding `since`:
 
 ```bash
-prefect deployment run 'export-rdf/export-rdf'
-prefect deployment run 'export-rdf/export-rdf' --param since=2026-08-01
+prefect deployment run 'daily-strategic-report-export-rdf/daily-strategic-report-export-rdf'
+prefect deployment run 'daily-strategic-report-export-rdf/daily-strategic-report-export-rdf' --param since=2026-08-01
 ```
 
 ---
