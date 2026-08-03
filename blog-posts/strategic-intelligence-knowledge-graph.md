@@ -26,16 +26,9 @@ The second graph is where the story gets interesting. The nightly D3 graph is us
 
 But our heroine is no longer building a personal strategic intelligence resource — she's building the foundation of a multi-henchman supervillain empire. It follows that her daily strategic report archive must also communicate effectively with whatever other data archives she maintains (e.g., death-ray electricity consumption records, henchman performance review files, villainous business KPI metrics, etc.) A pile of nightly D3 displays, gorgeous as they are, simply cannot do that. What's needed is a durable, standard, portable export of everything the daily reports' tracking database has accumulated across every run. "Standard" turned out to be the operative word.
 
-IN PROGRESS...
-...
-Faithful readers may recall our heroine's earlier flirtation with graph databases in ["The Data-Driven DJ"](https://badassdatascience.substack.com/p/the-data-driven-dj), where Neo4j and Cypher performed excellent work modeling harmonic transitions between DJ tracks. Property graphs like Neo4j's prove useful when the priority is developer ergonomics and built-in graph algorithms; Neo4j ships Louvain and PageRank as library calls. But Cypher itself only recently got an actual cross-vendor standard behind it (GQL, ratified in 2024), and the tooling ecosystem around it is still young. RDF, by contrast, has had a W3C-ratified data model, a W3C-ratified query language (SPARQL), and W3C-ratified ontology languages (RDFS, OWL) for the better part of two decades. If the goal is a knowledge base that outlives any one tool and can absorb other sources without everyone agreeing to buy the same database license, RDF is the more defensible bet — even though it means giving up Cypher's friendlier query syntax and those free built-in algorithms. Our heroine kept the free algorithms anyway, incidentally: Louvain still runs in NetworkX for the nightly D3 graph. She just isn't asking the RDF side to do double duty as her graph-analytics engine.
+Faithful readers may recall our heroine's earlier flirtation with graph databases in ["The Data-Driven DJ"](https://badassdatascience.substack.com/p/the-data-driven-dj), where Neo4j and Cypher performed excellent work modeling harmonic transitions between DJ tracks. Graph database systems like Neo4j's prove useful when the priority is developer ergonomics and built-in graph algorithms; Neo4j ships Louvain and PageRank analyses as library calls. But Neo4j itself only recently put an actual cross-vendor standard behind its Cypher query language (GQL, ratified in 2024), and the tooling ecosystem around it is still young. RDF, by contrast, has had a W3C-ratified data model, a W3C-ratified query language (SPARQL), and W3C-ratified ontology languages (RDFS, OWL) for the better part of two decades.
 
-
-
-
-
-
-
+Our heroine wanted a knowledge base that will outlive any one particular tool and that can absorb other sources without everyone having to agree to buying the same database license. Therefore she chose to express her knowledge base in RDF format, though it means giving up Cypher's friendlier query syntax and its free built-in algorithms. Incidentally, she kept the free algorithms anyway: Louvain still runs in NetworkX when the pipeline produces the nightly D3 graph. She just isn't asking an RDF-based tool to perform double duty as her graph-analytics engine.
 
 ## Louvain Community Detection, or: Letting the Graph Tell You Its Own Story
 
@@ -86,8 +79,6 @@ The nightly report pipeline runs on its own Prefect-managed schedule, 00:30 Paci
 
 In the spirit of previous dispatches admitting what the Ultimate Cunning Master Plan™ does *not* yet do: there is no tag hierarchy in the SKOS layer (`skos:broader`/`skos:narrower` are supported by the standard and simply unused so far — nothing stops adding real hierarchy later without restructuring anything already built), there are no embeddings anywhere in the retrieval story, and the RDF export's `--since` flag filters which runs get included in a given export but does not merge into an existing file — every invocation is a fresh, complete rebuild, and stitching multiple exports together is left to whatever eventually loads them into a real triple store. All deliberate v1 scope choices, not oversights, and all candidates for a future dispatch once the multi-source knowledge base actually needs them.
 
-![The nightly force-directed tag co-occurrence graph, Louvain communities in color, sliders for minimum co-occurrence and article count.](web-based-tag-graph.png)
+## AI Use Statement
 
----
-
-**AI use statement:** Our heroine designed the graph architecture, the ontology mapping, and the process-independence decisions herself, then directed Claude Code to implement, test, and document all of it in the actual codebase across several sessions of back-and-forth review. Having gotten that far, she decided to ask Claude to draft this companion article in the same voice as the original, which she then edited by hand before letting it anywhere near the internet.
+**Human-in-the-loop:** The author instructed Claude Code to produce the initial draft of this article based on its pre-existing knowledge of the codebase. Then the author ruthlessly edited the document to make it presentable.
