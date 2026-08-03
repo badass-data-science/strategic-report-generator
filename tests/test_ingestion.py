@@ -53,17 +53,14 @@ test private helpers when their logic is complex enough to warrant it. The
 underscore is a signal to callers, not a Python access restriction.
 """
 
-import datetime
 import json
 from pathlib import Path
-from unittest.mock import patch
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 from strategic_reports.daily.core.ingestion import _fetch_one_feed, fetch_topic_articles
 from strategic_reports.daily.core.models import FeedConfig, TopicConfig
-from tests.conftest import make_feed_entry, make_parsed_feed
 
+from tests.conftest import make_feed_entry, make_parsed_feed
 
 # Module-level constant for the FeedConfig used in single-feed tests.
 # Defined here (not in a fixture) because it's simple and doesn't vary per test.
@@ -73,7 +70,7 @@ FEED = FeedConfig(title="Test Feed", url="https://example.com/feed")
 class TestFetchOneFeed:
     """Tests for _fetch_one_feed() — the per-feed coroutine."""
 
-    async def test_returns_articles_within_cutoff(self):
+    async def test_returns_articles_within_cutoff(self) -> None:
         """
         An article published 30 minutes ago should be returned within a 24h cutoff.
         make_feed_entry(hours_ago=0.5) simulates a recent article.
@@ -93,7 +90,7 @@ class TestFetchOneFeed:
         assert articles[0].title == "Recent Article"
         assert articles[0].link == "https://x.com/1"
 
-    async def test_excludes_articles_beyond_cutoff(self):
+    async def test_excludes_articles_beyond_cutoff(self) -> None:
         """
         An article published 48 hours ago should be excluded by a 24h cutoff.
         This verifies the cutoff filtering logic in _fetch_one_feed.
@@ -107,7 +104,7 @@ class TestFetchOneFeed:
 
         assert articles == []
 
-    async def test_mixed_age_articles(self):
+    async def test_mixed_age_articles(self) -> None:
         """
         Feed with one recent and one old article — only the recent one is returned.
         This is the realistic case: feeds have days of history.
@@ -123,7 +120,7 @@ class TestFetchOneFeed:
         assert len(articles) == 1
         assert articles[0].title == "Recent"
 
-    async def test_returns_empty_on_feedparser_exception(self):
+    async def test_returns_empty_on_feedparser_exception(self) -> None:
         """
         If feedparser.parse raises (network error, timeout, etc.), _fetch_one_feed
         should return [] instead of propagating the exception.
@@ -137,7 +134,7 @@ class TestFetchOneFeed:
 
         assert articles == []
 
-    async def test_skips_entry_with_no_published_parsed(self):
+    async def test_skips_entry_with_no_published_parsed(self) -> None:
         """
         An entry whose published_parsed is None should be silently skipped.
         mktime(None) raises TypeError; the inner try/except catches it and continues.
@@ -151,7 +148,7 @@ class TestFetchOneFeed:
 
         assert articles == []
 
-    async def test_skips_entry_with_no_content(self):
+    async def test_skips_entry_with_no_content(self) -> None:
         """
         An entry with an empty content list should be silently skipped.
         entry.content[0] raises IndexError; the inner try/except catches it.
@@ -165,7 +162,7 @@ class TestFetchOneFeed:
 
         assert articles == []
 
-    async def test_html_content_converted(self):
+    async def test_html_content_converted(self) -> None:
         """
         Articles with content_type="text/html" should have HTML stripped and
         converted to Markdown by html_to_markdown.convert().
@@ -190,7 +187,7 @@ class TestFetchOneFeed:
 class TestFetchTopicArticles:
     """Tests for fetch_topic_articles() — the public multi-feed entry point."""
 
-    async def test_deduplicates_by_url(self, sample_topic_config):
+    async def test_deduplicates_by_url(self, sample_topic_config: TopicConfig) -> None:
         """
         If the same URL appears in multiple feeds (syndication is common),
         fetch_topic_articles should return it only once.
@@ -209,7 +206,7 @@ class TestFetchTopicArticles:
         assert len(urls) == len(set(urls)), "Duplicate URLs found"
         assert len(articles) == 1
 
-    async def test_sorted_newest_first(self, sample_topic_config):
+    async def test_sorted_newest_first(self, sample_topic_config: TopicConfig) -> None:
         """
         Articles from multiple feeds should be sorted newest-first in the output.
 
@@ -227,7 +224,7 @@ class TestFetchTopicArticles:
         # nonlocal lets the nested function read and write call_count from
         # the enclosing scope (Python 3 closure pattern).
         call_count = 0
-        def side_effect(url):
+        def side_effect(url: str) -> MagicMock:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
@@ -242,7 +239,9 @@ class TestFetchTopicArticles:
         assert articles[0].title == "New"
         assert articles[1].title == "Old"
 
-    async def test_returns_empty_when_all_feeds_fail(self, sample_topic_config):
+    async def test_returns_empty_when_all_feeds_fail(
+        self, sample_topic_config: TopicConfig
+    ) -> None:
         """
         If every feed raises an exception, fetch_topic_articles should return []
         rather than raising. The per-feed error handling swallows feed failures.
@@ -253,7 +252,7 @@ class TestFetchTopicArticles:
 
         assert articles == []
 
-    async def test_loads_feeds_from_json(self, tmp_path):
+    async def test_loads_feeds_from_json(self, tmp_path: Path) -> None:
         """
         fetch_topic_articles reads feed URLs from the feeds JSON file on disk.
         This test verifies the full path from JSON file → FeedConfig → fetch.

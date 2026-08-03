@@ -58,11 +58,9 @@ If you pass a datetime directly, mktime(datetime) raises TypeError.
 import datetime
 import json
 from pathlib import Path
-from time import mktime
 from unittest.mock import MagicMock
 
 import pytest
-
 from strategic_reports.daily.core.models import (
     ArticleSummary,
     RawArticle,
@@ -71,7 +69,6 @@ from strategic_reports.daily.core.models import (
     TopicConfig,
     TopicResult,
 )
-
 
 # ---------------------------------------------------------------------------
 # Tracking-database fixture
@@ -236,7 +233,7 @@ def make_feed_entry(
     return entry
 
 
-def make_parsed_feed(entries: list) -> MagicMock:
+def make_parsed_feed(entries: list[MagicMock]) -> MagicMock:
     """
     Return a MagicMock that mimics a feedparser parsed feed result.
 

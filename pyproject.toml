@@ -26,6 +26,8 @@ dependencies = [
 [project.optional-dependencies]
 flow = ["prefect>=3.0.0"]
 test = ["pytest>=9.0.0", "pytest-asyncio>=1.0.0"]
+lint = ["ruff>=0.16.0"]
+typecheck = ["mypy>=2.3.0", "types-networkx>=3.0.0"]
 
 [project.scripts]
 strategic-reports = "strategic_reports.daily.cli:app"
@@ -36,3 +38,34 @@ include = ["strategic_reports*"]
 [tool.setuptools.package-data]
 strategic_reports = ["py.typed"]
 "strategic_reports.daily" = ["data/rss_feeds/*.json", "templates/*.j2"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["strategic_reports", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Imports deliberately placed after configure_logging()'s definition -- see
+# the module docstring for why.
+"strategic_reports/daily/core/__init__.py" = ["E402"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["strategic_reports", "tests"]
+
+[[tool.mypy.overrides]]
+# feedparser has no published type stubs. phoenix/openinference/opentelemetry
+# are optional tracing dependencies (see tracing.py), never installed in the
+# base/test/typecheck environment -- imported inside a try/except precisely
+# so their absence is a supported, runtime-safe configuration.
+module = [
+    "feedparser",
+    "phoenix",
+    "openinference.instrumentation.litellm",
+    "opentelemetry.*",
+]
+ignore_missing_imports = true

@@ -13,7 +13,9 @@ This patches the name as imported in pipeline.py — the correct location.
 For (2), we build a real async function (not AsyncMock) that dispatches on
 response_model. This is the most important technique in this test file:
 
-    async def _complete_structured(prompt, response_model, system=None):
+    async def _complete_structured(
+        prompt: str, response_model: type[Any], system: str | None = None
+    ) -> tuple[Any, TokenUsage]:
         if response_model is ArticleSummaryBatch:
             return summary_batch, summary_usage
         if response_model is StrategicInsight:
@@ -56,9 +58,9 @@ This tests the _chunk() function's effect on the number of LLM calls.
 """
 
 import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
+from pathlib import Path
+from typing import Any
+from unittest.mock import MagicMock, patch
 
 from strategic_reports.daily.core.db import record_run
 from strategic_reports.daily.core.llm_client import LLMClient
@@ -81,7 +83,6 @@ from strategic_reports.daily.core.pipeline import (
     summarize_communities,
 )
 from strategic_reports.daily.core.tag_tracking import record_community_summaries
-
 
 # ---------------------------------------------------------------------------
 # Helpers — not fixtures; used inline in test methods
@@ -126,7 +127,9 @@ def make_mock_client(
     summary_usage = summary_usage or TokenUsage(total_tokens=100)
     strategy_usage = strategy_usage or TokenUsage(total_tokens=50)
 
-    async def _complete_structured(prompt, response_model, system=None):
+    async def _complete_structured(
+        prompt: str, response_model: type[Any], system: str | None = None
+    ) -> tuple[Any, TokenUsage]:
         # If 'raises' was set, simulate an LLM error.
         if raises:
             raise raises
@@ -168,7 +171,7 @@ def make_articles(n: int = 2) -> list[RawArticle]:
 class TestRunPipeline:
     """Tests for run_pipeline() — the public pipeline entry point."""
 
-    async def test_returns_one_result_per_topic(self, sample_topic_config):
+    async def test_returns_one_result_per_topic(self, sample_topic_config: TopicConfig) -> None:
         """run_pipeline must return exactly one TopicResult per input topic."""
         client = make_mock_client()
         with patch("strategic_reports.daily.core.pipeline.fetch_topic_articles",
@@ -177,7 +180,9 @@ class TestRunPipeline:
 
         assert len(results) == 1
 
-    async def test_successful_result_has_articles_and_strategy(self, sample_topic_config):
+    async def test_successful_result_has_articles_and_strategy(
+        self, sample_topic_config: TopicConfig
+    ) -> None:
         """
         Happy path: articles are fetched and LLM calls succeed.
         The result should have non-empty articles, a strategy, and no error.
@@ -193,7 +198,9 @@ class TestRunPipeline:
         assert r.strategy is not None
         assert len(r.strategy.bullets) == 3
 
-    async def test_empty_topic_returns_result_without_error(self, sample_topic_config):
+    async def test_empty_topic_returns_result_without_error(
+        self, sample_topic_config: TopicConfig
+    ) -> None:
         """
         Topic with no recent articles (empty ingestion) → TopicResult with no error
         and no strategy. This is the 'no news today' state.
@@ -208,7 +215,9 @@ class TestRunPipeline:
         assert r.articles == []
         assert r.strategy is None
 
-    async def test_ingestion_exception_captured_as_error(self, sample_topic_config):
+    async def test_ingestion_exception_captured_as_error(
+        self, sample_topic_config: TopicConfig
+    ) -> None:
         """
         If fetch_topic_articles raises, run_pipeline should capture it as
         TopicResult(error=...) rather than letting it propagate to the caller.
@@ -225,7 +234,7 @@ class TestRunPipeline:
         assert r.error is not None
         assert "RSS server down" in r.error
 
-    async def test_llm_exception_captured_as_error(self, sample_topic_config):
+    async def test_llm_exception_captured_as_error(self, sample_topic_config: TopicConfig) -> None:
         """
         If the LLM client raises (rate limit, timeout, etc.), the exception
         should be captured as TopicResult(error=...) rather than propagating.
@@ -241,7 +250,7 @@ class TestRunPipeline:
         assert r.error is not None
         assert "API limit hit" in r.error
 
-    async def test_one_failure_does_not_cancel_others(self, tmp_path):
+    async def test_one_failure_does_not_cancel_others(self, tmp_path: Path) -> None:
         """
         THE MOST IMPORTANT PIPELINE TEST.
 
@@ -257,7 +266,7 @@ class TestRunPipeline:
         client = make_mock_client()
 
         # side_effect as an async function: coroutine that can both raise and return.
-        async def fetch_side_effect(topic, hours_cutoff):
+        async def fetch_side_effect(topic: TopicConfig, hours_cutoff: int) -> list[RawArticle]:
             if topic.slug == "feeds_bad":
                 raise Exception("bad feed")
             return make_articles()
@@ -278,7 +287,9 @@ class TestRunPipeline:
         # Bad topic has error, but the result exists (it wasn't dropped).
         assert bad_r.error is not None
 
-    async def test_token_usage_accumulated_per_topic(self, sample_topic_config):
+    async def test_token_usage_accumulated_per_topic(
+        self, sample_topic_config: TopicConfig
+    ) -> None:
         """
         Token usage from summarization and strategy calls must be summed into
         the TopicResult. This tests TokenUsage.__add__ in the pipeline context.
@@ -294,7 +305,7 @@ class TestRunPipeline:
         # 200 (summarize) + 75 (strategy) = 275
         assert results[0].token_usage.total_tokens == 275
 
-    async def test_multiple_topics_all_processed(self, tmp_path):
+    async def test_multiple_topics_all_processed(self, tmp_path: Path) -> None:
         """
         With 4 topics and max_concurrent_llm_calls=2, all 4 should complete.
         The semaphore limits concurrency but doesn't prevent completion.
@@ -317,7 +328,7 @@ class TestRunPipeline:
         assert all(r.error is None for r in results)
         assert all(r.strategy is not None for r in results)
 
-    async def test_batch_size_respected(self, sample_topic_config):
+    async def test_batch_size_respected(self, sample_topic_config: TopicConfig) -> None:
         """
         With batch_size=1, each article gets its own LLM summarize call.
         3 articles → 3 summarize calls + 1 strategy call = 4 total calls.
@@ -330,7 +341,9 @@ class TestRunPipeline:
         call_count = 0
 
         # An async function that counts its own calls.
-        async def counting_complete(prompt, response_model, system=None):
+        async def counting_complete(
+            prompt: str, response_model: type[Any], system: str | None = None
+        ) -> tuple[Any, TokenUsage]:
             nonlocal call_count
             call_count += 1
             if response_model is ArticleSummaryBatch:
@@ -371,18 +384,27 @@ def _article(title: str, link: str, tags: list[str]) -> ArticleSummary:
     )
 
 
-def _display_node(tag: str, count: int, community: int, community_label: str) -> dict:
-    return {"id": tag, "count": count, "topics": [], "community": community, "community_label": community_label}
+def _display_node(tag: str, count: int, community: int, community_label: str) -> dict[str, Any]:
+    return {
+        "id": tag, "count": count, "topics": [],
+        "community": community, "community_label": community_label,
+    }
 
 
 def make_community_mock_client(fail_if_prompt_contains: str | None = None) -> MagicMock:
     """A mock client that answers CommunitySummary requests, optionally
-    failing when the prompt contains a given substring (e.g. a label)."""
-    async def _complete_structured(prompt, response_model, system=None):
+    failing when the prompt contains a given substring (e.g. a label).
+    """
+    async def _complete_structured(
+        prompt: str, response_model: type[Any], system: str | None = None
+    ) -> tuple[Any, TokenUsage]:
         assert response_model is CommunitySummary
         if fail_if_prompt_contains and fail_if_prompt_contains in prompt:
             raise RuntimeError("simulated LLM failure")
-        return CommunitySummary(summary="A generated summary of this cluster of coverage."), TokenUsage()
+        return (
+            CommunitySummary(summary="A generated summary of this cluster of coverage."),
+            TokenUsage(),
+        )
 
     client = MagicMock(spec=LLMClient)
     client.complete_structured = _complete_structured
@@ -399,13 +421,20 @@ class TestSummarizeCommunities:
     }
 
     def _results(self, articles: list[ArticleSummary]) -> list[TopicResult]:
-        config = TopicConfig(slug="feeds_ai", title="Artificial Intelligence", feeds_file="/dev/null")
+        config = TopicConfig(
+            slug="feeds_ai", title="Artificial Intelligence", feeds_file=Path("/dev/null")
+        )
         return [TopicResult(config=config, articles=articles)]
 
-    async def test_returns_summary_per_community(self):
+    async def test_returns_summary_per_community(self) -> None:
         results = self._results([
-            _article("A", "https://example.com/a", ["policy", "tech", "research", "markets", "law"]),
-            _article("B", "https://example.com/b", ["biotech", "tech", "research", "markets", "science"]),
+            _article(
+                "A", "https://example.com/a", ["policy", "tech", "research", "markets", "law"]
+            ),
+            _article(
+                "B", "https://example.com/b",
+                ["biotech", "tech", "research", "markets", "science"]
+            ),
         ])
         client = make_community_mock_client()
         summaries = await summarize_communities(results, self._DISPLAY_DATA, client)
@@ -415,34 +444,43 @@ class TestSummarizeCommunities:
         assert summaries[0]["article_count"] == 1
         assert summaries[0]["summary"] == "A generated summary of this cluster of coverage."
 
-    async def test_community_with_no_matching_articles_absent(self):
+    async def test_community_with_no_matching_articles_absent(self) -> None:
         results = self._results([
-            _article("A", "https://example.com/a", ["policy", "tech", "research", "markets", "law"]),
+            _article(
+                "A", "https://example.com/a", ["policy", "tech", "research", "markets", "law"]
+            ),
         ])
         client = make_community_mock_client()
         summaries = await summarize_communities(results, self._DISPLAY_DATA, client)
         assert set(summaries.keys()) == {0}
 
-    async def test_no_communities_returns_empty(self):
+    async def test_no_communities_returns_empty(self) -> None:
         results = self._results([])
         client = make_community_mock_client()
         summaries = await summarize_communities(results, self._DISPLAY_DATA, client)
         assert summaries == {}
 
-    async def test_one_failed_community_does_not_block_others(self):
+    async def test_one_failed_community_does_not_block_others(self) -> None:
         results = self._results([
-            _article("A", "https://example.com/a", ["policy", "tech", "research", "markets", "law"]),
-            _article("B", "https://example.com/b", ["biotech", "tech", "research", "markets", "science"]),
+            _article(
+                "A", "https://example.com/a", ["policy", "tech", "research", "markets", "law"]
+            ),
+            _article(
+                "B", "https://example.com/b",
+                ["biotech", "tech", "research", "markets", "science"]
+            ),
         ])
         # Fail specifically the "biotech" community; "policy" should still succeed.
         client = make_community_mock_client(fail_if_prompt_contains="biotech")
         summaries = await summarize_communities(results, self._DISPLAY_DATA, client)
         assert set(summaries.keys()) == {0}
 
-    async def test_max_articles_caps_prompt_content(self):
+    async def test_max_articles_caps_prompt_content(self) -> None:
         captured = {}
 
-        async def _complete_structured(prompt, response_model, system=None):
+        async def _complete_structured(
+        prompt: str, response_model: type[Any], system: str | None = None
+    ) -> tuple[Any, TokenUsage]:
             captured["prompt"] = prompt
             return CommunitySummary(summary="Summary of a large cluster of coverage."), TokenUsage()
 
@@ -450,7 +488,10 @@ class TestSummarizeCommunities:
         client.complete_structured = _complete_structured
 
         articles = [
-            _article(f"Article {i}", f"https://example.com/{i}", ["policy", "tech", "research", "markets", "law"])
+            _article(
+                f"Article {i}", f"https://example.com/{i}",
+                ["policy", "tech", "research", "markets", "law"],
+            )
             for i in range(5)
         ]
         results = self._results(articles)
@@ -472,7 +513,9 @@ def make_archive_mock_client(
     """A mock client dispatching on QueryTags vs. ArchiveAnswer response_model."""
     tags = tags if tags is not None else ["policy"]
 
-    async def _complete_structured(prompt, response_model, system=None):
+    async def _complete_structured(
+        prompt: str, response_model: type[Any], system: str | None = None
+    ) -> tuple[Any, TokenUsage]:
         if response_model is QueryTags:
             return QueryTags(tags=tags), TokenUsage()
         if response_model is ArchiveAnswer:
@@ -485,20 +528,20 @@ def make_archive_mock_client(
 
 
 class TestExtractQueryTags:
-    async def test_returns_llm_extracted_tags(self):
+    async def test_returns_llm_extracted_tags(self) -> None:
         client = make_archive_mock_client(tags=["export controls", "biotech"])
         tags = await extract_query_tags("What's happening with export controls?", client)
         assert tags == ["export controls", "biotech"]
 
 
 class TestAnswerArchiveQuestion:
-    async def test_no_matching_communities_returns_fallback(self, db_path):
+    async def test_no_matching_communities_returns_fallback(self, db_path: Path) -> None:
         client = make_archive_mock_client(tags=["nonexistent-topic"])
         result = await answer_archive_question("anything?", db_path, client)
         assert result["communities"] == []
         assert "No archived coverage" in result["answer"]
 
-    async def test_returns_grounded_answer_with_communities(self, db_path):
+    async def test_returns_grounded_answer_with_communities(self, db_path: Path) -> None:
         record_run(db_path, "run-0", article_count=10)
         record_community_summaries(db_path, "run-0", {
             0: {
@@ -516,7 +559,7 @@ class TestAnswerArchiveQuestion:
         assert len(result["communities"]) == 1
         assert result["communities"][0]["label"] == "policy"
 
-    async def test_max_communities_passed_through(self, db_path):
+    async def test_max_communities_passed_through(self, db_path: Path) -> None:
         record_run(db_path, "run-0", article_count=10)
         record_community_summaries(db_path, "run-0", {
             i: {

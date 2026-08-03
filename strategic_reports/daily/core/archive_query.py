@@ -24,6 +24,7 @@ lives in pipeline.py, consistent with this project's separation between
 """
 
 from pathlib import Path
+from typing import Any
 
 from .db import connect
 from .tag_normalizer import normalize_tags
@@ -33,7 +34,7 @@ def find_relevant_communities(
     db_path: Path,
     candidate_tags: list[str],
     limit: int = 8,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """
     Find community_summaries rows relevant to candidate_tags, across every
     run in the archive.

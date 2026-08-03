@@ -32,10 +32,16 @@ TestBuildStrategyPrompt  — tests the user-turn builder for strategy synthesis
 """
 
 import datetime
+from pathlib import Path
 
 import pytest
-
-from strategic_reports.daily.core.models import ArticleSummary, RawArticle, StrategicInsight, TopicConfig, TopicResult
+from strategic_reports.daily.core.models import (
+    ArticleSummary,
+    RawArticle,
+    StrategicInsight,
+    TopicConfig,
+    TopicResult,
+)
 from strategic_reports.daily.core.prompts import (
     SYSTEM_CROSS_TOPIC,
     SYSTEM_STRATEGIST,
@@ -47,7 +53,7 @@ from strategic_reports.daily.core.prompts import (
 
 
 @pytest.fixture
-def articles():
+def articles() -> list[RawArticle]:
     """Three RawArticles with different publish times for prompt content testing."""
     return [
         RawArticle(
@@ -62,7 +68,7 @@ def articles():
 
 
 @pytest.fixture
-def summaries():
+def summaries() -> list[ArticleSummary]:
     """One ArticleSummary for testing the strategy prompt builder."""
     return [
         ArticleSummary(
@@ -86,25 +92,25 @@ class TestSystemMessages:
     accidentally truncated system message string.
     """
 
-    def test_summarizer_non_empty(self):
+    def test_summarizer_non_empty(self) -> None:
         """System message must be a meaningful string, not empty or whitespace."""
         assert len(SYSTEM_SUMMARIZER.strip()) > 30
 
-    def test_strategist_non_empty(self):
+    def test_strategist_non_empty(self) -> None:
         assert len(SYSTEM_STRATEGIST.strip()) > 30
 
-    def test_summarizer_mentions_tags(self):
+    def test_summarizer_mentions_tags(self) -> None:
         """The summarizer system prompt should reference tagging."""
         assert "tag" in SYSTEM_SUMMARIZER.lower()
 
-    def test_strategist_mentions_strategy(self):
+    def test_strategist_mentions_strategy(self) -> None:
         """The strategist system prompt should reference strategy/strategic."""
         assert "strateg" in SYSTEM_STRATEGIST.lower()
 
-    def test_cross_topic_non_empty(self):
+    def test_cross_topic_non_empty(self) -> None:
         assert len(SYSTEM_CROSS_TOPIC.strip()) > 30
 
-    def test_cross_topic_mentions_bridge_tags(self):
+    def test_cross_topic_mentions_bridge_tags(self) -> None:
         """The cross-topic system prompt should explain how to weigh bridge tags."""
         assert "bridge tag" in SYSTEM_CROSS_TOPIC.lower()
 
@@ -120,7 +126,7 @@ class TestBuildSummarizePrompt:
       - Publish dates appear (provides temporal context)
     """
 
-    def test_contains_all_article_titles(self, articles):
+    def test_contains_all_article_titles(self, articles: list[RawArticle]) -> None:
         """
         Every article title must appear in the prompt.
         If a title is missing, the LLM can't echo it back in the ArticleSummary.
@@ -129,7 +135,7 @@ class TestBuildSummarizePrompt:
         for a in articles:
             assert a.title in prompt
 
-    def test_contains_article_delimiters(self, articles):
+    def test_contains_article_delimiters(self, articles: list[RawArticle]) -> None:
         """
         The --- ARTICLE N --- delimiters must be present so the model knows
         where one article ends and the next begins in a multi-article batch.
@@ -139,7 +145,7 @@ class TestBuildSummarizePrompt:
         assert "ARTICLE 2" in prompt
         assert "ARTICLE 3" in prompt
 
-    def test_contains_article_urls(self, articles):
+    def test_contains_article_urls(self, articles: list[RawArticle]) -> None:
         """
         URLs must appear so the model can echo them back as the 'link' field
         in ArticleSummary (we don't want the model to invent URLs).
@@ -148,7 +154,7 @@ class TestBuildSummarizePrompt:
         for a in articles:
             assert a.link in prompt
 
-    def test_contains_publish_dates(self, articles):
+    def test_contains_publish_dates(self, articles: list[RawArticle]) -> None:
         """
         Dates must appear in the prompt. isoformat() should produce "2026-06-27..."
         We test for the date portion (not the full timestamp) since that's stable.
@@ -156,7 +162,7 @@ class TestBuildSummarizePrompt:
         prompt = build_summarize_prompt(articles)
         assert "2026-06-27" in prompt
 
-    def test_contains_article_count(self, articles):
+    def test_contains_article_count(self, articles: list[RawArticle]) -> None:
         """
         The article count ("3") must appear so the model knows how many to process.
         Without it, models sometimes stop after summarizing 2-3 articles in a large batch.
@@ -164,7 +170,7 @@ class TestBuildSummarizePrompt:
         prompt = build_summarize_prompt(articles)
         assert "3" in prompt
 
-    def test_single_article(self):
+    def test_single_article(self) -> None:
         """Edge case: single-article batch works correctly."""
         article = RawArticle(
             title="Solo Article",
@@ -176,7 +182,7 @@ class TestBuildSummarizePrompt:
         assert "ARTICLE 1" in prompt
         assert "Solo Article" in prompt
 
-    def test_empty_list(self):
+    def test_empty_list(self) -> None:
         """Edge case: empty list produces a prompt with "0" in it (not a crash)."""
         prompt = build_summarize_prompt([])
         assert "0" in prompt
@@ -195,7 +201,7 @@ class TestBuildStrategyPrompt:
       - Article count (guides completeness)
     """
 
-    def test_contains_topic_title(self, summaries):
+    def test_contains_topic_title(self, summaries: list[ArticleSummary]) -> None:
         """
         The topic title must appear so the model frames insights in the right domain.
         "AI" insights differ from "Biotech" insights even for the same articles.
@@ -203,12 +209,12 @@ class TestBuildStrategyPrompt:
         prompt = build_strategy_prompt("Artificial Intelligence", summaries)
         assert "Artificial Intelligence" in prompt
 
-    def test_contains_article_titles(self, summaries):
+    def test_contains_article_titles(self, summaries: list[ArticleSummary]) -> None:
         """Article titles from the summaries must appear as section headers."""
         prompt = build_strategy_prompt("AI", summaries)
         assert "AI Surges" in prompt
 
-    def test_contains_summary_bullets(self, summaries):
+    def test_contains_summary_bullets(self, summaries: list[ArticleSummary]) -> None:
         """
         The bullet points from each ArticleSummary must appear in the strategy prompt.
         These ARE the content the model uses to synthesize insights.
@@ -216,7 +222,7 @@ class TestBuildStrategyPrompt:
         prompt = build_strategy_prompt("AI", summaries)
         assert "Models improve." in prompt
 
-    def test_contains_tags(self, summaries):
+    def test_contains_tags(self, summaries: list[ArticleSummary]) -> None:
         """
         Tags must appear so the model can identify thematic clusters.
         A strategy about "machine learning" + "entrepreneurship" differs from
@@ -225,7 +231,7 @@ class TestBuildStrategyPrompt:
         prompt = build_strategy_prompt("AI", summaries)
         assert "artificial intelligence" in prompt
 
-    def test_contains_article_count(self, summaries):
+    def test_contains_article_count(self, summaries: list[ArticleSummary]) -> None:
         """The count of summaries must appear in the prompt."""
         prompt = build_strategy_prompt("AI", summaries)
         assert "1" in prompt
@@ -236,7 +242,9 @@ def topic_results() -> list[TopicResult]:
     """Two topics with a successful strategy, for cross-topic prompt testing."""
     def make(title: str, bullets: list[str]) -> TopicResult:
         return TopicResult(
-            config=TopicConfig(slug=f"feeds_{title.lower()}", title=title, feeds_file="/dev/null"),
+            config=TopicConfig(
+                slug=f"feeds_{title.lower()}", title=title, feeds_file=Path("/dev/null")
+            ),
             strategy=StrategicInsight(bullets=bullets, urgency_score=0.3),
         )
     return [
@@ -255,37 +263,44 @@ class TestBuildCrossTopicPrompt:
     appear when provided, and each one's topic list is included.
     """
 
-    def test_contains_topic_titles(self, topic_results):
+    def test_contains_topic_titles(self, topic_results: list[TopicResult]) -> None:
         prompt = build_cross_topic_prompt(topic_results)
         assert "Artificial Intelligence" in prompt
         assert "Defense" in prompt
 
-    def test_contains_bullets(self, topic_results):
+    def test_contains_bullets(self, topic_results: list[TopicResult]) -> None:
         prompt = build_cross_topic_prompt(topic_results)
         assert "AI bullet one." in prompt
         assert "Defense bullet one." in prompt
 
-    def test_omits_topic_without_strategy(self):
+    def test_omits_topic_without_strategy(self) -> None:
         results = [
-            TopicResult(config=TopicConfig(slug="feeds_ai", title="AI", feeds_file="/dev/null"), strategy=None),
+            TopicResult(
+                config=TopicConfig(slug="feeds_ai", title="AI", feeds_file=Path("/dev/null")),
+                strategy=None,
+            ),
         ]
         prompt = build_cross_topic_prompt(results)
         # No bullets to render, but must not crash and should reflect 0 domains.
         assert "0" in prompt
 
-    def test_no_bridge_tags_by_default(self, topic_results):
+    def test_no_bridge_tags_by_default(self, topic_results: list[TopicResult]) -> None:
         prompt = build_cross_topic_prompt(topic_results)
         assert "bridge tag" not in prompt.lower() and "Structural signal" not in prompt
 
-    def test_bridge_tags_included_when_provided(self, topic_results):
-        bridge_tags = [{"tag": "export controls", "topics": ["Artificial Intelligence", "Defense", "Economics"], "count": 12}]
+    def test_bridge_tags_included_when_provided(self, topic_results: list[TopicResult]) -> None:
+        bridge_tags = [{
+            "tag": "export controls",
+            "topics": ["Artificial Intelligence", "Defense", "Economics"],
+            "count": 12,
+        }]
         prompt = build_cross_topic_prompt(topic_results, bridge_tags)
         assert "export controls" in prompt
         assert "Artificial Intelligence" in prompt
         assert "Defense" in prompt
         assert "Economics" in prompt
 
-    def test_empty_bridge_tags_list_omits_section(self, topic_results):
+    def test_empty_bridge_tags_list_omits_section(self, topic_results: list[TopicResult]) -> None:
         """An empty list (no qualifying bridge tags) should behave like None."""
         prompt = build_cross_topic_prompt(topic_results, [])
         assert "Structural signal" not in prompt

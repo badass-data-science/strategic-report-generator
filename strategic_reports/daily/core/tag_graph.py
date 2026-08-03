@@ -21,13 +21,14 @@ import json
 from collections import defaultdict
 from itertools import combinations
 from pathlib import Path
+from typing import Any
 
 import networkx as nx
 
 from .models import ArticleSummary, TopicResult
 
 
-def build_graph_data(results: list[TopicResult]) -> dict:
+def build_graph_data(results: list[TopicResult]) -> dict[str, Any]:
     """
     Build the full node/edge graph from tag co-occurrence across all articles.
 
@@ -60,7 +61,9 @@ def build_graph_data(results: list[TopicResult]) -> dict:
     return {"nodes": nodes, "links": links}
 
 
-def find_bridge_tags(graph_data: dict, min_topics: int = 3, limit: int = 8) -> list[dict]:
+def find_bridge_tags(
+    graph_data: dict[str, Any], min_topics: int = 3, limit: int = 8
+) -> list[dict[str, Any]]:
     """
     Return tags that appear across many different topics — structural
     evidence of a cross-cutting theme, independent of any LLM inference.
@@ -80,10 +83,10 @@ def find_bridge_tags(graph_data: dict, min_topics: int = 3, limit: int = 8) -> l
 
 
 def build_display_graph(
-    full_data: dict,
+    full_data: dict[str, Any],
     min_count: int = 3,
     min_weight: int = 2,
-) -> dict:
+) -> dict[str, Any]:
     """
     Prune the full graph and annotate nodes with Louvain community IDs.
 
@@ -97,15 +100,15 @@ def build_display_graph(
     node_meta = {n["id"]: n for n in full_data["nodes"]}
 
     kept_links = [
-        l for l in full_data["links"]
-        if l["weight"] >= min_weight
-        and node_meta.get(l["source"], {}).get("count", 0) >= min_count
-        and node_meta.get(l["target"], {}).get("count", 0) >= min_count
+        link for link in full_data["links"]
+        if link["weight"] >= min_weight
+        and node_meta.get(link["source"], {}).get("count", 0) >= min_count
+        and node_meta.get(link["target"], {}).get("count", 0) >= min_count
     ]
 
-    G = nx.Graph()
-    for l in kept_links:
-        G.add_edge(l["source"], l["target"], weight=l["weight"])
+    G: nx.Graph[str] = nx.Graph()
+    for link in kept_links:
+        G.add_edge(link["source"], link["target"], weight=link["weight"])
 
     # Louvain communities, sorted largest-first so community 0 is the biggest.
     raw_communities = nx.community.louvain_communities(G, seed=42)
@@ -147,8 +150,8 @@ def build_display_graph(
 
 def group_articles_by_community(
     results: list[TopicResult],
-    display_data: dict,
-) -> dict[int, dict]:
+    display_data: dict[str, Any],
+) -> dict[int, dict[str, Any]]:
     """
     Group this run's articles by Louvain community (display_data's
     node "community" assignment, from build_display_graph), as the
@@ -167,7 +170,9 @@ def group_articles_by_community(
     membership itself comes from articles' tags) are simply absent.
     """
     tag_to_community: dict[str, int] = {n["id"]: n["community"] for n in display_data["nodes"]}
-    community_label: dict[int, str] = {n["community"]: n["community_label"] for n in display_data["nodes"]}
+    community_label: dict[int, str] = {
+        n["community"]: n["community_label"] for n in display_data["nodes"]
+    }
     community_tags: dict[int, set[str]] = defaultdict(set)
     for n in display_data["nodes"]:
         community_tags[n["community"]].add(n["id"])
@@ -176,7 +181,9 @@ def group_articles_by_community(
     seen_links: dict[int, set[str]] = defaultdict(set)
     for result in results:
         for article in result.articles:
-            article_communities = {tag_to_community[t] for t in article.tags if t in tag_to_community}
+            article_communities = {
+                tag_to_community[t] for t in article.tags if t in tag_to_community
+            }
             for comm_id in article_communities:
                 if article.link not in seen_links[comm_id]:
                     seen_links[comm_id].add(article.link)
@@ -205,7 +212,8 @@ _HTML = """\
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f8f9fa; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; \
+background: #f8f9fa; }
 
     #header { padding: 16px 24px; background: #fff; border-bottom: 1px solid #e0e0e0; }
     #header h1 { font-size: 18px; font-weight: 600; color: #1a1a1a; }
@@ -360,7 +368,8 @@ function render() {
       .attr("class", "node")
       .call(
         d3.drag()
-          .on("start", (e, d) => { if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+          .on("start", (e, d) => { if (!e.active) sim.alphaTarget(0.3).restart(); \
+d.fx = d.x; d.fy = d.y; })
           .on("drag",  (e, d) => { d.fx = e.x; d.fy = e.y; })
           .on("end",   (e, d) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; })
       )

@@ -14,8 +14,9 @@ Covers:
     summaries and their member tags
 """
 
-import pytest
+from pathlib import Path
 
+import pytest
 from strategic_reports.daily.core.db import connect, record_run
 from strategic_reports.daily.core.models import ArticleSummary, TopicConfig, TopicResult
 from strategic_reports.daily.core.tag_graph import build_graph_data
@@ -23,10 +24,10 @@ from strategic_reports.daily.core.tag_tracking import (
     EmergingTagAlert,
     check_emerging_tags,
     load_tag_rate_history,
+    rebuild_graph_data,
     record_bridge_tags,
     record_community_summaries,
     record_emerging_tag_alerts,
-    rebuild_graph_data,
     record_tags,
 )
 
@@ -41,8 +42,10 @@ def _make_article(title: str, tags: list[str]) -> ArticleSummary:
     )
 
 
-def _make_results(articles: list[ArticleSummary], topic_title: str = "Artificial Intelligence") -> list[TopicResult]:
-    config = TopicConfig(slug="feeds_ai", title=topic_title, feeds_file="/dev/null")
+def _make_results(
+    articles: list[ArticleSummary], topic_title: str = "Artificial Intelligence"
+) -> list[TopicResult]:
+    config = TopicConfig(slug="feeds_ai", title=topic_title, feeds_file=Path("/dev/null"))
     return [TopicResult(config=config, articles=articles)]
 
 
@@ -51,7 +54,7 @@ _FIVE_TAGS = ["ai", "tech", "models", "research", "benchmarks"]
 
 
 class TestRecordAndRebuildGraphData:
-    def test_rebuild_matches_build_graph_data(self, db_path):
+    def test_rebuild_matches_build_graph_data(self, db_path: Path) -> None:
         results = _make_results([
             _make_article("A1", _FIVE_TAGS),
             _make_article("A2", ["ai", "tech", "policy", "regulation", "governance"]),
@@ -75,33 +78,39 @@ class TestRecordAndRebuildGraphData:
             assert rebuilt_by_id[n["id"]]["count"] == n["count"]
 
         assert sorted(
-            (l["source"], l["target"], l["weight"]) for l in rebuilt["links"]
+            (link["source"], link["target"], link["weight"]) for link in rebuilt["links"]
         ) == sorted(
-            (l["source"], l["target"], l["weight"]) for l in graph_data["links"]
+            (link["source"], link["target"], link["weight"]) for link in graph_data["links"]
         )
 
-    def test_rebuild_empty_for_unknown_run_id(self, db_path):
+    def test_rebuild_empty_for_unknown_run_id(self, db_path: Path) -> None:
         assert rebuild_graph_data(db_path, "nonexistent-run") == {"nodes": [], "links": []}
 
 
 class TestLoadTagRateHistory:
-    def test_empty_when_no_prior_runs(self, db_path):
+    def test_empty_when_no_prior_runs(self, db_path: Path) -> None:
         assert load_tag_rate_history(db_path) == {}
 
-    def test_rate_normalizes_by_article_count(self, db_path):
+    def test_rate_normalizes_by_article_count(self, db_path: Path) -> None:
         # Same raw count (10), but different article_count per run — rates differ.
         record_run(db_path, "run-0", article_count=50)
-        record_tags(db_path, "run-0", {"nodes": [{"id": "ai", "count": 10, "topics": ["AI"]}], "links": []})
+        record_tags(
+            db_path, "run-0", {"nodes": [{"id": "ai", "count": 10, "topics": ["AI"]}], "links": []}
+        )
 
         record_run(db_path, "run-1", article_count=100)
-        record_tags(db_path, "run-1", {"nodes": [{"id": "ai", "count": 10, "topics": ["AI"]}], "links": []})
+        record_tags(
+            db_path, "run-1", {"nodes": [{"id": "ai", "count": 10, "topics": ["AI"]}], "links": []}
+        )
 
         history = load_tag_rate_history(db_path)
         assert history["ai"] == pytest.approx([10 / 50, 10 / 100])
 
-    def test_zero_article_count_gives_zero_rate(self, db_path):
+    def test_zero_article_count_gives_zero_rate(self, db_path: Path) -> None:
         record_run(db_path, "run-0", article_count=0)
-        record_tags(db_path, "run-0", {"nodes": [{"id": "ai", "count": 0, "topics": ["AI"]}], "links": []})
+        record_tags(
+            db_path, "run-0", {"nodes": [{"id": "ai", "count": 0, "topics": ["AI"]}], "links": []}
+        )
         history = load_tag_rate_history(db_path)
         assert history["ai"] == [0.0]
 
@@ -109,34 +118,41 @@ class TestLoadTagRateHistory:
 class TestCheckEmergingTags:
     _STABLE_RATES_RUN_ARTICLE_COUNT = 100
 
-    def _seed_history(self, db_path, tag: str, rates: list[float]) -> None:
+    def _seed_history(self, db_path: Path, tag: str, rates: list[float]) -> None:
         """Seed db_path with one run per rate, using article_count=100 so rate == count/100."""
         for i, rate in enumerate(rates):
             run_id = f"hist-{i}"
             count = round(rate * self._STABLE_RATES_RUN_ARTICLE_COUNT)
             record_run(db_path, run_id, article_count=self._STABLE_RATES_RUN_ARTICLE_COUNT)
-            record_tags(db_path, run_id, {"nodes": [{"id": tag, "count": count, "topics": ["AI"]}], "links": []})
+            record_tags(
+                db_path, run_id,
+                {"nodes": [{"id": tag, "count": count, "topics": ["AI"]}], "links": []},
+            )
 
-    def test_thin_history_never_alerts(self, db_path):
-        """Fewer than 7 historical runs — skipped regardless of how anomalous the current rate looks."""
+    def test_thin_history_never_alerts(self, db_path: Path) -> None:
+        """Fewer than 7 historical runs — skipped regardless of how anomalous the current
+        rate looks."""
         self._seed_history(db_path, "ai", [0.10, 0.11, 0.09, 0.10, 0.11, 0.10])  # 6 runs
         history = load_tag_rate_history(db_path)
         current = {"nodes": [{"id": "ai", "count": 90, "topics": ["AI"]}], "links": []}  # rate 0.9
         alerts = check_emerging_tags(current, current_article_count=100, history=history)
         assert alerts == []
 
-    def test_brand_new_tag_never_alerts(self, db_path):
+    def test_brand_new_tag_never_alerts(self, db_path: Path) -> None:
         """A tag with zero history is skipped, not flagged, no matter its current rate."""
         history = load_tag_rate_history(db_path)  # empty db
         current = {"nodes": [{"id": "brand-new", "count": 50, "topics": ["AI"]}], "links": []}
         alerts = check_emerging_tags(current, current_article_count=100, history=history)
         assert alerts == []
 
-    def test_statistical_alert_fires(self, db_path):
+    def test_statistical_alert_fires(self, db_path: Path) -> None:
         self._seed_history(db_path, "ai", [0.10, 0.11, 0.09, 0.105, 0.095, 0.10, 0.11])  # 7 runs
         history = load_tag_rate_history(db_path)
-        current = {"nodes": [{"id": "ai", "count": 60, "topics": ["AI"]}], "links": []}  # rate 0.6, far above ~0.10 mean
-        alerts = check_emerging_tags(current, current_article_count=100, history=history, z_score_threshold=2.0)
+        # rate 0.6, far above ~0.10 mean
+        current = {"nodes": [{"id": "ai", "count": 60, "topics": ["AI"]}], "links": []}
+        alerts = check_emerging_tags(
+            current, current_article_count=100, history=history, z_score_threshold=2.0
+        )
         assert len(alerts) == 1
         a = alerts[0]
         assert a.tag == "ai"
@@ -144,29 +160,34 @@ class TestCheckEmergingTags:
         assert a.rate == pytest.approx(0.6)
         assert a.z_score > 2.0
 
-    def test_no_alert_within_band(self, db_path):
+    def test_no_alert_within_band(self, db_path: Path) -> None:
         self._seed_history(db_path, "ai", [0.10, 0.11, 0.09, 0.105, 0.095, 0.10, 0.11])
         history = load_tag_rate_history(db_path)
-        current = {"nodes": [{"id": "ai", "count": 10, "topics": ["AI"]}], "links": []}  # rate 0.10, at the mean
-        alerts = check_emerging_tags(current, current_article_count=100, history=history, z_score_threshold=2.0)
+        # rate 0.10, at the mean
+        current = {"nodes": [{"id": "ai", "count": 10, "topics": ["AI"]}], "links": []}
+        alerts = check_emerging_tags(
+            current, current_article_count=100, history=history, z_score_threshold=2.0
+        )
         assert alerts == []
 
-    def test_std_zero_never_alerts(self, db_path):
+    def test_std_zero_never_alerts(self, db_path: Path) -> None:
         """All historical rates identical (std=0) — no absolute fallback for tags, so no alert."""
         self._seed_history(db_path, "ai", [0.10] * 7)
         history = load_tag_rate_history(db_path)
         current = {"nodes": [{"id": "ai", "count": 90, "topics": ["AI"]}], "links": []}
-        alerts = check_emerging_tags(current, current_article_count=100, history=history, z_score_threshold=2.0)
+        alerts = check_emerging_tags(
+            current, current_article_count=100, history=history, z_score_threshold=2.0
+        )
         assert alerts == []
 
-    def test_zero_current_article_count_returns_empty(self, db_path):
+    def test_zero_current_article_count_returns_empty(self, db_path: Path) -> None:
         self._seed_history(db_path, "ai", [0.10] * 7)
         history = load_tag_rate_history(db_path)
         current = {"nodes": [{"id": "ai", "count": 0, "topics": ["AI"]}], "links": []}
         alerts = check_emerging_tags(current, current_article_count=0, history=history)
         assert alerts == []
 
-    def test_only_anomalous_tags_returned(self, db_path):
+    def test_only_anomalous_tags_returned(self, db_path: Path) -> None:
         """Multiple tags with history; only the one with an anomalous rate is flagged."""
         self._seed_history(db_path, "ai", [0.10, 0.11, 0.09, 0.105, 0.095, 0.10, 0.11])
         self._seed_history(db_path, "biotech", [0.05, 0.06, 0.04, 0.05, 0.055, 0.05, 0.06])
@@ -178,12 +199,14 @@ class TestCheckEmergingTags:
             ],
             "links": [],
         }
-        alerts = check_emerging_tags(current, current_article_count=100, history=history, z_score_threshold=2.0)
+        alerts = check_emerging_tags(
+            current, current_article_count=100, history=history, z_score_threshold=2.0
+        )
         assert {a.tag for a in alerts} == {"ai"}
 
 
 class TestEmergingTagAlertSummary:
-    def test_summary_format(self):
+    def test_summary_format(self) -> None:
         a = EmergingTagAlert(tag="ai", count=60, rate=0.6, mean=0.1, std=0.01, z_score=50.0)
         s = a.summary()
         assert "ai" in s
@@ -193,7 +216,7 @@ class TestEmergingTagAlertSummary:
 
 
 class TestRecordEmergingTagAlerts:
-    def test_noop_on_empty_alerts(self, db_path):
+    def test_noop_on_empty_alerts(self, db_path: Path) -> None:
         record_run(db_path, "run-0", article_count=100)
         record_emerging_tag_alerts(db_path, "run-0", [])
         conn = connect(db_path)
@@ -201,19 +224,20 @@ class TestRecordEmergingTagAlerts:
         conn.close()
         assert count == 0
 
-    def test_persists_fired_alerts(self, db_path):
+    def test_persists_fired_alerts(self, db_path: Path) -> None:
         record_run(db_path, "run-0", article_count=100)
         alert = EmergingTagAlert(tag="ai", count=60, rate=0.6, mean=0.1, std=0.05, z_score=10.0)
         record_emerging_tag_alerts(db_path, "run-0", [alert])
 
         conn = connect(db_path)
         row = conn.execute(
-            "SELECT run_id, tag, count, rate, mean, std, z_score FROM emerging_tag_alerts WHERE tag = 'ai'"
+            "SELECT run_id, tag, count, rate, mean, std, z_score "
+            "FROM emerging_tag_alerts WHERE tag = 'ai'"
         ).fetchone()
         conn.close()
         assert row == ("run-0", "ai", 60, 0.6, 0.1, 0.05, 10.0)
 
-    def test_persists_own_timestamp(self, db_path):
+    def test_persists_own_timestamp(self, db_path: Path) -> None:
         record_run(db_path, "run-0", article_count=100)
         alert = EmergingTagAlert(tag="ai", count=60, rate=0.6, mean=0.1, std=0.05, z_score=10.0)
         record_emerging_tag_alerts(db_path, "run-0", [alert])
@@ -225,7 +249,7 @@ class TestRecordEmergingTagAlerts:
         conn.close()
         assert created_at  # non-empty timestamp string
 
-    def test_multiple_alerts_same_run(self, db_path):
+    def test_multiple_alerts_same_run(self, db_path: Path) -> None:
         record_run(db_path, "run-0", article_count=100)
         alerts = [
             EmergingTagAlert(tag="ai", count=60, rate=0.6, mean=0.1, std=0.05, z_score=10.0),
@@ -240,7 +264,7 @@ class TestRecordEmergingTagAlerts:
 
 
 class TestRecordBridgeTags:
-    def test_noop_on_empty_bridge_tags(self, db_path):
+    def test_noop_on_empty_bridge_tags(self, db_path: Path) -> None:
         record_run(db_path, "run-0", article_count=100)
         record_bridge_tags(db_path, "run-0", [])
         conn = connect(db_path)
@@ -251,7 +275,7 @@ class TestRecordBridgeTags:
         conn.close()
         assert counts == (0, 0)
 
-    def test_persists_tag_count_and_rank(self, db_path):
+    def test_persists_tag_count_and_rank(self, db_path: Path) -> None:
         record_run(db_path, "run-0", article_count=100)
         bridge_tags = [
             {"tag": "export controls", "topics": ["AI", "Defense", "Economics"], "count": 12},
@@ -266,9 +290,11 @@ class TestRecordBridgeTags:
         conn.close()
         assert rows == [("export controls", 12, 1), ("sanctions", 8, 2)]
 
-    def test_persists_topics_per_tag(self, db_path):
+    def test_persists_topics_per_tag(self, db_path: Path) -> None:
         record_run(db_path, "run-0", article_count=100)
-        bridge_tags = [{"tag": "export controls", "topics": ["AI", "Defense", "Economics"], "count": 12}]
+        bridge_tags = [
+            {"tag": "export controls", "topics": ["AI", "Defense", "Economics"], "count": 12}
+        ]
         record_bridge_tags(db_path, "run-0", bridge_tags)
 
         conn = connect(db_path)
@@ -281,7 +307,7 @@ class TestRecordBridgeTags:
         conn.close()
         assert topics == {"AI", "Defense", "Economics"}
 
-    def test_persists_own_timestamp(self, db_path):
+    def test_persists_own_timestamp(self, db_path: Path) -> None:
         record_run(db_path, "run-0", article_count=100)
         bridge_tags = [{"tag": "export controls", "topics": ["AI"], "count": 1}]
         record_bridge_tags(db_path, "run-0", bridge_tags)
@@ -293,7 +319,7 @@ class TestRecordBridgeTags:
         conn.close()
         assert created_at  # non-empty timestamp string
 
-    def test_self_contained_no_dependency_on_tag_topics(self, db_path):
+    def test_self_contained_no_dependency_on_tag_topics(self, db_path: Path) -> None:
         """
         record_bridge_tags must work even when tag_topics has no rows for
         this run_id yet — the two entry points call this at different
@@ -315,7 +341,7 @@ class TestRecordBridgeTags:
 
 
 class TestRecordCommunitySummaries:
-    def test_noop_on_empty_dict(self, db_path):
+    def test_noop_on_empty_dict(self, db_path: Path) -> None:
         record_run(db_path, "run-0", article_count=100)
         record_community_summaries(db_path, "run-0", {})
         conn = connect(db_path)
@@ -326,7 +352,7 @@ class TestRecordCommunitySummaries:
         conn.close()
         assert counts == (0, 0)
 
-    def test_persists_label_summary_and_article_count(self, db_path):
+    def test_persists_label_summary_and_article_count(self, db_path: Path) -> None:
         record_run(db_path, "run-0", article_count=100)
         community_summaries = {
             0: {
@@ -345,10 +371,13 @@ class TestRecordCommunitySummaries:
         conn.close()
         assert row == (0, "policy", "Coverage of new export-control policy.", 4)
 
-    def test_persists_member_tags(self, db_path):
+    def test_persists_member_tags(self, db_path: Path) -> None:
         record_run(db_path, "run-0", article_count=100)
         community_summaries = {
-            0: {"label": "policy", "tags": ["policy", "regulation"], "summary": "x", "article_count": 1},
+            0: {
+                "label": "policy", "tags": ["policy", "regulation"],
+                "summary": "x", "article_count": 1,
+            },
         }
         record_community_summaries(db_path, "run-0", community_summaries)
 
@@ -361,7 +390,7 @@ class TestRecordCommunitySummaries:
         conn.close()
         assert tags == {"policy", "regulation"}
 
-    def test_persists_own_timestamp(self, db_path):
+    def test_persists_own_timestamp(self, db_path: Path) -> None:
         record_run(db_path, "run-0", article_count=100)
         community_summaries = {
             0: {"label": "policy", "tags": ["policy"], "summary": "x", "article_count": 1},
@@ -372,7 +401,7 @@ class TestRecordCommunitySummaries:
         conn.close()
         assert created_at
 
-    def test_multiple_communities_same_run(self, db_path):
+    def test_multiple_communities_same_run(self, db_path: Path) -> None:
         record_run(db_path, "run-0", article_count=100)
         community_summaries = {
             0: {"label": "policy", "tags": ["policy"], "summary": "x", "article_count": 1},
@@ -380,6 +409,8 @@ class TestRecordCommunitySummaries:
         }
         record_community_summaries(db_path, "run-0", community_summaries)
         conn = connect(db_path)
-        labels = {row[0] for row in conn.execute("SELECT label FROM community_summaries").fetchall()}
+        labels = {
+            row[0] for row in conn.execute("SELECT label FROM community_summaries").fetchall()
+        }
         conn.close()
         assert labels == {"policy", "biotech"}

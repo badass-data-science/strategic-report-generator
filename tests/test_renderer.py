@@ -52,7 +52,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from strategic_reports.daily.core.models import (
     ArticleSummary,
     StrategicInsight,
@@ -64,7 +63,11 @@ from strategic_reports.daily.core.renderer import render_report
 
 
 @pytest.fixture
-def successful_result(sample_topic_config, sample_article_summary, sample_strategy):
+def successful_result(
+    sample_topic_config: TopicConfig,
+    sample_article_summary: ArticleSummary,
+    sample_strategy: StrategicInsight,
+) -> TopicResult:
     """A TopicResult with articles and a completed strategy — the 'success' state."""
     return TopicResult(
         config=sample_topic_config,
@@ -75,14 +78,14 @@ def successful_result(sample_topic_config, sample_article_summary, sample_strate
 
 
 @pytest.fixture
-def error_result(tmp_path):
+def error_result(tmp_path: Path) -> TopicResult:
     """A TopicResult where ingestion failed — the 'error' state."""
     cfg = TopicConfig(slug="feeds_biotech", title="Biotechnology", feeds_file=tmp_path / "x.json")
     return TopicResult(config=cfg, error="Feed file not found")
 
 
 @pytest.fixture
-def empty_result(tmp_path):
+def empty_result(tmp_path: Path) -> TopicResult:
     """A TopicResult where no recent articles were found — the 'empty' state."""
     cfg = TopicConfig(slug="feeds_defense", title="Defense", feeds_file=tmp_path / "y.json")
     return TopicResult(config=cfg)
@@ -91,26 +94,29 @@ def empty_result(tmp_path):
 class TestIndexPage:
     """Tests for index.html — the main strategic report page."""
 
-    def test_index_html_created(self, tmp_path, successful_result):
+    def test_index_html_created(self, tmp_path: Path, successful_result: TopicResult) -> None:
         """index.html must always be created, regardless of topic states."""
         render_report([successful_result], output_dir=tmp_path)
         assert (tmp_path / "index.html").exists()
 
-    def test_contains_topic_title(self, tmp_path, successful_result):
+    def test_contains_topic_title(self, tmp_path: Path, successful_result: TopicResult) -> None:
         """The topic title must appear so the reader can identify each section."""
         render_report([successful_result], output_dir=tmp_path)
         html = (tmp_path / "index.html").read_text()
         assert "Artificial Intelligence" in html
 
-    def test_contains_strategy_bullets(self, tmp_path, successful_result):
+    def test_contains_strategy_bullets(
+        self, tmp_path: Path, successful_result: TopicResult
+    ) -> None:
         """All strategy bullet points must appear in the index page."""
         render_report([successful_result], output_dir=tmp_path)
         html = (tmp_path / "index.html").read_text()
         # Verify every bullet from the strategy fixture appears in the HTML.
+        assert successful_result.strategy is not None  # guaranteed by the fixture
         for bullet in successful_result.strategy.bullets:
             assert bullet in html
 
-    def test_contains_source_link(self, tmp_path, successful_result):
+    def test_contains_source_link(self, tmp_path: Path, successful_result: TopicResult) -> None:
         """
         The index page should link to the per-topic summaries page.
         slug "feeds_ai" → file "ai_summaries.html" (removeprefix("feeds_")).
@@ -119,27 +125,33 @@ class TestIndexPage:
         html = (tmp_path / "index.html").read_text()
         assert "ai_summaries.html" in html
 
-    def test_error_state_shown(self, tmp_path, error_result):
+    def test_error_state_shown(self, tmp_path: Path, error_result: TopicResult) -> None:
         """Error topics must show the error message (not crash silently)."""
         render_report([error_result], output_dir=tmp_path)
         html = (tmp_path / "index.html").read_text()
         assert "Feed file not found" in html
         assert "Biotechnology" in html
 
-    def test_empty_state_shown(self, tmp_path, empty_result):
+    def test_empty_state_shown(self, tmp_path: Path, empty_result: TopicResult) -> None:
         """Empty topics must show a 'no articles' message (not crash silently)."""
         render_report([empty_result], output_dir=tmp_path)
         html = (tmp_path / "index.html").read_text()
         assert "Defense" in html
         assert "No articles found" in html
 
-    def test_token_count_in_footer(self, tmp_path, successful_result):
+    def test_token_count_in_footer(self, tmp_path: Path, successful_result: TopicResult) -> None:
         """Token usage (1200) should appear somewhere on the index page."""
         render_report([successful_result], output_dir=tmp_path)
         html = (tmp_path / "index.html").read_text()
         assert "1200" in html
 
-    def test_all_three_states_together(self, tmp_path, successful_result, error_result, empty_result):
+    def test_all_three_states_together(
+        self,
+        tmp_path: Path,
+        successful_result: TopicResult,
+        error_result: TopicResult,
+        empty_result: TopicResult,
+    ) -> None:
         """
         Renderer must handle a mixed list of result states in one call.
         All three topic titles should appear in the single index.html file.
@@ -150,7 +162,7 @@ class TestIndexPage:
         assert "Biotechnology" in html
         assert "Defense" in html
 
-    def test_xss_escaping_in_title(self, tmp_path, sample_topic_config):
+    def test_xss_escaping_in_title(self, tmp_path: Path, sample_topic_config: TopicConfig) -> None:
         """
         SECURITY TEST: article titles from RSS feeds must be HTML-escaped.
 
@@ -176,7 +188,9 @@ class TestIndexPage:
         result = TopicResult(
             config=sample_topic_config,
             articles=[malicious],
-            strategy=StrategicInsight(bullets=["Insight 1.", "Insight 2.", "Insight 3."], urgency_score=0.4),
+            strategy=StrategicInsight(
+                bullets=["Insight 1.", "Insight 2.", "Insight 3."], urgency_score=0.4
+            ),
         )
         render_report([result], output_dir=tmp_path)
         topic_html = (tmp_path / "ai_summaries.html").read_text()
@@ -185,7 +199,7 @@ class TestIndexPage:
         # The escaped version MUST appear (that's what Jinja2 should produce).
         assert "&lt;script&gt;" in topic_html
 
-    def test_output_dir_created_if_missing(self, tmp_path):
+    def test_output_dir_created_if_missing(self, tmp_path: Path) -> None:
         """
         render_report should create the output directory if it doesn't exist.
         mkdir(parents=True, exist_ok=True) handles nested missing directories.
@@ -202,12 +216,14 @@ class TestIndexPage:
 class TestTopicSummaryPage:
     """Tests for {topic}_summaries.html pages — per-topic article detail pages."""
 
-    def test_summaries_file_created(self, tmp_path, successful_result):
+    def test_summaries_file_created(self, tmp_path: Path, successful_result: TopicResult) -> None:
         """feeds_ai slug → ai_summaries.html (after removeprefix("feeds_"))."""
         render_report([successful_result], output_dir=tmp_path)
         assert (tmp_path / "ai_summaries.html").exists()
 
-    def test_no_summaries_file_for_empty_topic(self, tmp_path, empty_result):
+    def test_no_summaries_file_for_empty_topic(
+        self, tmp_path: Path, empty_result: TopicResult
+    ) -> None:
         """
         Topics with no articles should NOT produce a summaries file.
         There's nothing to link to, so the file shouldn't exist.
@@ -215,36 +231,38 @@ class TestTopicSummaryPage:
         render_report([empty_result], output_dir=tmp_path)
         assert not (tmp_path / "defense_summaries.html").exists()
 
-    def test_no_summaries_file_for_error_topic(self, tmp_path, error_result):
+    def test_no_summaries_file_for_error_topic(
+        self, tmp_path: Path, error_result: TopicResult
+    ) -> None:
         """Topics with errors also don't get a summaries file."""
         render_report([error_result], output_dir=tmp_path)
         assert not (tmp_path / "biotech_summaries.html").exists()
 
-    def test_contains_article_title(self, tmp_path, successful_result):
+    def test_contains_article_title(self, tmp_path: Path, successful_result: TopicResult) -> None:
         """The article title from the fixture must appear in the summaries page."""
         render_report([successful_result], output_dir=tmp_path)
         html = (tmp_path / "ai_summaries.html").read_text()
         assert "LLMs Keep Improving" in html
 
-    def test_contains_article_link(self, tmp_path, successful_result):
+    def test_contains_article_link(self, tmp_path: Path, successful_result: TopicResult) -> None:
         """The article URL must appear as a link in the summaries page."""
         render_report([successful_result], output_dir=tmp_path)
         html = (tmp_path / "ai_summaries.html").read_text()
         assert "example.com/llms" in html
 
-    def test_contains_sorted_tags(self, tmp_path, successful_result):
+    def test_contains_sorted_tags(self, tmp_path: Path, successful_result: TopicResult) -> None:
         """At least one tag from the fixture should appear in the summaries page."""
         render_report([successful_result], output_dir=tmp_path)
         html = (tmp_path / "ai_summaries.html").read_text()
         assert "artificial intelligence" in html
 
-    def test_back_link_to_index(self, tmp_path, successful_result):
+    def test_back_link_to_index(self, tmp_path: Path, successful_result: TopicResult) -> None:
         """The summaries page should have a link back to index.html for navigation."""
         render_report([successful_result], output_dir=tmp_path)
         html = (tmp_path / "ai_summaries.html").read_text()
         assert "index.html" in html
 
-    def test_jsonld_article_markup(self, tmp_path, successful_result):
+    def test_jsonld_article_markup(self, tmp_path: Path, successful_result: TopicResult) -> None:
         """
         SECURITY/STRUCTURED-DATA TEST: each article gets a schema:Article
         JSON-LD entry with the same headline/url/datePublished fields
@@ -253,7 +271,8 @@ class TestTopicSummaryPage:
         render_report([successful_result], output_dir=tmp_path)
         html = (tmp_path / "ai_summaries.html").read_text()
 
-        start = html.index('<script type="application/ld+json">') + len('<script type="application/ld+json">')
+        marker = '<script type="application/ld+json">'
+        start = html.index(marker) + len(marker)
         end = html.index("</script>", start)
         payload = json.loads(html[start:end])
 
@@ -264,7 +283,7 @@ class TestTopicSummaryPage:
         assert entry["url"] == "https://example.com/llms"
         assert entry["datePublished"] == "2026-06-27T09:00:00"
 
-    def test_jsonld_xss_escaping(self, tmp_path, sample_topic_config):
+    def test_jsonld_xss_escaping(self, tmp_path: Path, sample_topic_config: TopicConfig) -> None:
         """
         A malicious article title containing "</script>" must not be able to
         break out of the JSON-LD <script> block — it should appear as an
@@ -280,7 +299,9 @@ class TestTopicSummaryPage:
         result = TopicResult(
             config=sample_topic_config,
             articles=[malicious],
-            strategy=StrategicInsight(bullets=["Insight 1.", "Insight 2.", "Insight 3."], urgency_score=0.4),
+            strategy=StrategicInsight(
+                bullets=["Insight 1.", "Insight 2.", "Insight 3."], urgency_score=0.4
+            ),
         )
         render_report([result], output_dir=tmp_path)
         html = (tmp_path / "ai_summaries.html").read_text()
@@ -288,7 +309,7 @@ class TestTopicSummaryPage:
         assert "<script>alert(1)</script>" not in html
         assert "\\u003cscript\\u003ealert(1)\\u003c/script\\u003e" in html
 
-    def test_slug_strip_prefix(self, tmp_path):
+    def test_slug_strip_prefix(self, tmp_path: Path) -> None:
         """
         Verify the slug → filename mapping works for multi-word slugs.
         feeds_data_science → data_science_summaries.html

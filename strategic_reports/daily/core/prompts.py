@@ -37,7 +37,14 @@ A plain f-string template would require string formatting at call time with
 no structure, making it hard to add per-article formatting logic later.
 """
 
-from .models import ArticleSummary, BulletDiff, RawArticle, TopicResult  # noqa: F401 (BulletDiff used by callers)
+from typing import Any
+
+from .models import (  # noqa: F401 (BulletDiff used by callers)
+    ArticleSummary,
+    BulletDiff,
+    RawArticle,
+    TopicResult,
+)
 
 # ---------------------------------------------------------------------------
 # System messages — define the LLM's role for each stage
@@ -51,7 +58,8 @@ For every article you receive, produce a concise 3-bullet summary and a set
 of descriptive tags. Tags must follow these rules exactly:
 - Lowercase (e.g. "artificial intelligence", not "AI" or "Artificial Intelligence")
 - Singular nouns (e.g. "strategy" not "strategies", "market" not "markets")
-- Spell out all words — no abbreviations or acronyms (e.g. "artificial intelligence" not "AI", "machine learning" not "ML")
+- Spell out all words — no abbreviations or acronyms (e.g. "artificial intelligence" not "AI", \
+"machine learning" not "ML")
 - Use spaces not hyphens for multi-word tags (e.g. "supply chain" not "supply-chain")
 - Use American spelling (e.g. "defense" not "defence", "color" not "colour")\
 """
@@ -66,9 +74,11 @@ Do not quote source material directly; abstract and generalize.\
 
 SYSTEM_DIFF = """\
 You compare two sets of strategic bullet points — yesterday's and today's — for the same topic area.
-Classify each of today's bullets as either new (not present yesterday) or continued (semantically similar to a bullet from yesterday, even if worded differently).
+Classify each of today's bullets as either new (not present yesterday) or continued \
+(semantically similar to a bullet from yesterday, even if worded differently).
 Also identify any bullets from yesterday that no longer appear in today's output.
-Be semantic, not literal: a bullet that makes the same strategic point with different wording counts as continued, not new.\
+Be semantic, not literal: a bullet that makes the same strategic point with different wording \
+counts as continued, not new.\
 """
 
 SYSTEM_CROSS_TOPIC = """\
@@ -145,7 +155,7 @@ def build_summarize_prompt(articles: list[RawArticle]) -> str:
 
 def build_cross_topic_prompt(
     results: list[TopicResult],
-    bridge_tags: list[dict] | None = None,
+    bridge_tags: list[dict[str, Any]] | None = None,
 ) -> str:
     """
     Format all per-topic strategic insights into the user message for cross-topic synthesis.
@@ -174,13 +184,16 @@ def build_cross_topic_prompt(
         parts.append("")
     for result in successful:
         parts.append(f"## {result.config.title}")
+        assert result.strategy is not None  # guaranteed by the `successful` filter above
         for bullet in result.strategy.bullets:
             parts.append(f"- {bullet}")
         parts.append("")
     return "\n".join(parts)
 
 
-def build_community_summary_prompt(label: str, tags: list[str], articles: list[ArticleSummary]) -> str:
+def build_community_summary_prompt(
+    label: str, tags: list[str], articles: list[ArticleSummary]
+) -> str:
     """
     Format one Louvain community's member tags and grounding articles into
     the user message for community-summary generation.
@@ -210,7 +223,7 @@ def build_query_tags_prompt(question: str) -> str:
     )
 
 
-def build_archive_answer_prompt(question: str, communities: list[dict]) -> str:
+def build_archive_answer_prompt(question: str, communities: list[dict[str, Any]]) -> str:
     """
     Format retrieved community summaries into the user message for
     archive-question answering.

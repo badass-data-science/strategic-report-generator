@@ -30,7 +30,6 @@ from pydantic import BaseModel, Field, field_validator
 
 from .tag_normalizer import normalize_tags
 
-
 # ---------------------------------------------------------------------------
 # Configuration models — describe inputs, not pipeline outputs
 # ---------------------------------------------------------------------------

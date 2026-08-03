@@ -3,6 +3,8 @@
 [![Tests](https://github.com/badass-data-science/strategic-report-generator/actions/workflows/tests.yml/badge.svg)](https://github.com/badass-data-science/strategic-report-generator/actions/workflows/tests.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](.github/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
 
 A daily briefing pipeline that reads recent news across 12 topic feeds — AI,
 biotech, economics, geopolitics, defense, and more — and synthesizes strategic
@@ -203,10 +205,10 @@ token counts, and cost visible at a glance.
 pip install -e .
 ```
 
-The `flow` extra adds Prefect (see [Scheduling with Prefect](#scheduling-with-prefect)); the `test` extra adds pytest:
+The `flow` extra adds Prefect (see [Scheduling with Prefect](#scheduling-with-prefect)); `test` adds pytest; `lint` adds ruff; `typecheck` adds mypy:
 
 ```bash
-pip install -e ".[flow,test]"
+pip install -e ".[flow,test,lint,typecheck]"
 ```
 
 Set your model and credentials:
@@ -595,12 +597,16 @@ python -m strategic_reports.daily.cli run \
 
 ```bash
 pytest
+ruff check .
+mypy
 ```
 
 204 tests across 15 files. No real API calls — the LLM client is fully mocked.
 Runs in under a second. A GitHub Actions workflow
-(`.github/workflows/tests.yml`) runs the same suite on every push and pull
-request to `main` — no LLM credentials needed there either.
+(`.github/workflows/tests.yml`) runs all three as separate jobs (`pytest`,
+`lint`, `typecheck`) on every push and pull request to `main` — no LLM
+credentials needed there either. `mypy` runs in `--strict` mode across both
+`strategic_reports/` and `tests/`.
 
 ```
 tests/test_models.py      Pydantic validation and TokenUsage arithmetic

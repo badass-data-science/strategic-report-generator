@@ -7,7 +7,8 @@ storage concerns of its own; see test_pipeline.py for the project's pattern
 for mocking LLMClient if that coverage gets added later.
 """
 
-import pytest
+
+from pathlib import Path
 
 from strategic_reports.daily.core.bullet_diff import append_bullet_run, load_bullet_history
 from strategic_reports.daily.core.db import record_run
@@ -15,7 +16,7 @@ from strategic_reports.daily.core.models import StrategicInsight, TopicConfig, T
 
 
 def _make_config(title: str) -> TopicConfig:
-    return TopicConfig(slug=f"feeds_{title.lower()}", title=title, feeds_file="/dev/null")
+    return TopicConfig(slug=f"feeds_{title.lower()}", title=title, feeds_file=Path("/dev/null"))
 
 
 def _make_result(title: str, bullets: list[str]) -> TopicResult:
@@ -26,30 +27,34 @@ def _make_result(title: str, bullets: list[str]) -> TopicResult:
 
 
 class TestLoadBulletHistory:
-    def test_empty_when_no_prior_runs(self, db_path):
+    def test_empty_when_no_prior_runs(self, db_path: Path) -> None:
         assert load_bullet_history(db_path) == {}
 
-    def test_returns_most_recent_run_only(self, db_path):
+    def test_returns_most_recent_run_only(self, db_path: Path) -> None:
         """
         Two prior runs exist; load_bullet_history must return only the most
         recent one's bullets ("yesterday"), not older runs.
         """
         record_run(db_path, "run-0", article_count=0)
-        append_bullet_run(db_path, [_make_result("AI", ["Old A.", "Old B.", "Old C."])], run_id="run-0")
+        append_bullet_run(
+            db_path, [_make_result("AI", ["Old A.", "Old B.", "Old C."])], run_id="run-0"
+        )
 
         record_run(db_path, "run-1", article_count=0)
-        append_bullet_run(db_path, [_make_result("AI", ["New A.", "New B.", "New C."])], run_id="run-1")
+        append_bullet_run(
+            db_path, [_make_result("AI", ["New A.", "New B.", "New C."])], run_id="run-1"
+        )
 
         yesterday = load_bullet_history(db_path)
         assert yesterday == {"AI": ["New A.", "New B.", "New C."]}
 
-    def test_preserves_bullet_order(self, db_path):
+    def test_preserves_bullet_order(self, db_path: Path) -> None:
         bullets = ["First.", "Second.", "Third.", "Fourth."]
         record_run(db_path, "run-0", article_count=0)
         append_bullet_run(db_path, [_make_result("AI", bullets)], run_id="run-0")
         assert load_bullet_history(db_path)["AI"] == bullets
 
-    def test_multi_topic_single_run(self, db_path):
+    def test_multi_topic_single_run(self, db_path: Path) -> None:
         record_run(db_path, "run-0", article_count=0)
         append_bullet_run(
             db_path,
@@ -65,7 +70,7 @@ class TestLoadBulletHistory:
             "Defense": ["D1.", "D2.", "D3."],
         }
 
-    def test_topic_absent_from_latest_run_missing_from_yesterday(self, db_path):
+    def test_topic_absent_from_latest_run_missing_from_yesterday(self, db_path: Path) -> None:
         """
         If a topic had bullets two runs ago but not in the most recent run,
         "yesterday" for that topic is absent — diff_all_topics skips topics
@@ -76,7 +81,10 @@ class TestLoadBulletHistory:
         record_run(db_path, "run-0", article_count=0)
         append_bullet_run(
             db_path,
-            [_make_result("AI", ["A1.", "A2.", "A3."]), _make_result("Defense", ["D1.", "D2.", "D3."])],
+            [
+                _make_result("AI", ["A1.", "A2.", "A3."]),
+                _make_result("Defense", ["D1.", "D2.", "D3."]),
+            ],
             run_id="run-0",
         )
         record_run(db_path, "run-1", article_count=0)
@@ -86,7 +94,7 @@ class TestLoadBulletHistory:
         assert "Defense" not in yesterday
         assert yesterday["AI"] == ["A1b.", "A2b.", "A3b."]
 
-    def test_topic_without_strategy_not_persisted(self, db_path):
+    def test_topic_without_strategy_not_persisted(self, db_path: Path) -> None:
         result = TopicResult(config=_make_config("AI"), strategy=None)
         record_run(db_path, "run-0", article_count=0)
         append_bullet_run(db_path, [result], run_id="run-0")

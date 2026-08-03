@@ -15,8 +15,9 @@ directly — load_articles() is available if a future retrieval mode wants
 to ground answers in raw article text rather than community summaries.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from .db import connect
 from .models import TopicResult
@@ -32,7 +33,7 @@ def record_articles(db_path: Path, run_id: str, results: list[TopicResult]) -> N
     tag_graph.build_graph_data). Assumes db.record_run(db_path, run_id, ...)
     has already been called this run, so the run_id foreign key exists.
     """
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     conn = connect(db_path)
     try:
         for result in results:
@@ -54,7 +55,8 @@ def record_articles(db_path: Path, run_id: str, results: list[TopicResult]) -> N
                     ],
                 )
                 conn.executemany(
-                    "INSERT INTO article_tags (article_id, run_id, created_at, tag) VALUES (?, ?, ?, ?)",
+                    "INSERT INTO article_tags (article_id, run_id, created_at, tag) "
+                    "VALUES (?, ?, ?, ?)",
                     [(article_id, run_id, now, tag) for tag in article.tags],
                 )
         conn.commit()
@@ -62,7 +64,7 @@ def record_articles(db_path: Path, run_id: str, results: list[TopicResult]) -> N
         conn.close()
 
 
-def load_articles(db_path: Path, run_id: str) -> list[dict]:
+def load_articles(db_path: Path, run_id: str) -> list[dict[str, Any]]:
     """
     Reconstruct this run's article summaries from the database: a list of
     dicts shaped like {"topic", "title", "link", "publish_date", "summary",

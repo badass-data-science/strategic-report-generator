@@ -27,9 +27,11 @@ under a small custom namespace, STRATREP.
 """
 
 import re
+import sqlite3
+from collections.abc import Sequence
 from pathlib import Path
 
-from rdflib import Graph, Literal, Namespace, RDF, RDFS, URIRef
+from rdflib import RDF, RDFS, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import PROV, SDO, SKOS
 
 from .db import connect
@@ -44,11 +46,11 @@ def _slug(text: str) -> str:
     return slug or "unknown"
 
 
-def _placeholders(items: list) -> str:
+def _placeholders(items: Sequence[object]) -> str:
     return ",".join("?" for _ in items)
 
 
-def _run_ids_since(conn, since: str | None) -> list[str] | None:
+def _run_ids_since(conn: sqlite3.Connection, since: str | None) -> list[str] | None:
     """
     Resolve --since (a run_id or an ISO timestamp) to the list of run_ids
     at or after that point. None means no filter (full rebuild).
@@ -135,7 +137,9 @@ def build_graph(db_path: Path, since: str | None = None) -> Graph:
                 article_ids,
             ).fetchall()
             for article_id, bullet_text in bullet_rows:
-                graph.add((BASE[f"article/{article_id}"], STRATREP.summaryBullet, Literal(bullet_text)))
+                graph.add(
+                    (BASE[f"article/{article_id}"], STRATREP.summaryBullet, Literal(bullet_text))
+                )
 
         # --- Per-topic strategic bullets + urgency scores -> a shared TopicRun node ---
         strategic_bullets = conn.execute(

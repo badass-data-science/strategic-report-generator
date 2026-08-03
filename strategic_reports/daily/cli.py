@@ -4,8 +4,10 @@ Daily strategic report pipeline — CLI entrypoint.
 Two commands (naming one explicitly is required now that there are two —
 typer's single-command auto-invoke shorthand only applies to a one-command app):
 
-    python -m strategic_reports.daily.cli run --output-dir /path/to/output --db-path /path/to/db
-    python -m strategic_reports.daily.cli ask "What's happening with export controls?" --db-path /path/to/db
+    python -m strategic_reports.daily.cli run --output-dir /path/to/output \
+        --db-path /path/to/db
+    python -m strategic_reports.daily.cli ask "What's happening with export controls?" \
+        --db-path /path/to/db
 
 `run` key options:
     --output-dir        Where to write HTML output (required)
@@ -42,6 +44,7 @@ import typer
 
 from strategic_reports.daily.config.topic_order import list_directories_and_titles
 from strategic_reports.daily.core import (
+    LLMClient,
     answer_archive_question,
     append_bullet_run,
     append_run,
@@ -55,7 +58,6 @@ from strategic_reports.daily.core import (
     load_bullet_history,
     load_history,
     load_tag_rate_history,
-    LLMClient,
     record_articles,
     record_bridge_tags,
     record_community_summaries,
@@ -68,10 +70,12 @@ from strategic_reports.daily.core import (
 )
 from strategic_reports.daily.core.db import (
     connect as connect_db,
+)
+from strategic_reports.daily.core.db import (
     ensure_safe_db_path,
     record_run,
 )
-from strategic_reports.daily.core.models import TopicConfig
+from strategic_reports.daily.core.models import BulletDiff, TopicConfig
 from strategic_reports.daily.core.pipeline import synthesize_cross_topic
 from strategic_reports.daily.core.rdf_export import export_rdf
 from strategic_reports.daily.core.renderer import render_report
@@ -127,7 +131,10 @@ def run(
     model: str = typer.Option(
         _DEFAULT_MODEL,
         envvar="LLM_MODEL",
-        help="litellm model string (e.g. 'ollama_chat/llama3.1:70b', 'anthropic/claude-sonnet-4-6')",
+        help=(
+            "litellm model string (e.g. 'ollama_chat/llama3.1:70b', "
+            "'anthropic/claude-sonnet-4-6')"
+        ),
     ),
     hours_cutoff: int = typer.Option(
         24,
@@ -281,7 +288,9 @@ def run(
     try:
         record_articles(db_path, run_id, results)
     except Exception as exc:
-        typer.echo(f"[warn] Article archiving failed: {exc} — continuing without archiving", err=True)
+        typer.echo(
+            f"[warn] Article archiving failed: {exc} — continuing without archiving", err=True
+        )
 
     # Emerging-tag check: compare today's tag rates (tag count / articles
     # considered) against each tag's own historical baseline, then persist
@@ -292,7 +301,9 @@ def run(
     try:
         graph_data = build_graph_data(results)
         tag_rate_history = load_tag_rate_history(db_path)
-        tag_alerts = check_emerging_tags(graph_data, article_count, tag_rate_history, tag_z_score_threshold)
+        tag_alerts = check_emerging_tags(
+            graph_data, article_count, tag_rate_history, tag_z_score_threshold
+        )
         record_tags(db_path, run_id, graph_data)
         record_emerging_tag_alerts(db_path, run_id, tag_alerts)
         record_bridge_tags(db_path, run_id, find_bridge_tags(graph_data))
@@ -303,7 +314,10 @@ def run(
         else:
             typer.echo("Emerging-tag check: no alerts")
     except Exception as exc:
-        typer.echo(f"[warn] Emerging-tag check failed: {exc} — continuing without tag tracking", err=True)
+        typer.echo(
+            f"[warn] Emerging-tag check failed: {exc} — continuing without tag tracking",
+            err=True,
+        )
 
     # Community summaries: an LLM-written paragraph per Louvain tag-community
     # (grounded in that community's articles), replacing "labeled by top
@@ -320,14 +334,19 @@ def run(
     )
     try:
         display_data = build_display_graph(graph_data)
-        community_summaries = asyncio.run(summarize_communities(results, display_data, community_client))
+        community_summaries = asyncio.run(
+            summarize_communities(results, display_data, community_client)
+        )
         record_community_summaries(db_path, run_id, community_summaries)
         typer.echo(
-            f"Community summaries: {len(community_summaries)} of {display_data['n_communities']} communities"
+            f"Community summaries: {len(community_summaries)} of "
+            f"{display_data['n_communities']} communities"
         )
     except Exception as exc:
         typer.echo(
-            f"[warn] Community summarization failed: {exc} — continuing without community summaries", err=True
+            f"[warn] Community summarization failed: {exc} — "
+            "continuing without community summaries",
+            err=True,
         )
 
     # Cross-topic synthesis: a separate LLMClient (distinct trace_name) so it's
@@ -348,9 +367,15 @@ def run(
         try:
             record_overview(db_path, run_id, overview.bullets)
         except Exception as exc:
-            typer.echo(f"[warn] Overview archiving failed: {exc} — continuing without archiving", err=True)
+            typer.echo(
+                f"[warn] Overview archiving failed: {exc} — continuing without archiving",
+                err=True,
+            )
     except Exception as exc:
-        typer.echo(f"[warn] Cross-topic synthesis failed: {exc} — report will render without overview", err=True)
+        typer.echo(
+            f"[warn] Cross-topic synthesis failed: {exc} — report will render without overview",
+            err=True,
+        )
         overview = None
 
     # Urgency check: compare today's scores against history, log any alerts,
@@ -373,7 +398,7 @@ def run(
     # Bullet diff: compare today's strategic bullets against yesterday's via an
     # LLM classification call, then append today's bullets for tomorrow's diff.
     # Skipped (no diff) on the very first run. Never blocks rendering on failure.
-    diffs: dict = {}
+    diffs: dict[str, BulletDiff] = {}
     try:
         yesterday = load_bullet_history(db_path)
         if not yesterday:
@@ -391,11 +416,15 @@ def run(
             diffs = asyncio.run(diff_all_topics(results, yesterday, diff_client))
             append_bullet_run(db_path, results, run_id)
     except Exception as exc:
-        typer.echo(f"[warn] Bullet diff failed: {exc} — report will render without diffs", err=True)
+        typer.echo(
+            f"[warn] Bullet diff failed: {exc} — report will render without diffs", err=True
+        )
         diffs = {}
 
     # render_report() is synchronous (Jinja2 rendering is fast, no I/O bottleneck).
-    render_report(results, output_dir=output_dir, hours_cutoff=hours_cutoff, overview=overview, diffs=diffs)
+    render_report(
+        results, output_dir=output_dir, hours_cutoff=hours_cutoff, overview=overview, diffs=diffs
+    )
 
     # Tag co-occurrence graph — written into the same output_dir as the HTML
     # report, matching the Prefect flow's build-tag-graph step.
@@ -410,7 +439,7 @@ def run(
     empty = sum(1 for r in results if r.error is None and r.strategy is None)
 
     typer.echo("")
-    typer.echo(f"Done.")
+    typer.echo("Done.")
     typer.echo(f"  Topics with strategy:  {successful}")
     typer.echo(f"  Topics with no news:   {empty}")
     typer.echo(f"  Topics with errors:    {failed}")
@@ -430,7 +459,10 @@ def ask(
     model: str = typer.Option(
         _DEFAULT_MODEL,
         envvar="LLM_MODEL",
-        help="litellm model string (e.g. 'ollama_chat/llama3.1:70b', 'anthropic/claude-sonnet-4-6')",
+        help=(
+            "litellm model string (e.g. 'ollama_chat/llama3.1:70b', "
+            "'anthropic/claude-sonnet-4-6')"
+        ),
     ),
     temperature: float = typer.Option(0.1, help="LLM sampling temperature"),
     instructor_mode: str = typer.Option(
@@ -484,7 +516,10 @@ def ask(
     client = LLMClient(
         model=model,
         temperature=temperature,
-        run_metadata={"trace_id": generate_run_id(), "trace_name": "strategic-report-archive-query"},
+        run_metadata={
+            "trace_id": generate_run_id(),
+            "trace_name": "strategic-report-archive-query",
+        },
         instructor_mode=resolved_mode,
         api_base=ollama_api_base,
         api_key=ollama_api_key,

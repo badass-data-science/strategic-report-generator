@@ -68,11 +68,12 @@ more.
 ## Setup
 
 ```bash
-pip install -e ".[flow,test]"
+pip install -e ".[flow,test,lint,typecheck]"
 ```
 
 Package metadata, dependencies, and extras (`flow` for Prefect, `test` for
-pytest) all live in `pyproject.toml` — there is no `requirements.txt`.
+pytest, `lint` for ruff, `typecheck` for mypy) all live in `pyproject.toml`
+— there is no `requirements.txt`.
 `data/rss_feeds/*.json` and `flows/` ship as package data inside
 `strategic_reports/daily/` (see `paths.py`'s `default_data_dir()`), so the
 package is self-contained even though it isn't published to PyPI.
@@ -85,18 +86,25 @@ matching provider credentials (see README's Quick Start).
 
 ```bash
 pytest
+ruff check .
+mypy
 ```
 
 - 204 tests across `tests/test_*.py`, no real network or LLM calls, runs in
-  under a second. CI (`.github/workflows/tests.yml`) runs the same suite on
-  every push/PR to `main`, no credentials needed there either.
+  under a second. CI (`.github/workflows/tests.yml`) runs all three as
+  separate jobs (`pytest`, `lint`, `typecheck`) on every push/PR to `main`,
+  no credentials needed there either.
 - `pytest.ini` sets `asyncio_mode = auto` — async test functions don't need
   `@pytest.mark.asyncio`.
 - Run the whole suite after any change to `strategic_reports/daily/core/*`;
   it's fast enough that there's no reason to scope it down.
-
-There is no configured linter or formatter in this repo — match the existing
-style in the file you're editing rather than introducing a new tool.
+- `ruff` is configured with `select = ["E", "F", "I", "UP"]` and
+  `line-length = 100` — deliberately the same narrow selection used across
+  the rest of this stack (graph-nexus, graph-nexus-ask), not ruff's full
+  default rule set. `strategic_reports/daily/core/__init__.py` has a
+  per-file `E402` ignore for its imports-after-`configure_logging()`
+  ordering (see that file's docstring for why).
+- `mypy --strict` covers both `strategic_reports/` and `tests/`.
 
 ## Code layout
 

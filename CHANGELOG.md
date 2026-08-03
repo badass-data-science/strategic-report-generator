@@ -16,6 +16,14 @@ doesn't tag releases.
   its own scheduled process) — a companion to the earlier "Daily
   Strategic Intelligence, Automated" post. Includes a screenshot of the
   tag co-occurrence graph (`web-based-tag-graph.png`).
+- `ruff` and `mypy` adopted for the first time in this repo, matching the
+  narrow rule selection already used across the rest of this stack
+  (graph-nexus, graph-nexus-ask): `select = ["E", "F", "I", "UP"]`,
+  `line-length = 100`, `mypy --strict` across both `strategic_reports/` and
+  `tests/`. New `lint`/`typecheck` optional-dependency groups in
+  `pyproject.toml`. CI (`.github/workflows/tests.yml`) gained matching
+  `lint`/`typecheck` jobs alongside the existing `pytest` job. README gained
+  Ruff/mypy badges.
 
 ### Changed
 - Renamed the `export-rdf` Prefect flow (and its deployment) to
@@ -24,6 +32,26 @@ doesn't tag releases.
   The CLI command name (`export-rdf`) is unaffected — only the Prefect
   flow/deployment identifier changed. `prefect deployment run` invocations
   now use `'daily-strategic-report-export-rdf/daily-strategic-report-export-rdf'`.
+
+### Fixed
+- `pipeline.py`'s community-summary gathering, `bullet_diff.py`'s
+  bullet-diff gathering, and `pipeline.py`'s topic-ingestion gathering
+  (`run_pipeline`/`_process_topic`) each only checked
+  `isinstance(item, Exception)` on `asyncio.gather(..., return_exceptions=
+  True)` results. `asyncio.CancelledError` is a `BaseException` subclass,
+  not an `Exception` subclass — a cancelled task would slip past the guard
+  and crash trying to unpack it as a normal result instead of being caught
+  and logged like any other per-task failure. Found via `mypy --strict`,
+  not a live production report. Also renamed a `cli.py` loop variable
+  (`alert` used for both `EmergingTagAlert` and unrelated `UrgencyAlert`
+  results) that was masking a real type-safety gap, coincidentally
+  harmless only because both classes happen to implement `.summary()`.
+- `strategic_reports/daily/core/__init__.py`: seven re-exported names
+  (`append_bullet_run`, `diff_all_topics`, `load_bullet_history`,
+  `UrgencyAlert`, `append_run`, `check_alerts`, `load_history`) were
+  imported for re-export but missing from `__all__` — caught as both a
+  ruff `F401` (unused import) and a mypy `attr-defined` error against
+  `cli.py`, which does use them. Added to `__all__`.
 
 ## 2026-08-03
 
