@@ -142,7 +142,7 @@ async def diff_all_topics(
     pairs = await asyncio.gather(*tasks, return_exceptions=True)
     diffs: dict[str, BulletDiff] = {}
     for item in pairs:
-        if isinstance(item, Exception):
+        if isinstance(item, BaseException):
             log.warning("bullet_diff_gather_error", error=str(item))
             continue
         topic, diff = item

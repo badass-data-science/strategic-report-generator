@@ -363,8 +363,8 @@ def run(
         append_run(db_path, results, run_id)
         if alerts:
             typer.echo(f"URGENCY ALERTS ({len(alerts)} topic(s)):")
-            for alert in alerts:
-                typer.echo(f"  *** {alert.summary()}")
+            for urgency_alert in alerts:
+                typer.echo(f"  *** {urgency_alert.summary()}")
         else:
             typer.echo("Urgency check: no alerts")
     except Exception as exc:
