@@ -83,6 +83,10 @@ All deliberate v1 scope choices, not oversights, and all candidates for a future
 
 Six months ago this was one HTML file per night, gorgeous and disposable, forgotten the moment the next one landed. Now it's an archive with a shape to it: a tag graph that redraws itself fresh every night, a durable RDF export that remembers everything the D3 graph is built to forget, and a growing vocabulary of standard-shaped facts that doesn't care which tool reads it next. Neither graph pretends to be the other, and that turned out to be the whole trick — a nightly display for a human glancing at tonight's news, and a portable archive for whatever the multi-henchman empire needs to connect it to later. The strategic insight pillar of the Ultimate Cunning Master Plan™ can now, technically, remember things. That is either the beginning of something genuinely useful or the plot of a cautionary tale about ambitious personal projects. Our heroine has decided not to think about which one too hard, and to just keep building.
 
+## Code
+
+The full source is on GitHub: [strategic-report-generator](https://github.com/badass-data-science/strategic-report-generator).
+
 ## AI Use Statement
 
 **Human-in-the-loop:** The author instructed Claude Code to produce the initial draft of this article based on its pre-existing knowledge of the codebase. Then the author ruthlessly edited the document.
