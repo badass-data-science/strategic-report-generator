@@ -19,8 +19,8 @@ America/Los_Angeles daily, well after daily_report_flow's 00:30 run, so
 the day's data has finished writing to the tracking database first).
 Trigger a one-off run, optionally with a different `--since`:
 
-    prefect deployment run 'export-rdf/export-rdf'
-    prefect deployment run 'export-rdf/export-rdf' --param since=2026-08-01
+    prefect deployment run 'daily-strategic-report-export-rdf/daily-strategic-report-export-rdf'
+    prefect deployment run 'daily-strategic-report-export-rdf/daily-strategic-report-export-rdf' --param since=2026-08-01
 
 See AGENTS.md and README.md's "Exporting an RDF knowledge graph" section
 for what export-rdf does and why it's kept separate from daily_report_flow.
@@ -46,7 +46,7 @@ def export_rdf_task(db_path: Path, output: Path, since: str | None = None) -> in
 
 
 @flow(
-    name="export-rdf",
+    name="daily-strategic-report-export-rdf",
     description=(
         "Exports the tracking database's accumulated archive (articles, tags, "
         "community summaries, bridge tags, strategic bullets, urgency scores, "
@@ -59,7 +59,7 @@ def export_rdf_flow(db_path: Path, output: Path, since: str | None = None) -> in
 
 if __name__ == "__main__":
     export_rdf_flow.serve(
-        name="export-rdf",
+        name="daily-strategic-report-export-rdf",
         schedules=[CronSchedule(cron="0 4 * * *", timezone="America/Los_Angeles")],
         tags=["strategic-reports", "rdf-export"],
         description=(

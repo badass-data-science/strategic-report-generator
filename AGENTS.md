@@ -36,7 +36,13 @@ recompute it, and touching one should not require touching the other.
 
 `export-rdf` also has a Prefect flow (`flows/export_rdf_flow.py`) — a
 separate file from `daily_report.py`, not a task folded into it, since
-`export-rdf` is deliberately independent of the daily pipeline. It's
+`export-rdf` is deliberately independent of the daily pipeline. The flow
+is registered as `daily-strategic-report-export-rdf`, not `export-rdf` —
+other codebases in this stack (or future ones) may export their own RDF
+too, each with its own Prefect flow, so a generic `export-rdf` name in
+the Prefect UI wouldn't say which pipeline's export is actually running.
+The CLI command name (`export-rdf`) is unaffected; only the Prefect
+flow/deployment name changed. It's
 scheduled as **its own separate process** (own `.serve()` call, own
 systemd unit — see README's "Scheduling with Prefect"), not folded into
 `daily_report.py`'s `serve()`, so a crash/restart of one never touches
@@ -47,7 +53,7 @@ scheduled deployment's `db_path` reads from the same tracking database
 `daily_report_flow`'s deployment writes to (both anchored via
 `Path.home()`, not cwd). This module no longer exposes a typer/CLI-args
 entry point for ad-hoc runs — that capability is superseded by `prefect
-deployment run 'export-rdf/export-rdf' --param since=...` now that a
+deployment run 'daily-strategic-report-export-rdf/daily-strategic-report-export-rdf' --param since=...` now that a
 deployment exists; `cli.py export-rdf` remains available for genuinely
 Prefect-independent ad-hoc use.
 
