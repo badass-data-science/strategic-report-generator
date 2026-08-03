@@ -110,7 +110,6 @@ The full source code for this project is available on GitHub at [strategic-repor
 - AI
 - data science
 - knowledge engineering
-- data engineering
 - NetworkX
 - graph algorithm
 
