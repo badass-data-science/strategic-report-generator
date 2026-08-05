@@ -26,7 +26,12 @@ from strategic_reports.daily.core.models import FeedConfig, TopicConfig
 FEED = FeedConfig(title="Test Feed", url="https://example.com/feed")
 
 
-def make_parsed(status=200, bozo=False, entries=None, bozo_exception=None) -> MagicMock:
+def make_parsed(
+    status: int | None = 200,
+    bozo: bool = False,
+    entries: list[MagicMock] | None = None,
+    bozo_exception: str | None = None,
+) -> MagicMock:
     """Mimic a feedparser parsed-feed result with the fields _check_one_feed reads."""
     parsed = MagicMock()
     parsed.status = status
