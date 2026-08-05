@@ -12,7 +12,21 @@
 		"title": "Weekly Geo-Political News and Analysis",
 		"url": "https://benjaminfulford.net/feed/",
 		"reason": "Absurd content."
-            },
+            }
+	],
+	"feeds_robotics": [
+	    {
+		"title": "Rodney Brooks",
+		"url": "https://rodneybrooks.com/feed/",
+		"reason": "I do not want personal websites."
+	    }
+	],
+	"feeds_forex": [
+	    {
+		"title": "Vladimir Ribakov",
+		"url": "https://vladimirribakov.com/feed/",
+		"reason": "I do not want personal websites."
+	    }
 	]
     }
 }
