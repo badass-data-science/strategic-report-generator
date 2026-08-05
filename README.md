@@ -6,8 +6,8 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
 
-A daily briefing pipeline that reads recent news across 12 topic feeds — AI,
-biotech, economics, geopolitics, defense, and more — and synthesizes strategic
+A daily briefing pipeline that reads recent news across 14 topic feeds — AI,
+biotech, economics, geopolitics, defense, forex, robotics, and more — and synthesizes strategic
 recommendations into a linked HTML report.
 
 The pipeline doesn't just summarize each day's news — it builds a graph from
@@ -105,7 +105,7 @@ No client code changes required.
 ### Two-phase async architecture
 
 RSS ingestion and LLM inference have different bottlenecks. Feed fetching is
-pure network I/O with no rate limits — all 12 topics' feeds fire concurrently
+pure network I/O with no rate limits — all 14 topics' feeds fire concurrently
 via `asyncio.gather`. LLM calls are also I/O-bound but API rate-limited — an
 `asyncio.Semaphore` controls how many topics can hit the API simultaneously
 (default: 3, tunable per provider). `feedparser` is synchronous, so it runs
@@ -189,6 +189,24 @@ Unlike `ask` (which has no Prefect equivalent by design — see
 than a task inside `daily_report_flow` — keeping the same independence
 from the daily pipeline that the CLI command already has.
 
+### `validate-feeds` maintains the feed configs, it isn't a pipeline step
+
+RSS feeds rot: hosts disappear, blogs migrate platforms, WAFs start blocking
+naive HTTP clients, XML gets served with syntax errors. `validate-feeds`
+(see [Validating RSS feeds](#validating-rss-feeds)) checks every feed across
+every topic and, with `--fix`, prunes the dead ones out of their
+`feeds_*.json` file. It's deliberately a maintenance utility run on demand,
+not folded into `run` or the Prefect flow — feed health doesn't change
+day to day the way news does, so checking it on every scheduled run would
+just be wasted network calls against sources that were fine yesterday.
+
+Dead feeds are logged in `data/rss_feeds/REMOVED.json`, in the same
+`{"title", "url", "exception"}` shape already used for the handful of
+feeds removed by hand before this command existed (which use a `"reason"`
+field instead, e.g. "I do not want personal websites." — `validate-feeds`
+never overwrites those, only appends). Re-running `--fix` periodically
+accumulates history in that file rather than replacing it.
+
 ### Observability
 
 Every LLM call is traced via [Langfuse](https://langfuse.com) or
@@ -231,10 +249,11 @@ export OPENAI_API_KEY="..."
 ```
 
 Run, specifying where the report gets written and where the tracking
-database lives (both required). The CLI has three commands (`run`,
-`ask`, and `export-rdf` — see [Asking questions about the archive](#asking-questions-about-the-archive)
-and [Exporting an RDF knowledge graph](#exporting-an-rdf-knowledge-graph)),
-so naming one explicitly is required:
+database lives (both required). The CLI has four commands (`run`,
+`ask`, `export-rdf`, and `validate-feeds` — see [Asking questions about the archive](#asking-questions-about-the-archive),
+[Exporting an RDF knowledge graph](#exporting-an-rdf-knowledge-graph), and
+[Validating RSS feeds](#validating-rss-feeds)), so naming one explicitly is
+required:
 
 ```bash
 python -m strategic_reports.daily.cli run \
@@ -412,6 +431,40 @@ command). Trigger a one-off run, optionally overriding `since`:
 prefect deployment run 'daily-strategic-report-export-rdf/daily-strategic-report-export-rdf'
 prefect deployment run 'daily-strategic-report-export-rdf/daily-strategic-report-export-rdf' --param since=2026-08-01
 ```
+
+---
+
+## Validating RSS feeds
+
+`python -m strategic_reports.daily.cli validate-feeds` checks every feed
+across every configured topic and reports which ones are dead — a fetch
+exception (DNS failure, timeout, connection refused, SSL handshake
+failure), an XML parse error with zero salvageable entries, or an HTTP 200
+response with zero parseable entries:
+
+```bash
+python -m strategic_reports.daily.cli validate-feeds
+```
+
+By default this only reports. Pass `--fix` to prune the failing feeds out
+of their `feeds_*.json` file and log them in `REMOVED.json`, next to any
+manually-curated exclusions already recorded there (see
+[`validate-feeds` maintains the feed configs, it isn't a pipeline
+step](#validate-feeds-maintains-the-feed-configs-it-isnt-a-pipeline-step)):
+
+```bash
+python -m strategic_reports.daily.cli validate-feeds --fix
+```
+
+| Flag | Env var | Default | Description |
+|------|---------|---------|-------------|
+| `--data-dir` | `STRATEGIC_REPORTS_DATA_DIR` | bundled `rss_feeds/` package data | Directory containing `rss_feeds/*.json` files |
+| `--fix` | — | `False` | Remove failing feeds from their category files and log them in `REMOVED.json`. Without this flag, only reports failures. |
+
+Safe to re-run periodically: feeds that already pass are left untouched,
+and `--fix` appends to `REMOVED.json` rather than overwriting it. Not part
+of `run` or the Prefect flow — see the design-decisions note linked above
+for why.
 
 ---
 
@@ -601,7 +654,7 @@ ruff check .
 mypy
 ```
 
-204 tests across 15 files. No real API calls — the LLM client is fully mocked.
+217 tests across 16 files. No real API calls — the LLM client is fully mocked.
 Runs in under a second. A GitHub Actions workflow
 (`.github/workflows/tests.yml`) runs all three as separate jobs (`pytest`,
 `lint`, `typecheck`) on every push and pull request to `main` — no LLM
@@ -613,6 +666,7 @@ tests/test_models.py      Pydantic validation and TokenUsage arithmetic
 tests/test_prompts.py     Prompt builder output shape and content
 tests/test_renderer.py    HTML rendering for all three result states + XSS
 tests/test_ingestion.py   RSS fetching with mocked feedparser
+tests/test_feed_validation.py  Feed health checks and REMOVED.json pruning/logging, with mocked feedparser
 tests/test_pipeline.py    Async orchestration with mocked LLMClient; summarize_communities() and answer_archive_question()/extract_query_tags() concurrency + failure isolation
 tests/test_urgency.py     Urgency alerting: absolute threshold, z-score, std==0 fallback, history persistence
 tests/test_bullet_diff.py Bullet-history storage: most-recent-run lookup, ordering, multi-topic
@@ -638,6 +692,7 @@ strategic_reports/
       models.py          Pydantic data models (RawArticle → ArticleSummary → TopicResult → CrossTopicSynthesis → BulletDiff)
       llm_client.py      Async LLMClient: litellm + instructor + tenacity retry
       ingestion.py       Async RSS fetching; returns list[RawArticle]
+      feed_validation.py Async RSS feed health checks + REMOVED.json pruning/logging for the `validate-feeds` CLI command
       prompts.py         System messages and user-message builder functions
       pipeline.py        Two-phase async orchestrator + cross-topic synthesis + summarize_communities() + answer_archive_question()
       renderer.py        Jinja2 HTML rendering
@@ -658,6 +713,7 @@ strategic_reports/
       topic.html.j2      Per-topic article summaries
     data/
       rss_feeds/         One JSON file per topic listing RSS feed URLs — packaged as wheel data
+        REMOVED.json     Audit log of feeds removed by `validate-feeds --fix` or by hand
     flows/
       daily_report.py    Prefect flow (see Scheduling with Prefect)
       export_rdf_flow.py Prefect flow wrapping export-rdf — scheduled daily, own process

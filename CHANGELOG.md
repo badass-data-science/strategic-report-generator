@@ -24,6 +24,37 @@ doesn't tag releases.
   `pyproject.toml`. CI (`.github/workflows/tests.yml`) gained matching
   `lint`/`typecheck` jobs alongside the existing `pytest` job. README gained
   Ruff/mypy badges.
+- Two new topic categories, `feeds_forex.json` (40 feeds) and
+  `feeds_robotics.json` (41 feeds), registered in `topic_order.py`'s
+  `list_directories_and_titles` — the pipeline now covers 14 topics, up
+  from 12.
+- Full RSS feed validation pass across all 14 topic categories (718 feeds
+  checked in total). A feed counts as dead on a fetch exception (DNS
+  failure, SSL handshake failure, timeout, connection refused), an XML
+  parse error with zero salvageable entries (a feed that's merely `bozo`
+  but still yielded usable entries is left alone), or an HTTP 200 response
+  with zero parseable entries. Removed 112 dead feeds total (4 from the
+  two new categories, 108 from the 12 existing ones) and logged each one
+  in `data/rss_feeds/REMOVED.json` under an `"exception"` field, alongside
+  the small number of feeds already excluded there by hand under a
+  `"reason"` field (e.g. "I do not want personal websites.") — the new
+  entries are appended, not merged into or replacing the existing ones.
+  `REMOVED.json` also reformatted to consistent 4-space JSON indentation;
+  it's a human-readable audit log, not read by any code path.
+- New `strategic-reports validate-feeds [--fix]` CLI command
+  (`core/feed_validation.py`), so the validation pass above can be re-run
+  in the future instead of redone ad hoc. Checks every feed in a topic
+  concurrently, reusing `ingestion.py`'s
+  `asyncio.to_thread(feedparser.parse, ...)` + `asyncio.gather` pattern.
+  Without `--fix`, only reports failures; with it, prunes them out of
+  their `feeds_*.json` and appends them to `REMOVED.json` — safe to
+  re-run periodically, since passing feeds are left untouched and repeated
+  runs accumulate removal history rather than overwriting it. Deliberately
+  not wired into `run` or the Prefect flow: feed health doesn't change day
+  to day the way news does, so this is a maintenance utility invoked on
+  demand, the same kind of exception to the run/flow parity convention as
+  `ask` (see `AGENTS.md`). 13 new tests in `tests/test_feed_validation.py`.
+  217 tests total, up from 204.
 
 ### Changed
 - Renamed the `export-rdf` Prefect flow (and its deployment) to
