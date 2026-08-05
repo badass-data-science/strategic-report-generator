@@ -1,0 +1,164 @@
+{
+    "feeds": [
+        {
+            "title": "Connected World",
+            "url": "https://connectedworld.com/feed/"
+        },
+        {
+            "title": "IoT council, a thinktank for the Internet of Things",
+            "url": "https://theinternetofthings.eu/category/iot/feed"
+        },
+        {
+            "title": "Amazon Web Services \u00bb The Internet of Things",
+            "url": "https://aws.amazon.com/blogs/iot/feed/"
+        },
+        {
+            "title": "Microsoft Azure Blog \u00bb Internet of things",
+            "url": "https://azure.microsoft.com/en-us/blog/category/internet-of-things/feed/"
+        },
+        {
+            "title": "RTInsights \u00bb Internet of Things",
+            "url": "https://www.rtinsights.com/category/internet-of-things/feed/"
+        },
+        {
+            "title": "IoT Analytics Blog",
+            "url": "https://iot-analytics.com/feed/"
+        },
+        {
+            "title": "IoT Business News",
+            "url": "https://iotbusinessnews.com/feed/"
+        },
+        {
+            "title": "IIoT World",
+            "url": "https://www.iiot-world.com/feed/"
+        },
+        {
+            "title": "Link Labs Blog",
+            "url": "https://www.link-labs.com/blog/rss.xml"
+        },
+        {
+            "title": "IoT Marketing Blog",
+            "url": "https://iotmktg.com/feed/"
+        },
+        {
+            "title": "Augury Blog",
+            "url": "https://www.augury.com/feed/"
+        },
+        {
+            "title": "Grid Connect Blog",
+            "url": "https://www.gridconnect.com/blogs/news.atom"
+        },
+        {
+            "title": "Strategy of Things Blog",
+            "url": "https://strategyofthings.io/blog/feed"
+        },
+        {
+            "title": "Cisco Blog \u00bb Industrial IoT",
+            "url": "https://blogs.cisco.com/feed"
+        },
+        {
+            "title": "We speak IoT",
+            "url": "https://www.wespeakiot.com/feed/"
+        },
+        {
+            "title": "DornerWorks Blog",
+            "url": "https://www.dornerworks.com/feed/"
+        },
+        {
+            "title": "Paco Maroto's IoT Blog",
+            "url": "https://pacomaroto.wordpress.com/feed/"
+        },
+        {
+            "title": "Digi Blog",
+            "url": "https://www.digi.com/blog/feed"
+        },
+        {
+            "title": "Microsoft Community Hub Blog \u00bb IOT",
+            "url": "https://techcommunity.microsoft.com/t5/s/gxcuf89792/rss/board?board.id=IoTBlog"
+        },
+        {
+            "title": "Semtech Blog",
+            "url": "https://www.sierrawireless.com/feed/"
+        },
+        {
+            "title": "Bridgera Blog",
+            "url": "https://bridgera.com/feed/"
+        },
+        {
+            "title": "Forrester \u00bb Internet of Things",
+            "url": "https://www.forrester.com/blogs/category/internet-of-things-iot/feed/"
+        },
+        {
+            "title": "emnify Blog",
+            "url": "https://www.emnify.com/blog/rss.xml"
+        },
+        {
+            "title": "Soracom Blog",
+            "url": "https://soracom.io/feed/"
+        },
+        {
+            "title": "Kemsys Blog",
+            "url": "https://kemsys.com/feed/"
+        },
+        {
+            "title": "Very Technology Blogs",
+            "url": "https://www.verytechnology.com/feed"
+        },
+        {
+            "title": "Coreflux Blog",
+            "url": "https://medium.com/feed/coreflux-blog"
+        },
+        {
+            "title": "ScienceSoft Blog \u00bb Internet Of Things",
+            "url": "https://www.scnsoft.com/blog/category/internet-of-things/atom"
+        },
+        {
+            "title": "Electronics For You",
+            "url": "https://iot.electronicsforu.com/feed/"
+        },
+        {
+            "title": "Libelium",
+            "url": "https://www.libelium.com/feed/"
+        },
+        {
+            "title": "Grio Blog",
+            "url": "https://blog.grio.com/feed"
+        },
+        {
+            "title": "Rob Tiffany Blog",
+            "url": "https://robtiffany.com/feed/"
+        },
+        {
+            "title": "Valarm Blog",
+            "url": "https://www.valarm.net/blog/feed/"
+        },
+        {
+            "title": "IoT Tracking The Internet of Things Blog",
+            "url": "https://www.iotaustralia.org.au/category/iotblog/feed/"
+        },
+        {
+            "title": "Veridify Blog",
+            "url": "https://www.veridify.com/feed/"
+        },
+        {
+            "title": "IoT World Online",
+            "url": "https://www.iotworldonline.es/feed/"
+        },
+        {
+            "title": "Attify Blog",
+            "url": "https://blog.attify.com/rss/"
+        },
+        {
+            "title": "IoT World Magazine",
+            "url": "https://iotworldmagazine.com/feed"
+        },
+        {
+            "title": "IoT Evolution",
+            "url": "https://blog.iotevolutionworld.com/feed"
+        },
+        {
+            "title": "Control Any Blog",
+            "url": "https://www.controlany.com/blog/feed/"
+        }
+    ]
+}

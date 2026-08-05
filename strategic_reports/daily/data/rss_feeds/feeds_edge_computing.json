@@ -1,0 +1,24 @@
+{
+    "feeds": [
+        {
+            "title": "Medium \u00bb Edge Computing",
+            "url": "https://medium.com/feed/tag/edge-computing"
+        },
+        {
+            "title": "Cisco Blogs \u00bb Edge Computing",
+            "url": "https://blogs.cisco.com/tag/edge-computing/feed"
+        },
+        {
+            "title": "Western Digital Blog \u00bb Edge",
+            "url": "https://blog.westerndigital.com/tag/edge/feed/"
+        },
+        {
+            "title": "The Enterprisers Project \u00bb Edge Computing",
+            "url": "https://enterprisersproject.com/taxonomy/term/546/feed"
+        },
+        {
+            "title": "IEEE ComSoc \u00bb Edge Computing",
+            "url": "https://techblog.comsoc.org/category/edge-computing/feed/"
+        }
+    ]
+}

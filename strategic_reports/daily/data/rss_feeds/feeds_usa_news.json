@@ -1,0 +1,388 @@
+{
+    "feeds": [
+        {
+            "title": "NBC News",
+            "url": "https://feeds.nbcnews.com/nbcnews/public/news"
+        },
+        {
+            "title": "CBS News",
+            "url": "https://www.cbsnews.com/feeds/rss/main.rss"
+        },
+        {
+            "title": "PBS NewsHour",
+            "url": "https://www.pbs.org/newshour/feeds/rss/headlines"
+        },
+        {
+            "title": "UPI.com \u00bb U.S. News",
+            "url": "https://rss.upi.com/news/tn_us.rss"
+        },
+        {
+            "title": "The New York Times",
+            "url": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"
+        },
+        {
+            "title": "WSJ.com \u00bb U.S. News",
+            "url": "https://feeds.content.dowjones.io/public/rss/RSSUSnews"
+        },
+        {
+            "title": "Los Angeles Times",
+            "url": "https://www.latimes.com/local/rss2.0.xml"
+        },
+        {
+            "title": "New York Post",
+            "url": "https://nypost.com/feed/"
+        },
+        {
+            "title": "The Washington Times",
+            "url": "https://www.washingtontimes.com/rss/headlines/news"
+        },
+        {
+            "title": "Vox",
+            "url": "https://www.vox.com/rss/index.xml"
+        },
+        {
+            "title": "Business Insider",
+            "url": "https://feeds.businessinsider.com/custom/all"
+        },
+        {
+            "title": "Observer",
+            "url": "https://observer.com/feed/"
+        },
+        {
+            "title": "POLITICO",
+            "url": "https://www.politico.com/rss/politicopicks.xml"
+        },
+        {
+            "title": "The Intercept",
+            "url": "https://theintercept.com/feed/?lang=en"
+        },
+        {
+            "title": "Salon.com",
+            "url": "https://www.salon.com/feed"
+        },
+        {
+            "title": "RealClearPolitics",
+            "url": "https://www.realclearpolitics.com/index.xml"
+        },
+        {
+            "title": "The Daily Wire",
+            "url": "https://www.dailywire.com/feeds/rss.xml"
+        },
+        {
+            "title": "Fox Business",
+            "url": "https://moxie.foxbusiness.com/google-publisher/latest.xml"
+        },
+        {
+            "title": "TheStreet",
+            "url": "https://www.thestreet.com/.rss/feed/a386f542-9b65-4245-9e22-e3cfd33d7d34.xml"
+        },
+        {
+            "title": "Newsweek",
+            "url": "https://www.newsweek.com/rss"
+        },
+        {
+            "title": "The Atlantic",
+            "url": "https://www.theatlantic.com/feed/all/"
+        },
+        {
+            "title": "The New Yorker",
+            "url": "https://www.newyorker.com/feed/rss"
+        },
+        {
+            "title": "NBC New York",
+            "url": "https://www.nbcnewyork.com/?rss=y"
+        },
+        {
+            "title": "Forest Hills Times",
+            "url": "https://foresthillstimes.com/feed/"
+        },
+        {
+            "title": "ABC7 New York",
+            "url": "https://abc7ny.com/feed/"
+        },
+        {
+            "title": "WPIX 11 New York",
+            "url": "https://pix11.com/feed"
+        },
+        {
+            "title": "Gothamist",
+            "url": "https://gothamist.com/feed"
+        },
+        {
+            "title": "NBC Los Angeles",
+            "url": "https://www.nbclosangeles.com/?rss=y"
+        },
+        {
+            "title": "KTLA",
+            "url": "https://ktla.com/feed/"
+        },
+        {
+            "title": "ABC7 San Francisco",
+            "url": "https://abc7news.com/feed/"
+        },
+        {
+            "title": "KRON4",
+            "url": "https://www.kron4.com/feed/"
+        },
+        {
+            "title": "NBC 7 San Diego",
+            "url": "https://www.nbcsandiego.com/?rss=y"
+        },
+        {
+            "title": "FOX5 KUSI NEWS",
+            "url": "https://fox5sandiego.com/feed/"
+        },
+        {
+            "title": "Chicago Sun-Times",
+            "url": "https://chicago.suntimes.com/rss/index.xml"
+        },
+        {
+            "title": "NBC Chicago",
+            "url": "https://www.nbcchicago.com/?rss=y"
+        },
+        {
+            "title": "WGN-TV",
+            "url": "https://wgntv.com/feed/"
+        },
+        {
+            "title": "ABC7 WLS Chicago and Chicago News",
+            "url": "https://abc7chicago.com/rss"
+        },
+        {
+            "title": "Block Club Chicago",
+            "url": "https://blockclubchicago.org/feed/"
+        },
+        {
+            "title": "NBC 5 Dallas-Fort Worth",
+            "url": "https://www.nbcdfw.com/news/feed/"
+        },
+        {
+            "title": "ABC13 Houston",
+            "url": "https://abc13.com/feed/"
+        },
+        {
+            "title": "KXAN News",
+            "url": "https://www.kxan.com/feed/"
+        },
+        {
+            "title": "The Texas Observer",
+            "url": "https://www.texasobserver.org/feed/"
+        },
+        {
+            "title": "NBC 6 South Florida",
+            "url": "https://www.nbcmiami.com/?rss=y"
+        },
+        {
+            "title": "WSVN 7 News Miami",
+            "url": "https://wsvn.com/feed/"
+        },
+        {
+            "title": "WFLA News Channel 8",
+            "url": "https://www.wfla.com/feed/"
+        },
+        {
+            "title": "Orlando Sentinel",
+            "url": "https://www.orlandosentinel.com/feed/"
+        },
+        {
+            "title": "NBC4 Washington",
+            "url": "https://www.nbcwashington.com/?rss=y"
+        },
+        {
+            "title": "WTOP",
+            "url": "https://wtop.com/feed/"
+        },
+        {
+            "title": "Boston.com",
+            "url": "https://www.boston.com/feed/"
+        },
+        {
+            "title": "7News Boston",
+            "url": "https://whdh.com/feed/"
+        },
+        {
+            "title": "WBUR",
+            "url": "https://rss.wbur.org/wbur/rss"
+        },
+        {
+            "title": "NBC10 Philadelphia",
+            "url": "https://www.nbcphiladelphia.com/?rss=y"
+        },
+        {
+            "title": "PhillyVoice",
+            "url": "https://www.phillyvoice.com/feed/"
+        },
+        {
+            "title": "6abc Action News",
+            "url": "https://6abc.com/feed/"
+        },
+        {
+            "title": "Billy Penn",
+            "url": "https://billypenn.com/feed/"
+        },
+        {
+            "title": "11Alive",
+            "url": "https://www.11alive.com/feeds/syndication/rss/news"
+        },
+        {
+            "title": "AL.com",
+            "url": "https://www.al.com/arc/outboundfeeds/rss/?outputType=xml"
+        },
+        {
+            "title": "Charlotte Observer",
+            "url": "https://feeds.mcclatchy.com/charlotteobserver/stories"
+        },
+        {
+            "title": "Cleveland.com",
+            "url": "https://www.cleveland.com/arc/outboundfeeds/rss/?outputType=xml"
+        },
+        {
+            "title": "Pittsburgh Post Gazette",
+            "url": "https://www.post-gazette.com/rss"
+        },
+        {
+            "title": "Fox2Now",
+            "url": "https://fox2now.com/feed/"
+        },
+        {
+            "title": "MinnPost",
+            "url": "https://www.minnpost.com/feed/"
+        },
+        {
+            "title": "MPR News",
+            "url": "https://www.mprnews.org/feed/homepage"
+        },
+        {
+            "title": "FOX31 Denver KDVR",
+            "url": "https://kdvr.com/feed/"
+        },
+        {
+            "title": "The Salt Lake Tribune",
+            "url": "https://www.sltrib.com/arc/outboundfeeds/rss/?outputType=xml"
+        },
+        {
+            "title": "Las Vegas Review-Journal",
+            "url": "https://www.reviewjournal.com/feed/"
+        },
+        {
+            "title": "9News \u00bb News",
+            "url": "https://www.9news.com/feeds/syndication/rss/news"
+        },
+        {
+            "title": "WIVB-TV",
+            "url": "https://www.wivb.com/feed/"
+        },
+        {
+            "title": "NEWS10 ABC",
+            "url": "https://www.news10.com/feed/"
+        },
+        {
+            "title": "wgrz.com",
+            "url": "https://www.wgrz.com/feeds/syndication/rss/news"
+        },
+        {
+            "title": "ProPublica",
+            "url": "https://www.propublica.org/feeds/propublica/main"
+        },
+        {
+            "title": "Mother Jones",
+            "url": "https://www.motherjones.com/feed/"
+        },
+        {
+            "title": "The Marshall Project",
+            "url": "https://www.themarshallproject.org/rss/recent"
+        },
+        {
+            "title": "Reveal",
+            "url": "https://revealnews.org/feed/"
+        },
+        {
+            "title": "The 19th",
+            "url": "https://19thnews.org/feed"
+        },
+        {
+            "title": "The Trace",
+            "url": "https://www.thetrace.org/feed"
+        },
+        {
+            "title": "The Markup - All Stories",
+            "url": "https://themarkup.org/feeds/rss.xml"
+        },
+        {
+            "title": "Grist",
+            "url": "https://grist.org/feed"
+        },
+        {
+            "title": "KFF Health News",
+            "url": "https://kffhealthnews.org/feed/"
+        },
+        {
+            "title": "Inside Climate News",
+            "url": "https://insideclimatenews.org/feed/"
+        },
+        {
+            "title": "The Texas Tribune",
+            "url": "https://www.texastribune.org/feed/"
+        },
+        {
+            "title": "Cal Matters",
+            "url": "https://calmatters.org/feed/"
+        },
+        {
+            "title": "The Colorado Sun",
+            "url": "https://coloradosun.com/feed/"
+        },
+        {
+            "title": "Spotlight PA",
+            "url": "https://www.spotlightpa.org/feeds/full.xml"
+        },
+        {
+            "title": "Bridge Michigan",
+            "url": "https://bridgemi.com/feed/"
+        },
+        {
+            "title": "VTDigger",
+            "url": "https://vtdigger.org/feed"
+        },
+        {
+            "title": "Mississippi Today",
+            "url": "https://mississippitoday.org/feed/"
+        },
+        {
+            "title": "Wisconsin Watch",
+            "url": "https://wisconsinwatch.org/feed/"
+        },
+        {
+            "title": "The Nevada Independent",
+            "url": "https://thenevadaindependent.com/feed"
+        },
+        {
+            "title": "NJ Spotlight News",
+            "url": "https://www.njspotlightnews.org/feed/"
+        },
+        {
+            "title": "FactCheck",
+            "url": "https://www.factcheck.org/feed/"
+        },
+        {
+            "title": "Snopes.com",
+            "url": "https://www.snopes.com/feed"
+        },
+        {
+            "title": "Poynter",
+            "url": "https://www.poynter.org/feed"
+        },
+        {
+            "title": "Nieman Journalism Lab",
+            "url": "https://www.niemanlab.org/feed/"
+        },
+        {
+            "title": "Columbia Journalism Review",
+            "url": "https://www.cjr.org/feed"
+        },
+        {
+            "title": "Media Matters for America",
+            "url": "https://www.mediamatters.org/rss.xml"
+        }
+    ]
+}

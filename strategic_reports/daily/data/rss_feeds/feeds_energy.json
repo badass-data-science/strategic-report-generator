@@ -1,0 +1,72 @@
+{
+    "feeds": [
+        {
+            "title": "What is Smart Energy Blog",
+            "url": "https://whatissmartenergy.org/energy-blog.rss"
+        },
+        {
+            "title": "Sol-Up Blog",
+            "url": "https://solup.com/feed/"
+        },
+        {
+            "title": "2GreenEnergy.com",
+            "url": "https://www.2greenenergy.com/feed/"
+        },
+        {
+            "title": "Just Energy Blog",
+            "url": "https://justenergy.com/feed/"
+        },
+        {
+            "title": "Solar Today",
+            "url": "https://ases.org/feed/"
+        },
+        {
+            "title": "Energy Transition",
+            "url": "https://energytransition.org/feed/"
+        },
+        {
+            "title": "Power Magazine",
+            "url": "https://www.powermag.com/feed/"
+        },
+        {
+            "title": "ACORE Blog",
+            "url": "https://acore.org/feed/"
+        },
+        {
+            "title": "Energy Information Administration",
+            "url": "https://www.eia.gov/rss/todayinenergy.xml"
+        },
+        {
+            "title": "EnergyTrend",
+            "url": "https://www.energytrend.com/rss.xml"
+        },
+        {
+            "title": "The Fuse",
+            "url": "https://energyfuse.org/feed/"
+        },
+        {
+            "title": "SEPA Blog",
+            "url": "https://sepapower.org/feed/"
+        },
+        {
+            "title": "CleanTechnica",
+            "url": "https://cleantechnica.com/feed/"
+        },
+        {
+            "title": "Loadshedding.com",
+            "url": "https://loadshedding.com/feed/"
+        },
+        {
+            "title": "Energy Global Magazine",
+            "url": "https://www.energyglobal.com/rss/energyglobal.xml"
+        },
+        {
+            "title": "EcoWatch",
+            "url": "https://www.ecowatch.com/energy-news/feed"
+        },
+        {
+            "title": "Energy Saver Blog",
+            "url": "https://www.energy.gov/rss/energysaver/1280681"
+        }
+    ]
+}

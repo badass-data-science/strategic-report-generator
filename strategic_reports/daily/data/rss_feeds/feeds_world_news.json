@@ -1,0 +1,452 @@
+{
+    "feeds": [
+        {
+            "title": "Al Jazeera",
+            "url": "https://www.aljazeera.com/xml/rss/all.xml"
+        },
+        {
+            "title": "DW News",
+            "url": "https://rss.dw.com/rdf/rss-en-top"
+        },
+        {
+            "title": "France 24",
+            "url": "https://www.france24.com/en/rss"
+        },
+        {
+            "title": "Euronews \u00bb International",
+            "url": "https://www.euronews.com/rss"
+        },
+        {
+            "title": "Sky News \u00bb World",
+            "url": "https://feeds.skynews.com/feeds/rss/world.xml"
+        },
+        {
+            "title": "RFI \u00bb International News",
+            "url": "https://www.rfi.fr/en/international/rss"
+        },
+        {
+            "title": "UPI.com \u00bb World News",
+            "url": "https://rss.upi.com/news/tn_int.rss"
+        },
+        {
+            "title": "BBC News \u00bb World",
+            "url": "https://feeds.bbci.co.uk/news/world/rss.xml"
+        },
+        {
+            "title": "The New York Times \u00bb World",
+            "url": "https://www.nytimes.com/svc/collections/v1/publish/https://www.nytimes.com/section/world/rss.xml"
+        },
+        {
+            "title": "National Public Radio (NPR) \u00bb World",
+            "url": "https://feeds.npr.org/1004/rss.xml"
+        },
+        {
+            "title": "NBC News",
+            "url": "https://feeds.nbcnews.com/nbcnews/public/news"
+        },
+        {
+            "title": "Los Angeles Times \u00bb World & Nation",
+            "url": "https://www.latimes.com/world-nation/rss2.0.xml#nt=1col-7030col1"
+        },
+        {
+            "title": "The New York Times \u00bb World",
+            "url": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
+        },
+        {
+            "title": "The Guardian \u00bb World",
+            "url": "https://www.theguardian.com/world/rss"
+        },
+        {
+            "title": "The Independent \u00bb World",
+            "url": "http://www.independent.co.uk/news/world/rss"
+        },
+        {
+            "title": "Financial Times \u00bb World",
+            "url": "https://www.ft.com/world?format=rss"
+        },
+        {
+            "title": "The Sun \u00bb World News",
+            "url": "https://www.thesun.co.uk/news/worldnews/feed/"
+        },
+        {
+            "title": "Daily Mirror \u00bb World news",
+            "url": "https://www.mirror.co.uk/news/world-news/?service=rss"
+        },
+        {
+            "title": "Euronews",
+            "url": "https://www.euronews.com/rss"
+        },
+        {
+            "title": "POLITICO",
+            "url": "https://www.politico.com/rss/politicopicks.xml"
+        },
+        {
+            "title": "Le Monde \u00bb International",
+            "url": "https://www.lemonde.fr/en/international/rss_full.xml"
+        },
+        {
+            "title": "El Pais \u00bb Internacional",
+            "url": "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/section/internacional/portada"
+        },
+        {
+            "title": "EUobserver",
+            "url": "https://euobserver.com/feed/"
+        },
+        {
+            "title": "Balkan Insight",
+            "url": "https://balkaninsight.com/feed/"
+        },
+        {
+            "title": "Euractiv",
+            "url": "https://www.euractiv.com/feed"
+        },
+        {
+            "title": "CBC \u00bb World",
+            "url": "https://www.cbc.ca/webfeed/rss/rss-world"
+        },
+        {
+            "title": "The Globe and Mail \u00bb World",
+            "url": "https://www.theglobeandmail.com/arc/outboundfeeds/rss/category/world/"
+        },
+        {
+            "title": "Global News \u00bb World",
+            "url": "https://globalnews.ca/world/feed/"
+        },
+        {
+            "title": "Toronto Star \u00bb World",
+            "url": "https://www.thestar.com/search/?f=rss&t=article&c=news/world&l=50&s=start_time&sd=desc"
+        },
+        {
+            "title": "National Post \u00bb World",
+            "url": "https://nationalpost.com/category/news/world/feed.xml"
+        },
+        {
+            "title": "South China Morning Post",
+            "url": "https://www.scmp.com/rss/91/feed/"
+        },
+        {
+            "title": "The Sydney Morning Herald \u00bb World",
+            "url": "https://www.smh.com.au/rss/world.xml"
+        },
+        {
+            "title": "SBS News \u00bb World News",
+            "url": "https://www.sbs.com.au/news/topic/world/feed"
+        },
+        {
+            "title": "Asia Times \u00bb World",
+            "url": "https://asiatimes.com/category/world/feed/"
+        },
+        {
+            "title": "9News \u00bb World News",
+            "url": "https://www.9news.com.au/world/rss"
+        },
+        {
+            "title": "The Japan Times",
+            "url": "https://www.japantimes.co.jp/feed/"
+        },
+        {
+            "title": "Times of India \u00bb World News",
+            "url": "https://timesofindia.indiatimes.com/rssfeeds/296589292.cms"
+        },
+        {
+            "title": "The Hindu \u00bb World News",
+            "url": "https://www.thehindu.com/news/international/feeder/default.rss"
+        },
+        {
+            "title": "Firstpost \u00bb World News",
+            "url": "https://www.firstpost.com/commonfeeds/v1/mfp/rss/world.xml"
+        },
+        {
+            "title": "ThePrint \u00bb World",
+            "url": "https://theprint.in/category/world/feed/"
+        },
+        {
+            "title": "The Week \u00bb World News",
+            "url": "https://www.theweek.in/news/world.feeds.rss.xml"
+        },
+        {
+            "title": "The Hindu BusinessLine \u00bb World News",
+            "url": "https://www.thehindubusinessline.com/news/world/feeder/default.rss"
+        },
+        {
+            "title": "CNBCTV 18 \u00bb World News",
+            "url": "https://www.cnbctv18.com/commonfeeds/v1/cne/rss/world.xml"
+        },
+        {
+            "title": "Tribune India \u00bb World News",
+            "url": "https://publish.tribuneindia.com/newscategory/world/feed/"
+        },
+        {
+            "title": "MercoPress",
+            "url": "https://en.mercopress.com/rss/"
+        },
+        {
+            "title": "Buenos Aires Herald",
+            "url": "https://buenosairesherald.com/feed"
+        },
+        {
+            "title": "Mexico News Daily",
+            "url": "https://mexiconewsdaily.com/feed/"
+        },
+        {
+            "title": "The Rio Times",
+            "url": "https://www.riotimesonline.com/feed"
+        },
+        {
+            "title": "Colombia Reports",
+            "url": "https://colombiareports.com/feed/"
+        },
+        {
+            "title": "Americas Quarterly",
+            "url": "https://www.americasquarterly.org/feed/"
+        },
+        {
+            "title": "teleSUR English",
+            "url": "https://www.telesurenglish.net/rss"
+        },
+        {
+            "title": "Buenos Aires Times",
+            "url": "https://www.batimes.com.ar/feed"
+        },
+        {
+            "title": "Latin America Reports",
+            "url": "https://latinamericareports.com/feed"
+        },
+        {
+            "title": "Morocco World News \u00bb International News",
+            "url": "https://www.moroccoworldnews.com/international/feed/"
+        },
+        {
+            "title": "Daily Maverick",
+            "url": "https://www.dailymaverick.co.za/rss"
+        },
+        {
+            "title": "Foreign Affairs",
+            "url": "https://www.foreignaffairs.com/rss.xml"
+        },
+        {
+            "title": "Foreign Policy",
+            "url": "https://foreignpolicy.com/feed"
+        },
+        {
+            "title": "International Crisis Group",
+            "url": "https://www.crisisgroup.org/rss"
+        },
+        {
+            "title": "Long War Journal",
+            "url": "https://www.longwarjournal.org/feed"
+        },
+        {
+            "title": "The Cipher Brief",
+            "url": "https://www.thecipherbrief.com/feeds/feed.rss"
+        },
+        {
+            "title": "The National Interest",
+            "url": "https://nationalinterest.org/feed"
+        },
+        {
+            "title": "World Politics Review",
+            "url": "https://www.worldpoliticsreview.com/feed/"
+        },
+        {
+            "title": "Breaking Defense",
+            "url": "https://breakingdefense.com/feed/"
+        },
+        {
+            "title": "The War Zone",
+            "url": "https://www.twz.com/feed"
+        },
+        {
+            "title": "Naval News",
+            "url": "https://www.navalnews.com/feed/"
+        },
+        {
+            "title": "SOFREP",
+            "url": "https://sofrep.com/feed/"
+        },
+        {
+            "title": "CNBC \u00bb World",
+            "url": "https://www.cnbc.com/id/100727362/device/rss/rss.html"
+        },
+        {
+            "title": "Washington Times \u00bb World News",
+            "url": "https://www.washingtontimes.com/rss/headlines/news/world/"
+        },
+        {
+            "title": "Financial Times",
+            "url": "https://www.ft.com/rss/home/international"
+        },
+        {
+            "title": "The Wall Street Journal \u00bb World",
+            "url": "https://feeds.content.dowjones.io/public/rss/RSSWorldNews"
+        },
+        {
+            "title": "The Verge",
+            "url": "https://www.theverge.com/rss/index.xml"
+        },
+        {
+            "title": "TechCrunch",
+            "url": "https://techcrunch.com/feed/"
+        },
+        {
+            "title": "WIRED",
+            "url": "https://www.wired.com/feed/rss"
+        },
+        {
+            "title": "Ars Technica",
+            "url": "https://arstechnica.com/feed"
+        },
+        {
+            "title": "MIT Technology Review",
+            "url": "https://www.technologyreview.com/feed"
+        },
+        {
+            "title": "Rest of World",
+            "url": "https://restofworld.org/feed/latest/"
+        },
+        {
+            "title": "Engadget",
+            "url": "https://www.engadget.com/rss.xml"
+        },
+        {
+            "title": "TechRadar",
+            "url": "https://www.techradar.com/feeds.xml"
+        },
+        {
+            "title": "Gizmodo",
+            "url": "https://gizmodo.com/feed"
+        },
+        {
+            "title": "Inside Climate News",
+            "url": "https://insideclimatenews.org/feed/"
+        },
+        {
+            "title": "Grist",
+            "url": "https://grist.org/feed"
+        },
+        {
+            "title": "Climate Home News",
+            "url": "https://www.climatechangenews.com/feed"
+        },
+        {
+            "title": "Mongabay.com",
+            "url": "https://news.mongabay.com/feed"
+        },
+        {
+            "title": "The Guardian \u00bb Environment",
+            "url": "https://www.theguardian.com/uk/environment/rss"
+        },
+        {
+            "title": "Yale E360",
+            "url": "https://e360.yale.edu/feed.xml"
+        },
+        {
+            "title": "CleanTechnica",
+            "url": "https://cleantechnica.com/feed/"
+        },
+        {
+            "title": "STAT",
+            "url": "https://www.statnews.com/category/pharma/feed/"
+        },
+        {
+            "title": "KFF Health News",
+            "url": "https://kffhealthnews.org/feed/"
+        },
+        {
+            "title": "Health Policy Watch",
+            "url": "https://healthpolicy-watch.news/feed/"
+        },
+        {
+            "title": "Medical Xpress",
+            "url": "https://medicalxpress.com/rss-feed/"
+        },
+        {
+            "title": "IPS News Agency \u00bb Global News",
+            "url": "https://www.ipsnews.net/news/regional-categories/global/feed/"
+        },
+        {
+            "title": "Vox \u00bb World",
+            "url": "https://www.vox.com/rss/world-politics/index.xml"
+        },
+        {
+            "title": "The Eastern Herald",
+            "url": "https://easternherald.com/feed/"
+        },
+        {
+            "title": "FO\u00b0 World \u00bb World News",
+            "url": "https://www.fairobserver.com/category/world-news/feed/"
+        },
+        {
+            "title": "Alternet.org \u00bb World",
+            "url": "https://www.alternet.org/feeds/world.rss"
+        },
+        {
+            "title": "Russia Today \u00bb World News",
+            "url": "https://www.rt.com/rss/news/"
+        },
+        {
+            "title": "Sputnik \u00bb World",
+            "url": "https://sputnikglobe.com/export/rss2/archive/index.xml"
+        },
+        {
+            "title": "ProPublica",
+            "url": "https://www.propublica.org/feeds/propublica/main"
+        },
+        {
+            "title": "The Christian Science Monitor \u00bb World",
+            "url": "https://rss.csmonitor.com/feeds/world"
+        },
+        {
+            "title": "The Conversation \u00bb World News",
+            "url": "https://theconversation.com/topics/world-news-156028/articles.atom"
+        },
+        {
+            "title": "Defence Blog \u00bb Maritime Security",
+            "url": "https://defence-blog.com/feed/"
+        },
+        {
+            "title": "The World Association of Newspapers - IFRA",
+            "url": "https://wan-ifra.org/news/feed/"
+        },
+        {
+            "title": "CBN",
+            "url": "https://www1.cbn.com/app_feeds/rss/news/rss.php?section=world&mobile=false&q=cbnnews/world/feed"
+        },
+        {
+            "title": "Chicago Tribune \u00bb World News",
+            "url": "https://www.chicagotribune.com/news/world/feed/"
+        },
+        {
+            "title": "Scripps News \u00bb World News",
+            "url": "https://www.scrippsnews.com/world.rss"
+        },
+        {
+            "title": "KPRC 2 Houston \u00bb World News",
+            "url": "https://www.click2houston.com/arc/outboundfeeds/rss/category/news/world/?outputType=xml&size=10"
+        },
+        {
+            "title": "KSHB 41 \u00bb World News",
+            "url": "https://www.kshb.com/world-news.rss"
+        },
+        {
+            "title": "Fox 4 Now WFTX \u00bb World News",
+            "url": "https://www.fox4now.com/world-news.rss"
+        },
+        {
+            "title": "Mathrubhumi \u00bb World News",
+            "url": "https://www.mathrubhumi.com/sitemaps/mathrubhumi/rss"
+        },
+        {
+            "title": "Google News \u00bb World",
+            "url": "https://news.google.com/atom/topics/CAAqKggKIiRDQkFTRlFvSUwyMHZNRGx1YlY4U0JXVnVMVWRDR2dKSlRpZ0FQAQ?hl=en-IN&gl=IN&ceid=IN:en&oc=11"
+        },
+        {
+            "title": "BuzzFeed \u00bb World",
+            "url": "https://www.buzzfeed.com/in/world.xml"
+        },
+        {
+            "title": "BreakingNews \u00bb World",
+            "url": "https://feeds.breakingnews.ie/bnworld"
+        }
+    ]
+}
