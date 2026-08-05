@@ -47,4 +47,12 @@ list_directories_and_titles = [
         'slug' : 'feeds_blockchain',
         'title' : 'Blockchain',
     },
+    {
+        'slug' : 'feeds_forex',
+        'title' : 'Forex',
+    },
+    {
+        'slug' : 'feeds_robotics',
+        'title' : 'Robotics',
+    },
 ]
