@@ -1,0 +1,168 @@
+{
+    "feeds": [
+	{
+            "title": "Robohub",
+            "url": "https://robohub.org/feed/"
+	},
+	{
+            "title": "The Robot Report",
+            "url": "https://www.therobotreport.com/feed/"
+	},
+	{
+            "title": "Robotiq",
+            "url": "https://blog.robotiq.com/rss.xml"
+	},
+	{
+            "title": "New Atlas",
+            "url": "https://newatlas.com/robotics/index.rss"
+	},
+	{
+            "title": "Roboticmagazine",
+            "url": "https://www.roboticmagazine.com/feed"
+	},
+	{
+            "title": "Tech Xplore - Robotics",
+            "url": "https://techxplore.com/rss-feed/robotics-news/"
+	},
+	{
+            "title": "Make",
+            "url": "https://makezine.com/category/technology/robotics/feed/"
+	},
+	{
+            "title": "SingularityHub - Robotics",
+            "url": "https://singularityhub.com/feed/"
+	},
+	{
+            "title": "RoboDK Blog",
+            "url": "https://robodk.com/blog/feed/"
+	},
+	{
+            "title": "RoboticsTomorrow News",
+            "url": "https://www.roboticstomorrow.com/rss/news"
+	},
+	{
+            "title": "WeRobotics Blog",
+            "url": "https://werobotics.org/articles/feed.rss"
+	},
+	{
+            "title": "Asian Robotics Review",
+            "url": "https://asianroboticsreview.com/feed"
+	},
+	{
+            "title": "Hudson Blog",
+            "url": "https://hudsonlabautomation.com/feed/"
+	},
+	{
+            "title": "Clearpath Robotics Blog",
+            "url": "https://clearpathrobotics.com/feed/"
+	},
+	{
+            "title": "IEEE Spectrum - Robotics",
+            "url": "https://spectrum.ieee.org/feeds/topic/robotics.rss"
+	},
+	{
+            "title": "MassRobotics",
+            "url": "https://www.massrobotics.org/news/feed/"
+	},
+	{
+            "title": "Kawasaki Robotics Blog",
+            "url": "https://kawasakirobotics.com/feed/"
+	},
+	{
+            "title": "Bear Robotics Blog",
+            "url": "https://www.bearrobotics.ai/blog?format=rss"
+	},
+	{
+            "title": "Viam Blog",
+            "url": "https://www.viam.com/post/rss.xml"
+	},
+	{
+            "title": "EVS Robot Blog",
+            "url": "https://www.evsint.com/feed/"
+	},
+	{
+            "title": "Quasi Robotics Blog",
+            "url": "https://www.quasi.ai/feed/"
+	},
+	{
+            "title": "Robotnik Blog",
+            "url": "https://robotnik.eu/feed/"
+	},
+	{
+            "title": "Warehouse Robotics Blog",
+            "url": "https://www.primerobotics.com/feed/"
+	},
+	{
+            "title": "NVIDIA Blog - Robotics",
+            "url": "https://blogs.nvidia.com/blog/category/robotics/feed/"
+	},
+	{
+            "title": "ScienceDaily - Robotics",
+            "url": "https://www.sciencedaily.com/rss/computers_math/robotics.xml"
+	},
+	{
+            "title": "MIT News - Robotics",
+            "url": "https://news.mit.edu/topic/mitrobotics-rss.xml"
+	},
+	{
+            "title": "Robotics & Automation News",
+            "url": "https://roboticsandautomationnews.com/feed/"
+	},
+	{
+            "title": "The Guardian | Robots",
+            "url": "https://www.theguardian.com/technology/robots/rss"
+	},
+	{
+            "title": "RobotLAB Blog",
+            "url": "https://www.robotlab.com/blog/rss.xml"
+	},
+	{
+            "title": "ServoDriven",
+            "url": "https://servodriven.com/feed/"
+	},
+	{
+            "title": "Intuition Robotics",
+            "url": "https://blog.intuitionrobotics.com/rss.xml"
+	},
+	{
+            "title": "Classroom Robotics",
+            "url": "http://classroomrobotics.blogspot.com/feeds/posts/default?alt=rss"
+	},
+	{
+            "title": "Modular Robotics Blog",
+            "url": "https://modrobotics.com/blog/feed/"
+	},
+	{
+            "title": "DIY Robotics Blog",
+            "url": "https://diy-robotics.com/feed/"
+	},
+	{
+            "title": "Learn Robotics Blog",
+            "url": "https://www.learnrobotics.org/feed/"
+	},
+	{
+            "title": "AWS Blog - Robotics",
+            "url": "https://aws.amazon.com/blogs/robotics/feed/"
+	},
+	{
+            "title": "Productive Robotics Blog",
+            "url": "https://www.productiverobotics.com/blog-feed.xml"
+	},
+	{
+            "title": "Robotic Automation Systems Blog",
+            "url": "https://www.roboticautomationsystems.com/company/blogs/feed/"
+	},
+	{
+            "title": "SHERPA Mobile Robotics Blog",
+            "url": "https://www.sherpa-mr.com/en/blog-feed.xml"
+	},
+	{
+            "title": "Smart Robotics Blog",
+            "url": "https://smart-robotics.io/feed/"
+	},
+	{
+            "title": "Rover Robotics Blog",
+            "url": "https://roverrobotics.com/blogs/news.atom"
+	}
+    ]
+}
