@@ -28,6 +28,13 @@ typer's single-command auto-invoke shorthand only applies to a one-command app):
     archive_query.py and pipeline.answer_archive_question. Read-only;
     doesn't touch --output-dir.
 
+`validate-feeds` key options:
+    --data-dir          Where to find rss_feeds/*.json files
+    --fix               Prune failing feeds and log them in REMOVED.json
+    Checks every feed across every configured topic (network failure,
+    malformed XML, or zero parseable entries) — see feed_validation.py.
+    Without --fix, only reports; safe to re-run periodically.
+
 SEPARATION OF CONCERNS
 -----------------------
 This layer only reads config, prints status, and bridges sync (CLI) to
@@ -36,6 +43,7 @@ renderer.py, LLM calls in llm_client.py.
 """
 
 import asyncio
+import json
 import os
 from pathlib import Path
 
@@ -64,8 +72,10 @@ from strategic_reports.daily.core import (
     record_emerging_tag_alerts,
     record_overview,
     record_tags,
+    remove_dead_feeds,
     run_pipeline,
     summarize_communities,
+    validate_topic_feeds,
     write_tag_graph,
 )
 from strategic_reports.daily.core.db import (
@@ -576,6 +586,61 @@ def export_rdf_command(
     triple_count = export_rdf(db_path, output, since=since)
 
     typer.echo(f"RDF export written to {output} ({triple_count:,} triples)")
+
+
+@app.command(name="validate-feeds")
+def validate_feeds_command(
+    data_dir: Path = typer.Option(
+        default_data_dir(),
+        envvar="STRATEGIC_REPORTS_DATA_DIR",
+        help="Directory containing rss_feeds/*.json files",
+    ),
+    fix: bool = typer.Option(
+        False,
+        help="Remove failing feeds from their category files and log them in "
+             "<data-dir>/REMOVED.json. Without this flag, only reports failures.",
+    ),
+) -> None:
+    """
+    Check every RSS feed across all configured topics and report which ones
+    are dead — network failures, malformed XML, or an HTTP 200 with zero
+    parseable entries.
+
+    Pass --fix to prune the failing feeds out of their feeds_*.json file and
+    log them in REMOVED.json, next to any manually-curated exclusions
+    already recorded there. Safe to re-run periodically; unaffected feeds
+    are left untouched.
+    """
+    topics = _build_topic_configs(data_dir)
+    if not topics:
+        typer.echo("No valid topic configs found. Check --data-dir.", err=True)
+        raise typer.Exit(code=1)
+
+    removed_path = data_dir / "REMOVED.json"
+    if fix and not removed_path.exists():
+        typer.echo(f"[warn] {removed_path} not found — creating a fresh one", err=True)
+        removed_path.write_text(json.dumps({"removed": {}}, indent=4) + "\n")
+
+    total_checked = 0
+    total_removed = 0
+
+    for topic in topics:
+        results = asyncio.run(validate_topic_feeds(topic))
+        bad = [r for r in results if not r.ok]
+        total_checked += len(results)
+
+        typer.echo(f"{topic.slug:<28} {len(results):>4} feeds, {len(bad):>3} failed")
+        for r in bad:
+            typer.echo(f"  FAIL  {r.feed.title}  <{r.feed.url}>  {r.detail}")
+
+        if fix and bad:
+            total_removed += remove_dead_feeds(topic, results, removed_path)
+
+    typer.echo("")
+    if fix:
+        typer.echo(f"Checked {total_checked} feeds, removed {total_removed} dead ones.")
+    else:
+        typer.echo(f"Checked {total_checked} feeds. Re-run with --fix to prune failing ones.")
 
 
 if __name__ == "__main__":
