@@ -19,6 +19,11 @@
 		"title": "Rodney Brooks",
 		"url": "https://rodneybrooks.com/feed/",
 		"reason": "I do not want personal websites."
+	    },
+	    {
+		"title": "Asian Robotics Review",
+		"url": "https://asianroboticsreview.com/feed",
+		"exception": "HTTP 200 but no parseable entries"
 	    }
 	],
 	"feeds_forex": [
@@ -26,6 +31,21 @@
 		"title": "Vladimir Ribakov",
 		"url": "https://vladimirribakov.com/feed/",
 		"reason": "I do not want personal websites."
+	    },
+	    {
+		"title": "PreferForex Blog",
+		"url": "https://preferforex.com/blog/feed/",
+		"exception": "HTTP 200 but no parseable entries"
+	    },
+	    {
+		"title": "Admiral Markets Blog",
+		"url": "https://admiralmarkets.com/analytics/traders-blog/feed.xml",
+		"exception": "HTTP 403; malformed XML (mismatched tag)"
+	    },
+	    {
+		"title": "Forex Crunch",
+		"url": "https://www.forexcrunch.com/feed/",
+		"exception": "HTTP 502; malformed XML (invalid token)"
 	    }
 	]
     }
