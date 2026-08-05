@@ -61,24 +61,12 @@
             "url": "https://www.codementor.io/community/topic/data-science/feed"
         },
         {
-            "title": "Analytics India Magazine \u00bb AI News",
-            "url": "https://analyticsindiamag.com/ai-news-updates/feed/"
-        },
-        {
             "title": "DataFlair",
             "url": "https://data-flair.training/blogs/feed/"
         },
         {
             "title": "DataRobot Blog",
             "url": "https://www.datarobot.com/blog/feed/"
-        },
-        {
-            "title": "Command Line Tips",
-            "url": "https://cmdlinetips.com/feed/"
-        },
-        {
-            "title": "9TO5SAS",
-            "url": "https://www.9to5sas.com/feed/"
         },
         {
             "title": "InData Labs Blog",
@@ -91,10 +79,6 @@
         {
             "title": "Verra Mobility",
             "url": "https://www.verramobility.com/feed/"
-        },
-        {
-            "title": "Data Science Blog",
-            "url": "https://data-science-blog.com/en/feed/"
         },
         {
             "title": "NYC Data Science Academy Blog",
@@ -137,10 +121,6 @@
             "url": "https://matloff.wordpress.com/feed/"
         },
         {
-            "title": "DATAVERSITY \u00bb Data Science News, Articles, & Education",
-            "url": "https://www.dataversity.net/category/data-topics/data-science-data-topics/feed/"
-        },
-        {
             "title": "Nina B. Zumel",
             "url": "https://ninazumel.com/feed.xml"
         },
@@ -173,18 +153,6 @@
             "url": "https://www.reneshbedre.com/feed.xml"
         },
         {
-            "title": "DataScience@SMU Blog",
-            "url": "https://datascience.smu.edu/blog/feed/"
-        },
-        {
-            "title": "Data Science Association blog",
-            "url": "https://www.datascienceassn.org/blog/feed"
-        },
-        {
-            "title": "Data Elixir",
-            "url": "https://dataelixir.com/issues.rss"
-        },
-        {
             "title": "Win Vector LLC",
             "url": "https://win-vector.com/feed/"
         },
@@ -199,10 +167,6 @@
         {
             "title": "Ujjwal Karn",
             "url": "https://ujjwalkarn.me/feed/"
-        },
-        {
-            "title": "SV Data Science Blog",
-            "url": "https://www.svds.com/blog/feed/"
         },
         {
             "title": "Becoming A Data Scientist",

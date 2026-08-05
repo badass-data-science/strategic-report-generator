@@ -1,10 +1,6 @@
 {
     "feeds": [
         {
-            "title": "AI News",
-            "url": "https://www.artificialintelligence-news.com/feed/"
-        },
-        {
             "title": "Unite.AI",
             "url": "https://www.unite.ai/feed/"
         },
@@ -21,10 +17,6 @@
             "url": "http://aiweekly.co/issues.rss"
         },
         {
-            "title": "Artificial-Intelligence.Blog \u00bb AI News",
-            "url": "https://www.artificial-intelligence.blog/ai-news"
-        },
-        {
             "title": "The Rundown AI",
             "url": "https://rss.beehiiv.com/feeds/2R3C6Bt5wj.xml"
         },
@@ -35,14 +27,6 @@
         {
             "title": "AIwire",
             "url": "https://www.aiwire.net/feed"
-        },
-        {
-            "title": "insideAI News",
-            "url": "https://insideainews.com/feed/"
-        },
-        {
-            "title": "Google Research Blog",
-            "url": "http://ai.googleblog.com/feeds/posts/default?alt=rss"
         },
         {
             "title": "BAIR Blog",
@@ -133,36 +117,16 @@
             "url": "https://datamachina.substack.com/feed"
         },
         {
-            "title": "Becoming Human",
-            "url": "https://becominghuman.ai/feed"
-        },
-        {
             "title": "Qudata",
             "url": "https://qudata.com/en/news/rss.xml"
-        },
-        {
-            "title": "AI nyheter",
-            "url": "https://nyheter.aitool.se/feed/"
         },
         {
             "title": "Stable Diffusion Practical Guide",
             "url": "https://www.sdexample.com/feeds/posts/default"
         },
         {
-            "title": "Copyleaks Blog",
-            "url": "https://copyleaks.com/blog/feed"
-        },
-        {
             "title": "GPTZero Blog",
             "url": "https://gptzero.me/news/rss/"
-        },
-        {
-            "title": "ALEPH ALPHA Blog",
-            "url": "https://aleph-alpha.com/feed/"
-        },
-        {
-            "title": "Contextual AI Blog",
-            "url": "https://contextual.ai/blog/feed/"
         },
         {
             "title": "AWS Blog \u00bb Artificial Learning",
@@ -177,14 +141,6 @@
             "url": "https://news.microsoft.com/source/topics/ai/feed/"
         },
         {
-            "title": "Cisco Blogs",
-            "url": "https://blogs.cisco.com/ai/feed"
-        },
-        {
-            "title": "HanhDBrown \u00bb AI",
-            "url": "https://hanhdbrown.com/feed/"
-        },
-        {
             "title": "SAS \u00bb Artificial Intelligence",
             "url": "https://blogs.sas.com/content/topic/artificial-intelligence/feed/"
         },
@@ -195,10 +151,6 @@
         {
             "title": "Nanonets Blog",
             "url": "https://nanonets.com/blog/rss/"
-        },
-        {
-            "title": "Clarifai Blog",
-            "url": "https://www.clarifai.com/blog/rss.xml"
         },
         {
             "title": "Pandio Blog",
@@ -257,10 +209,6 @@
             "url": "https://ai2people.com/feed/"
         },
         {
-            "title": "Artificial Intelligence Technology and the Law Blog",
-            "url": "https://www.aitechnologylaw.com/feed/"
-        },
-        {
             "title": "Artificial Lawyer",
             "url": "https://www.artificiallawyer.com/feed/"
         },
@@ -301,10 +249,6 @@
             "url": "https://federalnewsnetwork.com/category/technology-main/artificial-intelligence/feed/"
         },
         {
-            "title": "Quertle Blog",
-            "url": "https://quertle.com/feed/"
-        },
-        {
             "title": "Dxcover Blog",
             "url": "https://www.dxcover.com/feed/"
         },
@@ -319,10 +263,6 @@
         {
             "title": "Cogito Tech Blog",
             "url": "https://www.cogitotech.com/feed/"
-        },
-        {
-            "title": "Shaip Blog",
-            "url": "https://www.shaip.com/feed/"
         },
         {
             "title": "Crunchbase News \u00bb AI",

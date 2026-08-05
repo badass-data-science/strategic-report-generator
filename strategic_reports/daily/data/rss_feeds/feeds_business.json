@@ -61,10 +61,6 @@
             "url": "https://smallbizsurvival.com/feed"
         },
         {
-            "title": "Success Harbor",
-            "url": "https://www.successharbor.com/feed/"
-        },
-        {
             "title": "Jeffbullas",
             "url": "https://www.jeffbullas.com/feed/"
         },
@@ -97,14 +93,6 @@
             "url": "https://learn.g2crowd.com/rss.xml"
         },
         {
-            "title": "Domosphere Blog",
-            "url": "https://www.domo.com/blog/feed/"
-        },
-        {
-            "title": "FTC Business Blog",
-            "url": "https://www.ftc.gov/feeds/blog-business.xml"
-        },
-        {
             "title": "Scranton SBDC Blog",
             "url": "https://www.scrantonsbdc.com/feed/"
         },
@@ -115,10 +103,6 @@
         {
             "title": "Food Business News",
             "url": "https://www.foodbusinessnews.net/rss/articles"
-        },
-        {
-            "title": "Talking Biz News",
-            "url": "http://talkingbiznews.com/feed/"
         },
         {
             "title": "Small Business UK Blog",
@@ -133,14 +117,6 @@
             "url": "https://businesschicks.com/blog?format=rss"
         },
         {
-            "title": "Naomi Simson Blog",
-            "url": "https://naomisimson.com/feed/"
-        },
-        {
-            "title": "Bluewire Media Blog",
-            "url": "https://www.bluewiremedia.com.au/blog/feed"
-        },
-        {
             "title": "Providence Business News",
             "url": "https://pbn.com/feed/"
         },
@@ -151,10 +127,6 @@
         {
             "title": "Melinda Emerson Blog",
             "url": "https://succeedasyourownboss.com/feed/"
-        },
-        {
-            "title": "Business Pundit",
-            "url": "https://www.businesspundit.com/feed/"
         },
         {
             "title": "The Global Small Business Blog",
@@ -177,18 +149,6 @@
             "url": "https://stevebizblog.com/feed/"
         },
         {
-            "title": "OnStrategy Blog",
-            "url": "https://onstrategyhq.com/feed/"
-        },
-        {
-            "title": "Crowdspring Blog",
-            "url": "https://www.crowdspring.com/blog/feed/"
-        },
-        {
-            "title": "Roundpeg Blog",
-            "url": "http://roundpeg.biz/feed/"
-        },
-        {
             "title": "Millo",
             "url": "https://millo.co/feed"
         },
@@ -203,18 +163,6 @@
         {
             "title": "Headway Capital Blog",
             "url": "https://www.headwaycapital.com/blog/feed/"
-        },
-        {
-            "title": "United Capital Source Blog",
-            "url": "https://www.unitedcapitalsource.com/feed/"
-        },
-        {
-            "title": "The Business Backer Blog",
-            "url": "https://www.businessbacker.com/feed/"
-        },
-        {
-            "title": "CorpNet Blog",
-            "url": "https://blog.corpnet.com/feed"
         }
     ]
 }

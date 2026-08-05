@@ -6,7 +6,7 @@ orientation for making changes.
 
 ## What this is
 
-A daily briefing pipeline: fetches RSS across 12 topics, summarizes and
+A daily briefing pipeline: fetches RSS across 14 topics, summarizes and
 synthesizes strategic recommendations via an LLM (provider-agnostic via
 litellm), renders an HTML report + tag co-occurrence graph, and tracks
 urgency scores/strategic bullets/article summaries/community summaries
@@ -57,13 +57,26 @@ deployment run 'daily-strategic-report-export-rdf/daily-strategic-report-export-
 deployment exists; `cli.py export-rdf` remains available for genuinely
 Prefect-independent ad-hoc use.
 
-**CLI invocation shape**: `cli.py` now has three commands (`run`, `ask`,
-`export-rdf`), so naming one explicitly is required (`... cli.py run
---output-dir ...`) — typer's single-command auto-invoke shorthand (bare
-`... cli.py --output-dir ...`) only applies when there's exactly one
-command, and no longer applies here. If you ever reduce back to one
-command, that shorthand returns; don't assume it's available with two or
-more.
+A fourth command, `python -m strategic_reports.daily.cli validate-feeds
+[--fix]`, is the same kind of exception: a maintenance utility over the
+`feeds_*.json` configs (see `feed_validation.py`), not a pipeline step.
+Feed health doesn't change day to day the way news does, so it isn't run
+as part of `run` or the Prefect flow — it's meant to be invoked on demand,
+occasionally, not on every scheduled run. `--fix` prunes failing feeds and
+logs them in `data/rss_feeds/REMOVED.json`, using the same
+`{"title", "url", "exception"}` shape as the handful of feeds already
+removed there by hand (those use `"reason"` instead) — appends to that
+file rather than overwriting it, so re-running `--fix` periodically
+accumulates history. It has no Prefect equivalent, and that's intentional,
+same as `ask`.
+
+**CLI invocation shape**: `cli.py` now has four commands (`run`, `ask`,
+`export-rdf`, `validate-feeds`), so naming one explicitly is required
+(`... cli.py run --output-dir ...`) — typer's single-command auto-invoke
+shorthand (bare `... cli.py --output-dir ...`) only applies when there's
+exactly one command, and no longer applies here. If you ever reduce back
+to one command, that shorthand returns; don't assume it's available with
+two or more.
 
 ## Setup
 
@@ -90,7 +103,7 @@ ruff check .
 mypy
 ```
 
-- 204 tests across `tests/test_*.py`, no real network or LLM calls, runs in
+- 217 tests across `tests/test_*.py`, no real network or LLM calls, runs in
   under a second. CI (`.github/workflows/tests.yml`) runs all three as
   separate jobs (`pytest`, `lint`, `typecheck`) on every push/PR to `main`,
   no credentials needed there either.
@@ -116,6 +129,7 @@ strategic_reports/
       models.py          Pydantic models: RawArticle → ArticleSummary → TopicResult → CrossTopicSynthesis → BulletDiff
       llm_client.py       Async LLMClient: litellm + instructor + tenacity retry
       ingestion.py        Async RSS fetching
+      feed_validation.py  Async RSS feed health checks + REMOVED.json pruning/logging for `validate-feeds`
       prompts.py          System messages + user-message builders
       pipeline.py         Two-phase async orchestrator + cross-topic synthesis (grounded by bridge tags) + summarize_communities() + answer_archive_question()/extract_query_tags()
       renderer.py         Jinja2 HTML rendering
@@ -132,9 +146,10 @@ strategic_reports/
       tracing.py          Langfuse / Phoenix instrumentation (opt-in)
     templates/            Jinja2 templates (base, index, topic)
     data/rss_feeds/       One JSON file per topic listing feed URLs — packaged as wheel data
+      REMOVED.json        Audit log of feeds removed by `validate-feeds --fix` or by hand
     flows/daily_report.py Prefect flow (10 tasks) for scheduled runs — no `ask` equivalent, deliberately (see above)
     flows/export_rdf_flow.py Prefect flow wrapping export-rdf — scheduled daily, own process (see above)
-    cli.py                typer CLI entrypoint — three commands: run, ask, export-rdf
+    cli.py                typer CLI entrypoint — four commands: run, ask, export-rdf, validate-feeds
     paths.py              default_data_dir() — resolves bundled rss_feeds/ via importlib.resources
     config/topic_order.py Ordered topic slugs + display titles
 tests/                  Per-module test files + conftest.py fixtures
@@ -211,6 +226,19 @@ LICENSE                 MIT
   does not merge into an existing `.ttl` file; don't add merge/watermark
   logic without discussing it first, since this was a deliberate v1 scope
   choice, not an oversight.
+- **`validate-feeds`/`feed_validation.py` is a maintenance utility over the
+  feed configs, not a pipeline step — keep it that way.** It has no
+  Prefect equivalent and isn't called from `run`, same deliberate
+  exception as `ask` (see above). A feed counts as dead on a fetch
+  exception, an XML parse error with zero salvageable entries, or an HTTP
+  200 with zero entries — a feed that's merely `bozo` (minor XML quirks)
+  but still yielded usable entries is left alone; don't tighten that to
+  "any parse warning is dead." `remove_dead_feeds()` appends to
+  `REMOVED.json` (`{"title", "url", "exception"}`, matching the
+  `{"title", "url", "reason"}` shape already used for manually-curated
+  exclusions) rather than overwriting it, since this is meant to be
+  re-run periodically and accumulate history — don't change it to
+  replace the file's contents.
 - **`{topic}_summaries.html` carries `schema:Article` JSON-LD per article,
   built by `renderer._build_article_jsonld()` — kept in sync with
   `rdf_export.py`'s schema.org mapping (`headline`/`url`/`datePublished`),

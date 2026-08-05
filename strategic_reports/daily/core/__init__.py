@@ -55,6 +55,7 @@ from .article_archive import load_articles, record_articles
 from .bullet_diff import append_bullet_run, diff_all_topics, load_bullet_history
 from .db import connect as connect_db
 from .db import ensure_safe_db_path, record_run
+from .feed_validation import FeedCheckResult, remove_dead_feeds, validate_topic_feeds
 from .ingestion import fetch_topic_articles
 from .llm_client import LLMClient
 from .models import (
@@ -126,6 +127,9 @@ __all__ = [
     # Pipeline components
     "LLMClient",
     "fetch_topic_articles",
+    "FeedCheckResult",
+    "validate_topic_feeds",
+    "remove_dead_feeds",
     "run_pipeline",
     "summarize_communities",
     "answer_archive_question",

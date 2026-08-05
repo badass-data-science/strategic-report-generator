@@ -1,52 +1,612 @@
 {
-    "removed" : {
-	"feeds_healthcare": [
+    "removed": {
+        "feeds_healthcare": [
             {
-		"title": "RamaOnHealthcare",
-		"url": "https://ramaonhealthcare.com/feed/",
-		"exception": "Remote end closed connection without response"
-            }
-	],
-	"feeds_geopolitics": [
+                "title": "RamaOnHealthcare",
+                "url": "https://ramaonhealthcare.com/feed/",
+                "exception": "Remote end closed connection without response"
+            },
             {
-		"title": "Weekly Geo-Political News and Analysis",
-		"url": "https://benjaminfulford.net/feed/",
-		"reason": "Absurd content."
+                "title": "Modern Healthcare",
+                "url": "https://www.modernhealthcare.com/section/rss/news?days=7&topics=81631",
+                "exception": "HTTP 301; malformed XML (19:31: not well-formed (invalid token))"
+            },
+            {
+                "title": "HealthITSecurity",
+                "url": "https://healthitsecurity.com/feed/",
+                "exception": "HTTP 404; text/html; charset=iso-8859-1 is not an XML media type"
+            },
+            {
+                "title": "HCITExperts Blog",
+                "url": "https://hcitexpert.com/feed/",
+                "exception": "HTTP 404; malformed XML (7:26: undefined entity)"
+            },
+            {
+                "title": "Care And Cost | Health Care Essays by Brian Klepper",
+                "url": "https://careandcost.com/feed/",
+                "exception": "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'careandcost.com'. (_ssl.c:1081)"
+            },
+            {
+                "title": "HHS Blog",
+                "url": "https://www.hhs.gov/rss/blog.xml?language=es",
+                "exception": "HTTP 403; malformed XML (10:2: mismatched tag)"
+            },
+            {
+                "title": "Healthcare.gov Blog",
+                "url": "https://www.healthcare.gov/blog/blog.rss",
+                "exception": "HTTP 404; malformed XML (4:388: not well-formed (invalid token))"
+            },
+            {
+                "title": "Safe Healthcare Blog",
+                "url": "https://blogs.cdc.gov/safehealthcare/feed/",
+                "exception": "HTTP 301; malformed XML (20:78: not well-formed (invalid token))"
+            },
+            {
+                "title": "OSF HealthCare Blog",
+                "url": "https://www.osfhealthcare.org/blog/feed/",
+                "exception": "HTTP 301; malformed XML (2:59: not well-formed (invalid token))"
+            },
+            {
+                "title": "Preventive Medicine Daily",
+                "url": "https://www.preventivemedicinedaily.com/feed/",
+                "exception": "HTTP 301 but no parseable entries"
+            },
+            {
+                "title": "Sheppard Mullin",
+                "url": "https://www.sheppardhealthlaw.com/feed",
+                "exception": "HTTP 301; malformed XML (2:39: not well-formed (invalid token))"
+            },
+            {
+                "title": "Cisco \u00bb Healthcare",
+                "url": "http://blogs.cisco.com/healthcare/feed",
+                "exception": "timed out"
+            },
+            {
+                "title": "P3 Healthcare Solutions Blog",
+                "url": "https://www.p3care.com/feed/",
+                "exception": "HTTP 500 but no parseable entries"
+            },
+            {
+                "title": "GPonline",
+                "url": "https://www.gponline.com/rss/news",
+                "exception": "HTTP 403; malformed XML (2:1326: not well-formed (invalid token))"
+            },
+            {
+                "title": "Healthcare Australia News",
+                "url": "https://healthcareaustralia.com.au/news/feed/",
+                "exception": "HTTP 200 but no parseable entries"
+            },
+            {
+                "title": "Health Care For All Blog",
+                "url": "https://hcfama.org/blog/feed/",
+                "exception": "HTTP 200 but no parseable entries"
             }
-	],
-	"feeds_robotics": [
-	    {
-		"title": "Rodney Brooks",
-		"url": "https://rodneybrooks.com/feed/",
-		"reason": "I do not want personal websites."
-	    },
-	    {
-		"title": "Asian Robotics Review",
-		"url": "https://asianroboticsreview.com/feed",
-		"exception": "HTTP 200 but no parseable entries"
-	    }
-	],
-	"feeds_forex": [
-	    {
-		"title": "Vladimir Ribakov",
-		"url": "https://vladimirribakov.com/feed/",
-		"reason": "I do not want personal websites."
-	    },
-	    {
-		"title": "PreferForex Blog",
-		"url": "https://preferforex.com/blog/feed/",
-		"exception": "HTTP 200 but no parseable entries"
-	    },
-	    {
-		"title": "Admiral Markets Blog",
-		"url": "https://admiralmarkets.com/analytics/traders-blog/feed.xml",
-		"exception": "HTTP 403; malformed XML (mismatched tag)"
-	    },
-	    {
-		"title": "Forex Crunch",
-		"url": "https://www.forexcrunch.com/feed/",
-		"exception": "HTTP 502; malformed XML (invalid token)"
-	    }
-	]
+        ],
+        "feeds_geopolitics": [
+            {
+                "title": "Weekly Geo-Political News and Analysis",
+                "url": "https://benjaminfulford.net/feed/",
+                "reason": "Absurd content."
+            },
+            {
+                "title": "Covert Geopolitics",
+                "url": "https://geopolitics.co/",
+                "exception": "HTTP 400; malformed XML (2:0: syntax error)"
+            },
+            {
+                "title": "CFA Institute Blog \u00bb History & Geopolitics",
+                "url": "https://blogs.cfainstitute.org/investor/category/history-geopolitics/feed/",
+                "exception": "HTTP 301; malformed XML (6:119: not well-formed (invalid token))"
+            },
+            {
+                "title": "RAND \u00bb International Affairs",
+                "url": "https://www.rand.org/topics/international-affairs.xml/feed",
+                "exception": "HTTP 200 but no parseable entries"
+            },
+            {
+                "title": "Water Politics Blog",
+                "url": "https://waterpolitics.com/feed/",
+                "exception": "HTTP 301; malformed XML (22:1: undefined entity)"
+            },
+            {
+                "title": "Loomis Sayles Blog \u00bb Geopolitics",
+                "url": "https://blog.loomissayles.com/topic/geopolitics/rss.xml",
+                "exception": "HTTP 301; malformed XML (6:381: not well-formed (invalid token))"
+            },
+            {
+                "title": "E-International Relations",
+                "url": "https://www.e-ir.info/feed/",
+                "exception": "The read operation timed out"
+            }
+        ],
+        "feeds_robotics": [
+            {
+                "title": "Rodney Brooks",
+                "url": "https://rodneybrooks.com/feed/",
+                "reason": "I do not want personal websites."
+            },
+            {
+                "title": "Asian Robotics Review",
+                "url": "https://asianroboticsreview.com/feed",
+                "exception": "HTTP 200 but no parseable entries"
+            }
+        ],
+        "feeds_forex": [
+            {
+                "title": "Vladimir Ribakov",
+                "url": "https://vladimirribakov.com/feed/",
+                "reason": "I do not want personal websites."
+            },
+            {
+                "title": "PreferForex Blog",
+                "url": "https://preferforex.com/blog/feed/",
+                "exception": "HTTP 200 but no parseable entries"
+            },
+            {
+                "title": "Admiral Markets Blog",
+                "url": "https://admiralmarkets.com/analytics/traders-blog/feed.xml",
+                "exception": "HTTP 403; malformed XML (mismatched tag)"
+            },
+            {
+                "title": "Forex Crunch",
+                "url": "https://www.forexcrunch.com/feed/",
+                "exception": "HTTP 502; malformed XML (invalid token)"
+            }
+        ],
+        "feeds_ai": [
+            {
+                "title": "AI News",
+                "url": "https://www.artificialintelligence-news.com/feed/",
+                "exception": "HTTP 302; malformed XML (2:0: syntax error)"
+            },
+            {
+                "title": "Artificial-Intelligence.Blog \u00bb AI News",
+                "url": "https://www.artificial-intelligence.blog/ai-news",
+                "exception": "HTTP 200; malformed XML (2:0: syntax error)"
+            },
+            {
+                "title": "insideAI News",
+                "url": "https://insideainews.com/feed/",
+                "exception": "[SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1081)"
+            },
+            {
+                "title": "Google Research Blog",
+                "url": "http://ai.googleblog.com/feeds/posts/default?alt=rss",
+                "exception": "HTTP 404; malformed XML (4:31: mismatched tag)"
+            },
+            {
+                "title": "Becoming Human",
+                "url": "https://becominghuman.ai/feed",
+                "exception": "The read operation timed out"
+            },
+            {
+                "title": "AI nyheter",
+                "url": "https://nyheter.aitool.se/feed/",
+                "exception": "[Errno -2] Name or service not known"
+            },
+            {
+                "title": "Copyleaks Blog",
+                "url": "https://copyleaks.com/blog/feed",
+                "exception": "HTTP 403; malformed XML (2:1326: not well-formed (invalid token))"
+            },
+            {
+                "title": "ALEPH ALPHA Blog",
+                "url": "https://aleph-alpha.com/feed/",
+                "exception": "HTTP 404; malformed XML (2:196: not well-formed (invalid token))"
+            },
+            {
+                "title": "Contextual AI Blog",
+                "url": "https://contextual.ai/blog/feed/",
+                "exception": "HTTP 200; text/html; charset=utf-8 is not an XML media type"
+            },
+            {
+                "title": "Cisco Blogs",
+                "url": "https://blogs.cisco.com/ai/feed",
+                "exception": "The read operation timed out"
+            },
+            {
+                "title": "HanhDBrown \u00bb AI",
+                "url": "https://hanhdbrown.com/feed/",
+                "exception": "HTTP 404; malformed XML (8:155: not well-formed (invalid token))"
+            },
+            {
+                "title": "Clarifai Blog",
+                "url": "https://www.clarifai.com/blog/rss.xml",
+                "exception": "HTTP 301; malformed XML (2:1087: not well-formed (invalid token))"
+            },
+            {
+                "title": "Artificial Intelligence Technology and the Law Blog",
+                "url": "https://www.aitechnologylaw.com/feed/",
+                "exception": "HTTP 302; malformed XML (3:0: syntax error)"
+            },
+            {
+                "title": "Quertle Blog",
+                "url": "https://quertle.com/feed/",
+                "exception": "HTTP 301; malformed XML (2:0: unbound prefix)"
+            },
+            {
+                "title": "Shaip Blog",
+                "url": "https://www.shaip.com/feed/",
+                "exception": "The read operation timed out"
+            }
+        ],
+        "feeds_biotech": [
+            {
+                "title": "Biotech Express Magazine",
+                "url": "https://biotechexpressmag.com/feed/",
+                "exception": "HTTP 200; text/html is not an XML media type"
+            },
+            {
+                "title": "Endpoints News",
+                "url": "https://endpts.com/feed/",
+                "exception": "HTTP 301; malformed XML (5:2: mismatched tag)"
+            },
+            {
+                "title": "UC Davis Biotechnology Program Blog",
+                "url": "https://biotech.ucdavis.edu/blog.rss",
+                "exception": "HTTP 403; malformed XML (2:1326: not well-formed (invalid token))"
+            },
+            {
+                "title": "The SENSible Blog",
+                "url": "https://sens.org/feed/",
+                "exception": "HTTP 301; malformed XML (12:19664: not well-formed (invalid token))"
+            }
+        ],
+        "feeds_blockchain": [
+            {
+                "title": "Bloqtimes | Building Bloq of Blockchain News",
+                "url": "https://bloqtimes.com/feed/",
+                "exception": "[Errno 111] Connection refused"
+            },
+            {
+                "title": "Moralis Academy Blog",
+                "url": "https://academy.moralis.io/feed",
+                "exception": "HTTP 302; malformed XML (2:0: syntax error)"
+            },
+            {
+                "title": "The Blockchain Investments Blog",
+                "url": "https://blog.coinfund.io/feed",
+                "exception": "timed out"
+            },
+            {
+                "title": "Blockchain Firm Blog",
+                "url": "https://blockchainfirm.io/feed/",
+                "exception": "HTTP 301; malformed XML (11:195: not well-formed (invalid token))"
+            },
+            {
+                "title": "1inch.exchange",
+                "url": "https://medium.com/feed/@1inch-exchange",
+                "exception": "HTTP 404; malformed XML (2:2072: not well-formed (invalid token))"
+            },
+            {
+                "title": "DappRadar Blog \u00bb Gambling",
+                "url": "https://dappradar.com/blog/feed",
+                "exception": "HTTP 200 but no parseable entries"
+            },
+            {
+                "title": "Rahab Punkaholic Girls",
+                "url": "https://rahabpunkaholicgirls.com/feed/",
+                "exception": "HTTP 404; malformed XML (11:2: mismatched tag)"
+            },
+            {
+                "title": "ChainTechSource Blog",
+                "url": "https://chaintechsource.com/blog/feed/",
+                "exception": "HTTP 500 but no parseable entries"
+            }
+        ],
+        "feeds_business": [
+            {
+                "title": "Success Harbor",
+                "url": "https://www.successharbor.com/feed/",
+                "exception": "HTTP 404; malformed XML (15:193: mismatched tag)"
+            },
+            {
+                "title": "Domosphere Blog",
+                "url": "https://www.domo.com/blog/feed/",
+                "exception": "HTTP 405; malformed XML (23:2: mismatched tag)"
+            },
+            {
+                "title": "FTC Business Blog",
+                "url": "https://www.ftc.gov/feeds/blog-business.xml",
+                "exception": "HTTP 403; malformed XML (8:52: no element found)"
+            },
+            {
+                "title": "Talking Biz News",
+                "url": "http://talkingbiznews.com/feed/",
+                "exception": "HTTP 301; malformed XML (2:0: syntax error)"
+            },
+            {
+                "title": "Naomi Simson Blog",
+                "url": "https://naomisimson.com/feed/",
+                "exception": "HTTP 301; malformed XML (2:2544: not well-formed (invalid token))"
+            },
+            {
+                "title": "Bluewire Media Blog",
+                "url": "https://www.bluewiremedia.com.au/blog/feed",
+                "exception": "HTTP 200 but no parseable entries"
+            },
+            {
+                "title": "Business Pundit",
+                "url": "https://www.businesspundit.com/feed/",
+                "exception": "timed out"
+            },
+            {
+                "title": "OnStrategy Blog",
+                "url": "https://onstrategyhq.com/feed/",
+                "exception": "The read operation timed out"
+            },
+            {
+                "title": "Crowdspring Blog",
+                "url": "https://www.crowdspring.com/blog/feed/",
+                "exception": "HTTP 202 but no parseable entries"
+            },
+            {
+                "title": "Roundpeg Blog",
+                "url": "http://roundpeg.biz/feed/",
+                "exception": "HTTP 404 but no parseable entries"
+            },
+            {
+                "title": "United Capital Source Blog",
+                "url": "https://www.unitedcapitalsource.com/feed/",
+                "exception": "HTTP 410 but no parseable entries"
+            },
+            {
+                "title": "The Business Backer Blog",
+                "url": "https://www.businessbacker.com/feed/",
+                "exception": "HTTP 301; malformed XML (6:381: not well-formed (invalid token))"
+            },
+            {
+                "title": "CorpNet Blog",
+                "url": "https://blog.corpnet.com/feed",
+                "exception": "[Errno -5] No address associated with hostname"
+            }
+        ],
+        "feeds_business_strategy": [
+            {
+                "title": "Strategy Kiln Blog",
+                "url": "https://www.strategykiln.com/blog-feed.xml",
+                "exception": "HTTP 301; malformed XML (2:0: syntax error)"
+            }
+        ],
+        "feeds_data_science": [
+            {
+                "title": "Analytics India Magazine \u00bb AI News",
+                "url": "https://analyticsindiamag.com/ai-news-updates/feed/",
+                "exception": "HTTP 301; malformed XML (2:0: syntax error)"
+            },
+            {
+                "title": "Command Line Tips",
+                "url": "https://cmdlinetips.com/feed/",
+                "exception": "HTTP 302; malformed XML (10:79: not well-formed (invalid token))"
+            },
+            {
+                "title": "9TO5SAS",
+                "url": "https://www.9to5sas.com/feed/",
+                "exception": "HTTP 404 but no parseable entries"
+            },
+            {
+                "title": "Data Science Blog",
+                "url": "https://data-science-blog.com/en/feed/",
+                "exception": "[SSL: RECORD_LAYER_FAILURE] record layer failure (_ssl.c:1081)"
+            },
+            {
+                "title": "DATAVERSITY \u00bb Data Science News, Articles, & Education",
+                "url": "https://www.dataversity.net/category/data-topics/data-science-data-topics/feed/",
+                "exception": "HTTP 404; malformed XML (2:0: syntax error)"
+            },
+            {
+                "title": "DataScience@SMU Blog",
+                "url": "https://datascience.smu.edu/blog/feed/",
+                "exception": "HTTP 403 but no parseable entries"
+            },
+            {
+                "title": "Data Science Association blog",
+                "url": "https://www.datascienceassn.org/blog/feed",
+                "exception": "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'www.datascienceassn.org'. (_ssl.c:1081)"
+            },
+            {
+                "title": "Data Elixir",
+                "url": "https://dataelixir.com/issues.rss",
+                "exception": "HTTP 403; malformed XML (2:1326: not well-formed (invalid token))"
+            },
+            {
+                "title": "SV Data Science Blog",
+                "url": "https://www.svds.com/blog/feed/",
+                "exception": "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:1081)"
+            }
+        ],
+        "feeds_defense": [
+            {
+                "title": "Ministry of Defence",
+                "url": "https://feeds.english.defensie.nl/news.rss",
+                "exception": "[Errno -2] Name or service not known"
+            },
+            {
+                "title": "BulgarianMilitary.com",
+                "url": "https://bulgarianmilitary.com/feed/",
+                "exception": "[Errno -5] No address associated with hostname"
+            },
+            {
+                "title": "Defense Update",
+                "url": "https://defense-update.com/feed",
+                "exception": "HTTP 403; malformed XML (2:1326: not well-formed (invalid token))"
+            },
+            {
+                "title": "Naval News",
+                "url": "https://www.navalnews.com/feed/",
+                "exception": "HTTP 503; malformed XML (2:592: mismatched tag)"
+            }
+        ],
+        "feeds_economics": [
+            {
+                "title": "The Street",
+                "url": "https://www.thestreet.com/economonitor/.rss/full/",
+                "exception": "HTTP 404; text/html; charset=utf-8 is not an XML media type"
+            },
+            {
+                "title": "Economist's View",
+                "url": "http://economistsview.typepad.com/economistsview/atom.xml",
+                "exception": "HTTP 302; malformed XML (69:50: undefined entity)"
+            },
+            {
+                "title": "The Federal Reserve Bank of New York",
+                "url": "http://libertystreeteconomics.newyorkfed.org/atom.xml",
+                "exception": "HTTP 301; malformed XML (30:0: undefined entity)"
+            },
+            {
+                "title": "Evolving Economics Blog",
+                "url": "https://jasoncollins.blog/feed.xml",
+                "exception": "HTTP 301; malformed XML (81:2: mismatched tag)"
+            },
+            {
+                "title": "Economic Prism",
+                "url": "https://economicprism.com/rss_feed.xml",
+                "exception": "HTTP 404; malformed XML (16:562: not well-formed (invalid token))"
+            },
+            {
+                "title": "Barter is Evil",
+                "url": "http://barterisevil.com/feed/",
+                "exception": "HTTP 500 but no parseable entries"
+            },
+            {
+                "title": "Confessions of a Supply-Side Liberal",
+                "url": "https://blog.supplysideliberal.com/rss",
+                "exception": "HTTP 404; malformed XML (2:0: syntax error)"
+            },
+            {
+                "title": "On the Economy",
+                "url": "https://jaredbernsteinblog.com/feed/",
+                "exception": "HTTP 404; text/html is not an XML media type"
+            }
+        ],
+        "feeds_genomics": [
+            {
+                "title": "Alithea Genomics Blog",
+                "url": "https://alitheagenomics.com/blog/rss.xml",
+                "exception": "HTTP 301; malformed XML (2:0: syntax error)"
+            },
+            {
+                "title": "NIH Director's Blog \u00bb Genomics",
+                "url": "https://directorsblog.nih.gov/tag/genomics/feed/",
+                "exception": "[Errno -2] Name or service not known"
+            },
+            {
+                "title": "GenomeWeb",
+                "url": "https://www.genomeweb.com/section/rss/news",
+                "exception": "HTTP 403; malformed XML (2:1326: not well-formed (invalid token))"
+            }
+        ],
+        "feeds_leadership": [
+            {
+                "title": "Center for Creative Leadership",
+                "url": "https://www.ccl.org/feed/",
+                "exception": "HTTP 200 but no parseable entries"
+            },
+            {
+                "title": "Knowledge \u00bb Leadership & Organisations",
+                "url": "https://knowledge.insead.edu/rss/articles/66/rss.xml",
+                "exception": "HTTP 403; malformed XML (2:1326: not well-formed (invalid token))"
+            },
+            {
+                "title": "Mark Sanborn Blog",
+                "url": "https://marksanborn.com/feed/?X=1",
+                "exception": "HTTP 500 but no parseable entries"
+            },
+            {
+                "title": "Simon Sinek Blog",
+                "url": "https://simonsinek.com/feed/",
+                "exception": "HTTP 404; malformed XML (2:457: not well-formed (invalid token))"
+            },
+            {
+                "title": "John Spence's Blog",
+                "url": "https://blog.johnspence.com/feed/?x=1",
+                "exception": "[SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1081)"
+            },
+            {
+                "title": "Lead Like Jesus Blog",
+                "url": "https://leadlikejesus.com/blog/feed/",
+                "exception": "HTTP 200 but no parseable entries"
+            },
+            {
+                "title": "RedRock Leadership Blog",
+                "url": "https://www.redrockleadership.com/feed/",
+                "exception": "HTTP 404 but no parseable entries"
+            },
+            {
+                "title": "Agile Government Leadership | Agile Leadership Blog",
+                "url": "https://agilegovleaders.org/feed/",
+                "exception": "[Errno -3] Temporary failure in name resolution"
+            },
+            {
+                "title": "McCormick Center for Early Childhood Leadership",
+                "url": "https://mccormickcenter.nl.edu/library/feed/",
+                "exception": "HTTP 301; malformed XML (2:0: syntax error)"
+            },
+            {
+                "title": "Leadership HQ Blog",
+                "url": "https://leadershiphq.com.au/feed/",
+                "exception": "HTTP 302; malformed XML (11:52: not well-formed (invalid token))"
+            },
+            {
+                "title": "The LLOYD Consulting Firm",
+                "url": "https://lloydconsultingfirm.com/the-til-journal/f.atom",
+                "exception": "HTTP 404; malformed XML (186:76174: undefined entity)"
+            },
+            {
+                "title": "Sustainability Leaders Blog",
+                "url": "https://sustainability-leaders.com/feed/",
+                "exception": "HTTP 404 but no parseable entries"
+            },
+            {
+                "title": "The Kannenberg Group",
+                "url": "https://www.thekannenberggroup.org/blog-feed.xml",
+                "exception": "HTTP 404; malformed XML (23:18: not well-formed (invalid token))"
+            },
+            {
+                "title": "15Five Blog",
+                "url": "https://www.15five.com/blog/feed",
+                "exception": "HTTP 404; malformed XML (2:0: syntax error)"
+            },
+            {
+                "title": "DEI Pro Finder Blog",
+                "url": "https://www.deiprofinder.com/rss",
+                "exception": "HTTP 301; malformed XML (119:65: not well-formed (invalid token))"
+            },
+            {
+                "title": "Leadership Brown Bag",
+                "url": "https://leadershipbrownbag.com/feed/",
+                "exception": "HTTP 200; text/html is not an XML media type"
+            },
+            {
+                "title": "Anthony Silard at The Global Leadership Institute",
+                "url": "http://executiveleaders.blogspot.com/feeds/posts/default?alt=rss",
+                "exception": "HTTP 200 but no parseable entries"
+            },
+            {
+                "title": "Lead on Purpose Blog",
+                "url": "https://leadonpurposeblog.com/feed/",
+                "exception": "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'leadonpurposeblog.com'. (_ssl.c:1081)"
+            },
+            {
+                "title": "Three Star Leadership By Wally Bock Blog",
+                "url": "https://www.threestarleadership.com/feed",
+                "exception": "HTTP 200; text/html is not an XML media type"
+            },
+            {
+                "title": "Team Leadership Culture Blog",
+                "url": "http://www.teamleadershipculture.com/feed/",
+                "exception": "HTTP 404; malformed XML (2:231: mismatched tag)"
+            },
+            {
+                "title": "QAspire Blog",
+                "url": "https://qaspire.com/feed/",
+                "exception": "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:1081)"
+            },
+            {
+                "title": "ZRG Partners",
+                "url": "https://www.zrgpartners.com/blog/rss",
+                "exception": "HTTP 404; malformed XML (2:1303: not well-formed (invalid token))"
+            }
+        ]
     }
 }

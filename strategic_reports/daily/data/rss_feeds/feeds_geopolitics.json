@@ -1,10 +1,6 @@
 {
     "feeds": [
         {
-            "title": "Covert Geopolitics",
-            "url": "https://geopolitics.co/"
-        },
-        {
             "title": "Geopolitical Futures",
             "url": "https://geopoliticalfutures.com/feed/"
         },
@@ -31,10 +27,6 @@
         {
             "title": "Forecast International's Blog \u00bb Geopolitics",
             "url": "https://dsm.forecastinternational.com/category/geopolitics/feed/"
-        },
-        {
-            "title": "CFA Institute Blog \u00bb History & Geopolitics",
-            "url": "https://blogs.cfainstitute.org/investor/category/history-geopolitics/feed/"
         },
         {
             "title": "The Geopolitical Review",
@@ -69,10 +61,6 @@
             "url": "https://timothyash.substack.com/feed"
         },
         {
-            "title": "RAND \u00bb International Affairs",
-            "url": "https://www.rand.org/topics/international-affairs.xml/feed"
-        },
-        {
             "title": "War on the Rocks",
             "url": "https://warontherocks.com/feed/"
         },
@@ -101,16 +89,8 @@
             "url": "https://gefira.org/en/feed/"
         },
         {
-            "title": "Water Politics Blog",
-            "url": "https://waterpolitics.com/feed/"
-        },
-        {
             "title": "Oil Price",
             "url": "https://oilprice.com/rss/main"
-        },
-        {
-            "title": "Loomis Sayles Blog \u00bb Geopolitics",
-            "url": "https://blog.loomissayles.com/topic/geopolitics/rss.xml"
         },
         {
             "title": "Eye on the World \u00bb Political geography",
@@ -123,10 +103,6 @@
         {
             "title": "The MarkoZen Blog \u00bb Geopolitics",
             "url": "https://markozen.com/category/geopolitics/feed/"
-        },
-        {
-            "title": "E-International Relations",
-            "url": "https://www.e-ir.info/feed/"
         }
     ]
 }
