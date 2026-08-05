@@ -25,10 +25,6 @@
             "url": "https://frontlinegenomics.com/category/stories/blog/feed/"
         },
         {
-            "title": "Alithea Genomics Blog",
-            "url": "https://alitheagenomics.com/blog/rss.xml"
-        },
-        {
             "title": "Paragon Genomics Blog",
             "url": "https://www.paragongenomics.com/category/blog/feed/"
         },
@@ -57,10 +53,6 @@
             "url": "https://www.hudsonalpha.org/feed/"
         },
         {
-            "title": "NIH Director's Blog \u00bb Genomics",
-            "url": "https://directorsblog.nih.gov/tag/genomics/feed/"
-        },
-        {
             "title": "Nebula Genomics Blog",
             "url": "https://nebula.org/blog/feed/"
         },
@@ -71,10 +63,6 @@
         {
             "title": "GenomEthics Blog",
             "url": "https://genomethicsblog.org/feed/"
-        },
-        {
-            "title": "GenomeWeb",
-            "url": "https://www.genomeweb.com/section/rss/news"
         },
         {
             "title": "Fios Genomics Blog",
