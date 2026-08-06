@@ -112,6 +112,7 @@ class TestBuildGraphArticles:
         graph = build_graph(db_path)
         article = next(graph.subjects(RDF.type, SDO.Article))
         date_literal = graph.value(article, SDO.datePublished)
+        assert isinstance(date_literal, Literal)
         assert date_literal.datatype == XSD.dateTime
         assert str(date_literal) == "2026-07-31T09:00:00"
 
@@ -119,6 +120,7 @@ class TestBuildGraphArticles:
         _seed_full_run(db_path, "run-0")
         graph = build_graph(db_path)
         started_at = graph.value(BASE["run/run-0"], PROV.startedAtTime)
+        assert isinstance(started_at, Literal)
         assert started_at.datatype == XSD.dateTime
 
 
