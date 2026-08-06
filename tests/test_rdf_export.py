@@ -14,7 +14,7 @@ Covers:
 
 from pathlib import Path
 
-from rdflib import RDF, RDFS, Literal
+from rdflib import RDF, RDFS, XSD, Literal
 from rdflib.namespace import PROV, SDO, SKOS
 from strategic_reports.daily.core.article_archive import record_articles
 from strategic_reports.daily.core.bullet_diff import append_bullet_run
@@ -101,6 +101,27 @@ class TestBuildGraphArticles:
         graph = build_graph(db_path)
         article = next(graph.subjects(RDF.type, SDO.Article))
         assert (article, PROV.wasGeneratedBy, BASE["run/run-0"]) in graph
+
+    def test_date_published_is_typed_xsd_datetime(self, db_path: Path) -> None:
+        """Regression guard: `Literal(publish_date)` with no `datatype=` used to
+        serialize as a bare, untyped string -- valid RDF, but importers (e.g.
+        neosemantics) then had no way to tell it apart from ordinary text and
+        loaded it as a Neo4j STRING instead of a native temporal type,
+        breaking date comparisons/arithmetic downstream."""
+        _seed_full_run(db_path, "run-0")
+        graph = build_graph(db_path)
+        article = next(graph.subjects(RDF.type, SDO.Article))
+        date_literal = graph.value(article, SDO.datePublished)
+        assert isinstance(date_literal, Literal)
+        assert date_literal.datatype == XSD.dateTime
+        assert str(date_literal) == "2026-07-31T09:00:00"
+
+    def test_run_started_at_time_is_typed_xsd_datetime(self, db_path: Path) -> None:
+        _seed_full_run(db_path, "run-0")
+        graph = build_graph(db_path)
+        started_at = graph.value(BASE["run/run-0"], PROV.startedAtTime)
+        assert isinstance(started_at, Literal)
+        assert started_at.datatype == XSD.dateTime
 
 
 class TestBuildGraphCommunitiesAndBridgeTags:

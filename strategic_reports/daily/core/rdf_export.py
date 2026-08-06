@@ -31,7 +31,7 @@ import sqlite3
 from collections.abc import Sequence
 from pathlib import Path
 
-from rdflib import RDF, RDFS, Graph, Literal, Namespace, URIRef
+from rdflib import RDF, RDFS, XSD, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import PROV, SDO, SKOS
 
 from .db import connect
@@ -94,7 +94,7 @@ def build_graph(db_path: Path, since: str | None = None) -> Graph:
         for run_id, created_at, article_count in runs:
             run_uri = BASE[f"run/{run_id}"]
             graph.add((run_uri, RDF.type, PROV.Activity))
-            graph.add((run_uri, PROV.startedAtTime, Literal(created_at)))
+            graph.add((run_uri, PROV.startedAtTime, Literal(created_at, datatype=XSD.dateTime)))
             graph.add((run_uri, STRATREP.articleCount, Literal(article_count)))
 
         # --- Articles -> schema:Article, tagged via STRATREP.hasTag ---
@@ -113,7 +113,9 @@ def build_graph(db_path: Path, since: str | None = None) -> Graph:
             graph.add((article_uri, RDF.type, SDO.Article))
             graph.add((article_uri, SDO.headline, Literal(title)))
             graph.add((article_uri, SDO.url, URIRef(link)))
-            graph.add((article_uri, SDO.datePublished, Literal(publish_date)))
+            graph.add(
+                (article_uri, SDO.datePublished, Literal(publish_date, datatype=XSD.dateTime))
+            )
             graph.add((article_uri, PROV.wasGeneratedBy, run_uri))
             graph.add((article_uri, STRATREP.aboutTopic, topic_uri))
 
