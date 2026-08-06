@@ -25,10 +25,6 @@
             "url": "https://www.rfi.fr/en/international/rss"
         },
         {
-            "title": "UPI.com \u00bb World News",
-            "url": "https://rss.upi.com/news/tn_int.rss"
-        },
-        {
             "title": "BBC News \u00bb World",
             "url": "https://feeds.bbci.co.uk/news/world/rss.xml"
         },
@@ -77,10 +73,6 @@
             "url": "https://www.euronews.com/rss"
         },
         {
-            "title": "POLITICO",
-            "url": "https://www.politico.com/rss/politicopicks.xml"
-        },
-        {
             "title": "Le Monde \u00bb International",
             "url": "https://www.lemonde.fr/en/international/rss_full.xml"
         },
@@ -95,14 +87,6 @@
         {
             "title": "Balkan Insight",
             "url": "https://balkaninsight.com/feed/"
-        },
-        {
-            "title": "Euractiv",
-            "url": "https://www.euractiv.com/feed"
-        },
-        {
-            "title": "CBC \u00bb World",
-            "url": "https://www.cbc.ca/webfeed/rss/rss-world"
         },
         {
             "title": "The Globe and Mail \u00bb World",
@@ -137,10 +121,6 @@
             "url": "https://asiatimes.com/category/world/feed/"
         },
         {
-            "title": "9News \u00bb World News",
-            "url": "https://www.9news.com.au/world/rss"
-        },
-        {
             "title": "The Japan Times",
             "url": "https://www.japantimes.co.jp/feed/"
         },
@@ -151,10 +131,6 @@
         {
             "title": "The Hindu \u00bb World News",
             "url": "https://www.thehindu.com/news/international/feeder/default.rss"
-        },
-        {
-            "title": "Firstpost \u00bb World News",
-            "url": "https://www.firstpost.com/commonfeeds/v1/mfp/rss/world.xml"
         },
         {
             "title": "ThePrint \u00bb World",
@@ -171,10 +147,6 @@
         {
             "title": "CNBCTV 18 \u00bb World News",
             "url": "https://www.cnbctv18.com/commonfeeds/v1/cne/rss/world.xml"
-        },
-        {
-            "title": "Tribune India \u00bb World News",
-            "url": "https://publish.tribuneindia.com/newscategory/world/feed/"
         },
         {
             "title": "MercoPress",
@@ -211,10 +183,6 @@
         {
             "title": "Latin America Reports",
             "url": "https://latinamericareports.com/feed"
-        },
-        {
-            "title": "Morocco World News \u00bb International News",
-            "url": "https://www.moroccoworldnews.com/international/feed/"
         },
         {
             "title": "Daily Maverick",
@@ -255,10 +223,6 @@
         {
             "title": "The War Zone",
             "url": "https://www.twz.com/feed"
-        },
-        {
-            "title": "Naval News",
-            "url": "https://www.navalnews.com/feed/"
         },
         {
             "title": "SOFREP",
@@ -413,10 +377,6 @@
             "url": "https://www1.cbn.com/app_feeds/rss/news/rss.php?section=world&mobile=false&q=cbnnews/world/feed"
         },
         {
-            "title": "Chicago Tribune \u00bb World News",
-            "url": "https://www.chicagotribune.com/news/world/feed/"
-        },
-        {
             "title": "Scripps News \u00bb World News",
             "url": "https://www.scrippsnews.com/world.rss"
         },
@@ -427,10 +387,6 @@
         {
             "title": "KSHB 41 \u00bb World News",
             "url": "https://www.kshb.com/world-news.rss"
-        },
-        {
-            "title": "Fox 4 Now WFTX \u00bb World News",
-            "url": "https://www.fox4now.com/world-news.rss"
         },
         {
             "title": "Mathrubhumi \u00bb World News",

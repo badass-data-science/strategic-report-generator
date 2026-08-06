@@ -1,152 +1,148 @@
 {
     "feeds": [
-	{
+        {
             "title": "Investing.com - Forex News",
             "url": "https://www.investing.com/rss/news_1.rss"
-	},
-	{
+        },
+        {
             "title": "Finance Magnates",
             "url": "https://www.financemagnates.com/feed/"
-	},
-	{
+        },
+        {
             "title": "DailyFX (powered by IG)",
             "url": "https://www.ig.com/uk/feeds/news-and-trade-ideas"
-	},
-	{
+        },
+        {
             "title": "Action Forex",
             "url": "https://www.actionforex.com/feed/"
-	},
-	{
+        },
+        {
             "title": "Ashraf Laidi News",
             "url": "http://ashraflaidi.com/rss/forex-news"
-	},
-	{
+        },
+        {
             "title": "InvestMacro News",
             "url": "https://investmacro.com/feed/"
-	},
-	{
-            "title": "MarketPulse",
-            "url": "https://www.marketpulse.com/feed/"
-	},
-	{
+        },
+        {
             "title": "Global View Blog",
             "url": "https://global-view.com/feed/"
-	},
-	{
+        },
+        {
             "title": "BabyPips",
             "url": "https://www.babypips.com/feed.rss"
-	},
-	{
+        },
+        {
             "title": "Learn To Trade The Market",
             "url": "https://www.learntotradethemarket.com/feed"
-	},
-	{
+        },
+        {
             "title": "Tradeciety",
             "url": "https://tradeciety.com/rss.xml"
-	},
-	{
+        },
+        {
             "title": "Forex School Online",
             "url": "https://forexschoolonline.com/feed/"
-	},
-	{
+        },
+        {
             "title": "Market Traders Institute",
             "url": "https://markettraders.com/feed/"
-	},
-	{
+        },
+        {
             "title": "Forex Training Group",
             "url": "http://forextraininggroup.com/category/forex-trading-articles/feed/"
-	},
-	{
+        },
+        {
             "title": "Daily Price Action Blog",
             "url": "https://dailypriceaction.com/blog/feed/"
-	},
-	{
+        },
+        {
             "title": "No Nonsense Forex Blog",
             "url": "https://nononsenseforex.com/feed/"
-	},
-	{
+        },
+        {
             "title": "Forex MT4 Indicators",
             "url": "https://forexmt4indicators.com/feed/"
-	},
-	{
+        },
+        {
             "title": "Trading Strategy Guides - Forex Strategies",
             "url": "https://tradingstrategyguides.com/feed/"
-	},
-	{
+        },
+        {
             "title": "Signal Skyline Blog",
             "url": "https://www.signalskyline.com/blog/feed/"
-	},
-	{
+        },
+        {
             "title": "ToniSignals.com Blog",
             "url": "https://tonisignals.com/taxonomy/term/393/feed"
-	},
-	{
+        },
+        {
             "title": "Price Action Traders Institute Blog",
             "url": "https://priceactiontradersinstitute.com/feed/"
-	},
-	{
+        },
+        {
             "title": "Forex Mentor Pro Blog",
             "url": "https://www.forexmentorpro.com/blog/feed/"
-	},
-	{
+        },
+        {
             "title": "Private Forex Coaching Blog",
             "url": "https://www.privateforexcoaching.com/feed/"
-	},
-	{
+        },
+        {
             "title": "Trading with Rayner Blog",
             "url": "https://www.tradingwithrayner.com/category/blog/feed/"
-	},
-	{
+        },
+        {
             "title": "MQL5: Traders' Blogs",
             "url": "https://www.mql5.com/en/blogs/rss"
-	},
-	{
+        },
+        {
             "title": "EA-Coder | Forex Blog",
             "url": "https://www.ea-coder.com/feed/"
-	},
-	{
+        },
+        {
             "title": "Orbex Blog",
             "url": "https://www.orbex.com/blog/en/feed"
-	},
-	{
+        },
+        {
             "title": "InstaForex Blog",
             "url": "https://www.instaforex.com/blog/feed"
-	},
-	{
+        },
+        {
             "title": "FXOpen Blog",
             "url": "https://fxopen.com/blog/en/rss/"
-	},
-	{
+        },
+        {
             "title": "RoboForex Blog",
             "url": "https://blog.roboforex.com/feed/"
-	},
-	{
+        },
+        {
             "title": "Real Forex Reviews",
             "url": "https://www.realforexreviews.com/feed"
-	},
-	{
+        },
+        {
             "title": "Top Forex Brokers Review, A Comprehensive Guide To Trading",
             "url": "https://1topforexbrokers.com/feed/"
-	},
-	{
+        },
+        {
             "title": "e-Forex",
             "url": "https://e-forex.net/feed/"
-	},
-	{
+        },
+        {
             "title": "Forex Tester Blog",
             "url": "https://forextester.com/blog/feed/"
-	},
-	{
+        },
+        {
             "title": "Forex Trading With Kong",
             "url": "https://forexkong.com/feed/"
-	},
-	{
+        },
+        {
             "title": "Trading Heroes Blog",
             "url": "https://www.tradingheroes.com/feed/"
-	},
-	{
+        },
+        {
             "title": "Desire To Trade Blog",
             "url": "https://www.desiretotrade.com/feed/"
-	}
+        }
     ]
 }

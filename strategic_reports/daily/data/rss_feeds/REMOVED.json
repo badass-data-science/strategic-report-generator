@@ -151,6 +151,11 @@
                 "title": "Forex Crunch",
                 "url": "https://www.forexcrunch.com/feed/",
                 "exception": "HTTP 502; malformed XML (invalid token)"
+            },
+            {
+                "title": "MarketPulse",
+                "url": "https://www.marketpulse.com/feed/",
+                "exception": "HTTP 200 but no parseable entries"
             }
         ],
         "feeds_ai": [
@@ -606,6 +611,121 @@
                 "title": "ZRG Partners",
                 "url": "https://www.zrgpartners.com/blog/rss",
                 "exception": "HTTP 404; malformed XML (2:1303: not well-formed (invalid token))"
+            }
+        ],
+        "feeds_edge_computing": [
+            {
+                "title": "Western Digital Blog \u00bb Edge",
+                "url": "https://blog.westerndigital.com/tag/edge/feed/",
+                "exception": "HTTP 200 but no parseable entries"
+            }
+        ],
+        "feeds_energy": [
+            {
+                "title": "Energy Saver Blog",
+                "url": "https://www.energy.gov/rss/energysaver/1280681",
+                "exception": "HTTP 404; malformed XML (23:347: not well-formed (invalid token))"
+            }
+        ],
+        "feeds_iot": [
+            {
+                "title": "DornerWorks Blog",
+                "url": "https://www.dornerworks.com/feed/",
+                "exception": "HTTP 200 but no parseable entries"
+            },
+            {
+                "title": "Kemsys Blog",
+                "url": "https://kemsys.com/feed/",
+                "exception": "HTTP 500 but no parseable entries"
+            },
+            {
+                "title": "Libelium",
+                "url": "https://www.libelium.com/feed/",
+                "exception": "HTTP 200 but no parseable entries"
+            }
+        ],
+        "feeds_usa_news": [
+            {
+                "title": "UPI.com \u00bb U.S. News",
+                "url": "https://rss.upi.com/news/tn_us.rss",
+                "exception": "HTTP 403; malformed XML (69:50: undefined entity)"
+            },
+            {
+                "title": "POLITICO",
+                "url": "https://www.politico.com/rss/politicopicks.xml",
+                "exception": "HTTP 403; malformed XML (2:1326: not well-formed (invalid token))"
+            },
+            {
+                "title": "WFLA News Channel 8",
+                "url": "https://www.wfla.com/feed/",
+                "exception": "[Errno -3] Temporary failure in name resolution"
+            },
+            {
+                "title": "Orlando Sentinel",
+                "url": "https://www.orlandosentinel.com/feed/",
+                "exception": "HTTP 403 but no parseable entries"
+            },
+            {
+                "title": "Charlotte Observer",
+                "url": "https://feeds.mcclatchy.com/charlotteobserver/stories",
+                "exception": "The read operation timed out"
+            }
+        ],
+        "feeds_world_news": [
+            {
+                "title": "UPI.com \u00bb World News",
+                "url": "https://rss.upi.com/news/tn_int.rss",
+                "exception": "HTTP 403; malformed XML (69:50: undefined entity)"
+            },
+            {
+                "title": "POLITICO",
+                "url": "https://www.politico.com/rss/politicopicks.xml",
+                "exception": "HTTP 403; malformed XML (2:1326: not well-formed (invalid token))"
+            },
+            {
+                "title": "Euractiv",
+                "url": "https://www.euractiv.com/feed",
+                "exception": "HTTP 403; malformed XML (2:1326: not well-formed (invalid token))"
+            },
+            {
+                "title": "CBC \u00bb World",
+                "url": "https://www.cbc.ca/webfeed/rss/rss-world",
+                "exception": "The read operation timed out"
+            },
+            {
+                "title": "9News \u00bb World News",
+                "url": "https://www.9news.com.au/world/rss",
+                "exception": "HTTP 200; malformed XML (147:2: mismatched tag)"
+            },
+            {
+                "title": "Firstpost \u00bb World News",
+                "url": "https://www.firstpost.com/commonfeeds/v1/mfp/rss/world.xml",
+                "exception": "HTTP 403; malformed XML (10:2: mismatched tag)"
+            },
+            {
+                "title": "Tribune India \u00bb World News",
+                "url": "https://publish.tribuneindia.com/newscategory/world/feed/",
+                "exception": "HTTP 403; malformed XML (7:2: mismatched tag)"
+            },
+            {
+                "title": "Morocco World News \u00bb International News",
+                "url": "https://www.moroccoworldnews.com/international/feed/",
+                "exception": "HTTP 403; malformed XML (2:1326: not well-formed (invalid token))"
+            },
+            {
+                "title": "Naval News",
+                "url": "https://www.navalnews.com/feed/",
+                "exception": "HTTP 503; malformed XML (2:592: mismatched tag)"
+            },
+            {
+                "title": "Chicago Tribune \u00bb World News",
+                "url": "https://www.chicagotribune.com/news/world/feed/",
+                "exception": "HTTP 403 but no parseable entries"
+            },
+            {
+                "title": "Fox 4 Now WFTX \u00bb World News",
+                "url": "https://www.fox4now.com/world-news.rss",
+                "exception": "HTTP 404 but no parseable entries"
             }
         ]
     }

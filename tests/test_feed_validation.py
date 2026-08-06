@@ -11,10 +11,12 @@ own make_parsed() helper that sets all four.
 """
 
 import json
+import socket
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from strategic_reports.daily.core.feed_validation import (
+    _FEED_TIMEOUT_S,
     FeedCheckResult,
     _check_one_feed,
     _clean_exception,
@@ -132,6 +134,30 @@ class TestCheckOneFeed:
 
         assert result.ok is False
         assert result.detail == "The read operation timed out"
+
+    async def test_sets_socket_timeout_before_fetching(self) -> None:
+        """
+        A feed that accepts the connection but never responds must not hang
+        _check_one_feed forever — feedparser (via urllib) only honors a
+        timeout if socket.setdefaulttimeout() has been set, since it's given
+        no explicit per-call timeout.
+
+        Restores the prior default afterward so this test doesn't leak global
+        socket state into whichever test runs next.
+        """
+        original = socket.getdefaulttimeout()
+        socket.setdefaulttimeout(None)
+        try:
+            parsed = make_parsed(status=200, bozo=False, entries=[MagicMock()])
+            with patch(
+                "strategic_reports.daily.core.feed_validation.feedparser.parse",
+                return_value=parsed,
+            ):
+                await _check_one_feed(FEED)
+
+            assert socket.getdefaulttimeout() == _FEED_TIMEOUT_S
+        finally:
+            socket.setdefaulttimeout(original)
 
 
 class TestValidateTopicFeeds:

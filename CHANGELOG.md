@@ -4,6 +4,37 @@ All notable changes to this project are documented here. Entries are
 grouped by date rather than a semantic version number, since this project
 doesn't tag releases.
 
+## 2026-08-05
+
+### Added
+- Five new topic categories — `feeds_edge_computing.json` (5 feeds),
+  `feeds_energy.json` (17 feeds), `feeds_iot.json` (40 feeds),
+  `feeds_usa_news.json` (96 feeds), and `feeds_world_news.json` (112
+  feeds) — registered in `topic_order.py`'s `list_directories_and_titles`.
+  The pipeline now covers 19 topics, up from 14.
+- `validate-feeds --fix` run covering all 19 topic categories (876 feeds
+  checked in total). Removed 22 dead feeds total (21 from the five new
+  categories, 1 from the existing `feeds_forex`) and logged each one in
+  `data/rss_feeds/REMOVED.json` under an `"exception"` field. Final counts
+  after pruning: `feeds_edge_computing` 4, `feeds_energy` 16, `feeds_iot`
+  37, `feeds_usa_news` 91, `feeds_world_news` 101.
+
+### Fixed
+- `feed_validation._check_one_feed` had no timeout on `feedparser.parse`,
+  so a single feed with a hanging connection (no TCP RST, no server
+  response) stalled its whole topic's `asyncio.gather` — and, worse, kept
+  the underlying worker thread wedged permanently: `asyncio.to_thread`
+  runs the blocking call on the default `ThreadPoolExecutor`, and wrapping
+  the await in `asyncio.wait_for` only stops *waiting*, it doesn't cancel
+  the thread itself. Enough hung feeds in one topic exhausts the pool and
+  every later `to_thread()` call queues forever waiting for a free worker
+  — this is what happened validating `feeds_usa_news`, live during this
+  category rollout. Fixed with `socket.setdefaulttimeout(15)` before the
+  fetch, which makes the underlying connection actually raise instead of
+  hanging (feedparser uses `urllib`, which honors the process-global
+  default timeout when no explicit one is passed). New regression test
+  (`test_sets_socket_timeout_before_fetching`) asserts the timeout is set.
+
 ## 2026-08-04
 
 ### Added

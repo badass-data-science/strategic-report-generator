@@ -6,7 +6,7 @@ orientation for making changes.
 
 ## What this is
 
-A daily briefing pipeline: fetches RSS across 14 topics, summarizes and
+A daily briefing pipeline: fetches RSS across 19 topics, summarizes and
 synthesizes strategic recommendations via an LLM (provider-agnostic via
 litellm), renders an HTML report + tag co-occurrence graph, and tracks
 urgency scores/strategic bullets/article summaries/community summaries

@@ -55,4 +55,24 @@ list_directories_and_titles = [
         'slug' : 'feeds_robotics',
         'title' : 'Robotics',
     },
+    {
+        'slug' : 'feeds_edge_computing',
+        'title' : 'Edge Computing',
+    },
+    {
+        'slug' : 'feeds_energy',
+        'title' : 'Energy',
+    },
+    {
+        'slug' : 'feeds_iot',
+        'title' : 'IoT',
+    },
+    {
+        'slug' : 'feeds_usa_news',
+        'title' : 'USA News',
+    },
+    {
+        'slug' : 'feeds_world_news',
+        'title' : 'World News',
+    },
 ]

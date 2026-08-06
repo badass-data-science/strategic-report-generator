@@ -13,10 +13,6 @@
             "url": "https://www.pbs.org/newshour/feeds/rss/headlines"
         },
         {
-            "title": "UPI.com \u00bb U.S. News",
-            "url": "https://rss.upi.com/news/tn_us.rss"
-        },
-        {
             "title": "The New York Times",
             "url": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"
         },
@@ -47,10 +43,6 @@
         {
             "title": "Observer",
             "url": "https://observer.com/feed/"
-        },
-        {
-            "title": "POLITICO",
-            "url": "https://www.politico.com/rss/politicopicks.xml"
         },
         {
             "title": "The Intercept",
@@ -177,14 +169,6 @@
             "url": "https://wsvn.com/feed/"
         },
         {
-            "title": "WFLA News Channel 8",
-            "url": "https://www.wfla.com/feed/"
-        },
-        {
-            "title": "Orlando Sentinel",
-            "url": "https://www.orlandosentinel.com/feed/"
-        },
-        {
             "title": "NBC4 Washington",
             "url": "https://www.nbcwashington.com/?rss=y"
         },
@@ -227,10 +211,6 @@
         {
             "title": "AL.com",
             "url": "https://www.al.com/arc/outboundfeeds/rss/?outputType=xml"
-        },
-        {
-            "title": "Charlotte Observer",
-            "url": "https://feeds.mcclatchy.com/charlotteobserver/stories"
         },
         {
             "title": "Cleveland.com",

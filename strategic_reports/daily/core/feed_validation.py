@@ -16,12 +16,24 @@ in a topic concurrently instead of one at a time.
 
 import asyncio
 import json
+import socket
 from pathlib import Path
 
 import feedparser
 from pydantic import BaseModel
 
 from .models import FeedConfig, TopicConfig
+
+# feedparser uses urllib under the hood and honors socket.setdefaulttimeout()
+# when no explicit timeout is passed. Without this, a feed that accepts the
+# connection but never responds hangs forever — and worse than just stalling
+# validate_topic_feeds's asyncio.gather, it wedges the worker thread
+# permanently: asyncio.to_thread runs feedparser.parse on the default
+# ThreadPoolExecutor, and cancelling the awaiting coroutine (e.g. via
+# asyncio.wait_for) only stops waiting, it does not stop the thread. Enough
+# hung feeds in one topic exhausts the pool and every later to_thread() call
+# queues forever waiting for a free worker.
+_FEED_TIMEOUT_S = 15
 
 
 class FeedCheckResult(BaseModel):
@@ -59,6 +71,7 @@ async def _check_one_feed(feed: FeedConfig) -> FeedCheckResult:
     parsed cleanly but contained zero entries (e.g. an HTML error page
     served with HTTP 200).
     """
+    socket.setdefaulttimeout(_FEED_TIMEOUT_S)
     try:
         parsed = await asyncio.to_thread(feedparser.parse, feed.url)
     except Exception as exc:
