@@ -40,8 +40,22 @@
   Apply judgement before acting on any recommendation. <strong>Caveat emptor!</strong></span>
 </p>
 
+{% if overview or results %}
+<nav class="toc">
+  <h2>Table of Contents</h2>
+  <ul>
+    {% if overview %}
+    <li><a href="#strategic-overview">Strategic Overview</a></li>
+    {% endif %}
+    {% for result in results %}
+    <li><a href="#{{ result.config.slug | replace('feeds_', '') }}">{{ result.config.title }}</a></li>
+    {% endfor %}
+  </ul>
+</nav>
+{% endif %}
+
 {% if overview %}
-<div class="overview">
+<div class="overview" id="strategic-overview">
   <h2>Strategic Overview</h2>
   <ul>
     {% for bullet in overview.bullets %}
@@ -49,17 +63,6 @@
     {% endfor %}
   </ul>
 </div>
-{% endif %}
-
-{% if results %}
-<nav class="toc">
-  <h2>Table of Contents</h2>
-  <ul>
-    {% for result in results %}
-    <li><a href="#{{ result.config.slug | replace('feeds_', '') }}">{{ result.config.title }}</a></li>
-    {% endfor %}
-  </ul>
-</nav>
 {% endif %}
 
 {% for result in results %}
