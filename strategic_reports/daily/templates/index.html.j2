@@ -20,6 +20,16 @@
   .diff-label { margin: .4rem 0 .2rem; font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: #666; }
   .diff-new { margin: 0 0 .5rem 1.2rem; padding: 0; color: #1a7a3c; }
   .diff-dropped { margin: 0 0 0 1.2rem; padding: 0; color: #999; text-decoration: line-through; }
+  .toc {
+    background: #f9f9f9;
+    border: 1px solid #e8e8e8;
+    border-radius: 4px;
+    padding: 1rem 1.25rem;
+    margin: 1.5rem 0 2rem;
+  }
+  .toc h2 { margin-top: 0; font-size: 1.1rem; color: #111; }
+  .toc ul { margin: .4rem 0 0; }
+  .toc ul ul { margin: .3rem 0 .3rem .2rem; }
 </style>
 {% endblock %}
 
@@ -31,8 +41,29 @@
   Apply judgement before acting on any recommendation. <strong>Caveat emptor!</strong></span>
 </p>
 
+{% if overview or results %}
+<nav class="toc">
+  <h2>Table of Contents</h2>
+  <ul>
+    {% if overview %}
+    <li><a href="#strategic-overview">Strategic Overview</a></li>
+    {% endif %}
+    {% if results %}
+    <li>
+      Topic-Specific Strategic Insights
+      <ul>
+        {% for result in results %}
+        <li><a href="#{{ result.config.slug | replace('feeds_', '') }}">{{ result.config.title }}</a></li>
+        {% endfor %}
+      </ul>
+    </li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}
+
 {% if overview %}
-<div class="overview">
+<div class="overview" id="strategic-overview">
   <h2>Strategic Overview</h2>
   <ul>
     {% for bullet in overview.bullets %}
@@ -43,7 +74,7 @@
 {% endif %}
 
 {% for result in results %}
-<section>
+<section id="{{ result.config.slug | replace('feeds_', '') }}">
   <h2>{{ result.config.title }}</h2>
 
   {% if result.error %}
