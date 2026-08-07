@@ -123,9 +123,9 @@ def render_report(
     output_dir.mkdir(parents=True)
 
     env = _env()
-    now = datetime.now()
-    date_str = str(now.date())               # "2026-06-27"
-    updated_str = str(now).split(".")[0]     # "2026-06-27 14:32:01" (no microseconds)
+    now = datetime.now().astimezone()
+    date_str = str(now.date())                              # "2026-06-27"
+    updated_str = now.strftime("%Y-%m-%d %H:%M:%S %Z")      # "2026-06-27 14:32:01 PDT"
 
     # Accumulate total token usage across all topics for the footer.
     total_usage = TokenUsage()
