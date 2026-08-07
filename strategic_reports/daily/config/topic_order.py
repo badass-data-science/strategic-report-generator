@@ -1,7 +1,15 @@
 list_directories_and_titles = [
     {
+        'slug' : 'feeds_robotics',
+        'title' : 'Robotics',
+    },
+    {
         'slug' : 'feeds_ai',
         'title' : 'Artificial Intelligence',
+    },
+    {
+        'slug' : 'feeds_iot',
+        'title' : 'IoT',
     },
     {
         'slug' : 'feeds_data_science',
@@ -10,6 +18,14 @@ list_directories_and_titles = [
     {
         'slug' : 'feeds_defense',
         'title' : 'Defense',
+    },
+    {
+        'slug' : 'feeds_energy',
+        'title' : 'Energy',
+    },
+    {
+        'slug' : 'feeds_edge_computing',
+        'title' : 'Edge Computing',
     },
     {
         'slug' : 'feeds_geopolitics',
@@ -50,22 +66,6 @@ list_directories_and_titles = [
     {
         'slug' : 'feeds_forex',
         'title' : 'Forex',
-    },
-    {
-        'slug' : 'feeds_robotics',
-        'title' : 'Robotics',
-    },
-    {
-        'slug' : 'feeds_edge_computing',
-        'title' : 'Edge Computing',
-    },
-    {
-        'slug' : 'feeds_energy',
-        'title' : 'Energy',
-    },
-    {
-        'slug' : 'feeds_iot',
-        'title' : 'IoT',
     },
     {
         'slug' : 'feeds_usa_news',
