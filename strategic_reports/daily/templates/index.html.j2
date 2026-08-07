@@ -29,6 +29,7 @@
   }
   .toc h2 { margin-top: 0; font-size: 1.1rem; color: #111; }
   .toc ul { margin: .4rem 0 0; }
+  .toc ul ul { margin: .3rem 0 .3rem .2rem; }
 </style>
 {% endblock %}
 
@@ -47,9 +48,16 @@
     {% if overview %}
     <li><a href="#strategic-overview">Strategic Overview</a></li>
     {% endif %}
-    {% for result in results %}
-    <li><a href="#{{ result.config.slug | replace('feeds_', '') }}">{{ result.config.title }}</a></li>
-    {% endfor %}
+    {% if results %}
+    <li>
+      Topic-Specific Strategic Insights
+      <ul>
+        {% for result in results %}
+        <li><a href="#{{ result.config.slug | replace('feeds_', '') }}">{{ result.config.title }}</a></li>
+        {% endfor %}
+      </ul>
+    </li>
+    {% endif %}
   </ul>
 </nav>
 {% endif %}
