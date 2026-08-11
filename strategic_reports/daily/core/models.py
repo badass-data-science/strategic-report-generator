@@ -94,6 +94,10 @@ class ArticleSummary(BaseModel):
 
     Note: publish_date is kept as a string here (not datetime) because the LLM
     echoes it back from the prompt as-is, and we only need it for display.
+    validate_publish_date below still checks it parses as ISO 8601 -- the LLM
+    has been observed to garble digits when echoing (e.g. "2022026-08-07..."
+    instead of "2026-08-07..."), which would otherwise reach the database and
+    the RDF export undetected and break downstream datetime parsing there.
     """
     title: str
     link: str
@@ -120,6 +124,18 @@ class ArticleSummary(BaseModel):
     @classmethod
     def normalize_tag_list(cls, v: list[str]) -> list[str]:
         return normalize_tags(v)
+
+    @field_validator("publish_date", mode="after")
+    @classmethod
+    def validate_publish_date(cls, v: str) -> str:
+        try:
+            datetime.fromisoformat(v)
+        except ValueError as e:
+            raise ValueError(
+                f"publish_date {v!r} is not a valid ISO 8601 datetime "
+                "(echo it back exactly as given in the prompt)"
+            ) from e
+        return v
 
 
 class ArticleSummaryBatch(BaseModel):
