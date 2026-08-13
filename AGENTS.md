@@ -43,13 +43,29 @@ too, each with its own Prefect flow, so a generic `export-rdf` name in
 the Prefect UI wouldn't say which pipeline's export is actually running.
 The CLI command name (`export-rdf`) is unaffected; only the Prefect
 flow/deployment name changed. It's
-scheduled as **its own separate process** (own `.serve()` call, own
+run as **its own separate process** (own `.serve()` call, own
 systemd unit — see README's "Scheduling with Prefect"), not folded into
 `daily_report.py`'s `serve()`, so a crash/restart of one never touches
-the other. Runs daily at 04:00 America/Los_Angeles (well after
-`daily_report_flow`'s 00:30 run) and always does a full rebuild — no
-`--since` watermark tracking, matching the CLI command's scope. The
-scheduled deployment's `db_path` reads from the same tracking database
+the other, and always does a full rebuild — no `--since` watermark
+tracking, matching the CLI command's scope.
+
+It is triggered by a Prefect Automation (a `DeploymentEventTrigger`
+registered from within `export_rdf_flow.py`'s own `.serve()` call, via the
+`triggers=` argument — not a standalone automation script) rather than a
+cron schedule: it fires as soon as a `daily-strategic-report` flow run
+completes, so the day's data has just finished writing to the tracking
+database. This is a deliberate exception to the "own process" independence
+above only in the sense that the *trigger* is now coupled to
+`daily_report_flow`'s completion — the processes themselves (and their
+crash/restart behavior) remain fully independent; nothing runs `export-rdf`
+in-process inside `daily_report.py`. Because the trigger scopes itself to
+`daily_report_flow`'s specific deployment id (resolved at `export_rdf_flow.py`
+startup via `read_deployment_by_name`), that deployment must already be
+registered — i.e. `daily_report.py`'s scheduler must have been started at
+least once — before `export_rdf_flow.py` starts; if it isn't yet,
+`export_rdf_flow.py` fails at startup and systemd's `Restart=on-failure`
+(`RestartSec=30`) retries until it is, rather than needing a custom wait
+loop. The deployment's `db_path` reads from the same tracking database
 `daily_report_flow`'s deployment writes to (both anchored via
 `Path.home()`, not cwd). This module no longer exposes a typer/CLI-args
 entry point for ad-hoc runs — that capability is superseded by `prefect
@@ -148,7 +164,7 @@ strategic_reports/
     data/rss_feeds/       One JSON file per topic listing feed URLs — packaged as wheel data
       REMOVED.json        Audit log of feeds removed by `validate-feeds --fix` or by hand
     flows/daily_report.py Prefect flow (10 tasks) for scheduled runs — no `ask` equivalent, deliberately (see above)
-    flows/export_rdf_flow.py Prefect flow wrapping export-rdf — scheduled daily, own process (see above)
+    flows/export_rdf_flow.py Prefect flow wrapping export-rdf — Automation-triggered on daily_report_flow completion, own process (see above)
     cli.py                typer CLI entrypoint — four commands: run, ask, export-rdf, validate-feeds
     paths.py              default_data_dir() — resolves bundled rss_feeds/ via importlib.resources
     config/topic_order.py Ordered topic slugs + display titles

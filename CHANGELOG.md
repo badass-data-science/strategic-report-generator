@@ -4,6 +4,23 @@ All notable changes to this project are documented here. Entries are
 grouped by date rather than a semantic version number, since this project
 doesn't tag releases.
 
+## 2026-08-13
+
+### Changed
+- `export_rdf_flow.py` is no longer scheduled by its own cron
+  (`0 4 * * *`). It now registers a Prefect Automation (a
+  `DeploymentEventTrigger`, via `.serve(triggers=[...])`) that fires it
+  immediately when the `daily-strategic-report` deployment's flow run
+  completes, rather than waiting until a fixed 04:00 offset. The two
+  processes remain fully independent — own `.serve()` call, own systemd
+  unit, no in-process subflow call — only the trigger changed from
+  time-based to event-based. `export_rdf_flow.py` resolves
+  `daily_report_flow`'s deployment id at startup via
+  `read_deployment_by_name`, so `daily_report.py`'s scheduler must already
+  be registered before this one starts; systemd's existing
+  `Restart=on-failure`/`RestartSec=30` handles the case where it isn't yet
+  (e.g. on a cold multi-unit boot).
+
 ## 2026-08-05
 
 ### Added

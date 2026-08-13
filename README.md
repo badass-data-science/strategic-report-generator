@@ -184,10 +184,13 @@ deliberate choice — the whole point of this export is to avoid the
 knowledge base reinventing a graph standard it could just adopt.
 
 Unlike `ask` (which has no Prefect equivalent by design — see
-`AGENTS.md`), `export-rdf` does have a scheduled Prefect flow
+`AGENTS.md`), `export-rdf` does have a Prefect flow
 (`flows/export_rdf_flow.py`), running as its own separate process rather
 than a task inside `daily_report_flow` — keeping the same independence
-from the daily pipeline that the CLI command already has.
+from the daily pipeline that the CLI command already has. It's triggered
+by a Prefect Automation as soon as `daily_report_flow` completes, rather
+than on a cron schedule of its own — see [Exporting an RDF knowledge
+graph](#exporting-an-rdf-knowledge-graph).
 
 ### `validate-feeds` maintains the feed configs, it isn't a pipeline step
 
@@ -413,19 +416,26 @@ whatever tool consumes them. Read-only against `--db-path`; never touches
 On the CLI, this is a third command, like `ask` — a deliberate exception
 to the run/flow parity convention (see `AGENTS.md`).
 
-A Prefect flow wrapping the same logic (`flows/export_rdf_flow.py`) is
-scheduled separately from `daily_report_flow` — its own process, its own
-`.serve()` call, so a crash/restart of one never touches the other:
+A Prefect flow wrapping the same logic (`flows/export_rdf_flow.py`) runs
+separately from `daily_report_flow` — its own process, its own `.serve()`
+call, so a crash/restart of one never touches the other:
 
 ```bash
 python -m strategic_reports.daily.flows.export_rdf_flow
 ```
 
-Runs daily at **04:00 America/Los_Angeles** — well after
-`daily_report_flow`'s 00:30 run, so the day's data has finished writing to
-the tracking database first. Always a full rebuild (no `--since`
-watermark tracking on the scheduled run, same v1 scope choice as the CLI
-command). Trigger a one-off run, optionally overriding `since`:
+**Requires `daily_report_flow`'s deployment to already be registered** —
+start `daily_report.py`'s scheduler at least once before this one (see
+[Scheduling with Prefect](#scheduling-with-prefect)). On startup this flow
+resolves that deployment's id and registers a Prefect Automation that
+fires it immediately when a `daily-strategic-report` flow run completes —
+not a cron schedule of its own — so the day's data has just finished
+writing to the tracking database. If the upstream deployment isn't
+registered yet, this process fails at startup; systemd's
+`Restart=on-failure` (below) retries it every 30s until it is. Always a
+full rebuild (no `--since` watermark tracking on the triggered run, same
+v1 scope choice as the CLI command). Trigger a one-off run, optionally
+overriding `since`:
 
 ```bash
 prefect deployment run 'daily-strategic-report-export-rdf/daily-strategic-report-export-rdf'
@@ -541,12 +551,18 @@ WantedBy=multi-user.target
 
 `export_rdf_flow.py` runs as its own separate process (see [Exporting an
 RDF knowledge graph](#exporting-an-rdf-knowledge-graph)) — a second unit,
-so it can restart independently of the daily report scheduler:
+so it can restart independently of the daily report scheduler. It resolves
+`daily_report_flow`'s deployment id at startup, so `After=` also names the
+daily-report unit (`strategic-reports.service`) for correct boot ordering;
+that only affects the order systemd *starts* the units in, not whether the
+deployment is actually registered yet, so `Restart=on-failure` +
+`RestartSec=30` is what actually handles a cold start where daily-report
+hasn't registered its deployment the first time this unit comes up:
 
 ```ini
 [Unit]
-Description=Strategic Reports RDF export scheduler
-After=network.target
+Description=Strategic Reports RDF export (Prefect-Automation-triggered)
+After=network.target strategic-reports.service
 
 [Service]
 User=<your-user>
@@ -716,7 +732,7 @@ strategic_reports/
         REMOVED.json     Audit log of feeds removed by `validate-feeds --fix` or by hand
     flows/
       daily_report.py    Prefect flow (see Scheduling with Prefect)
-      export_rdf_flow.py Prefect flow wrapping export-rdf — scheduled daily, own process
+      export_rdf_flow.py Prefect flow wrapping export-rdf — Automation-triggered on daily_report_flow completion, own process
     config/
       topic_order.py     Ordered list of topic slugs and display titles
     cli.py               typer CLI entrypoint
