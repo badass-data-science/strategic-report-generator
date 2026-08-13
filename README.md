@@ -184,13 +184,13 @@ deliberate choice — the whole point of this export is to avoid the
 knowledge base reinventing a graph standard it could just adopt.
 
 Unlike `ask` (which has no Prefect equivalent by design — see
-`AGENTS.md`), `export-rdf` does have a Prefect flow
-(`flows/export_rdf_flow.py`), running as its own separate process rather
-than a task inside `daily_report_flow` — keeping the same independence
-from the daily pipeline that the CLI command already has. It's triggered
-by a Prefect Automation as soon as `daily_report_flow` completes, rather
-than on a cron schedule of its own — see [Exporting an RDF knowledge
-graph](#exporting-an-rdf-knowledge-graph).
+`AGENTS.md`), `export-rdf` does run as part of `daily_report_flow` — it's
+that flow's last task, so a fresh export lands automatically at the end of
+every scheduled run, right after `tag_graph.json`/`tag_graph.html` are
+written. There's still only one Prefect flow/deployment
+(`daily-strategic-report`) to operate; `export-rdf` on the CLI remains a
+separate, on-demand command for ad-hoc use — see [Exporting an RDF
+knowledge graph](#exporting-an-rdf-knowledge-graph).
 
 ### `validate-feeds` maintains the feed configs, it isn't a pipeline step
 
@@ -413,34 +413,20 @@ file at `--output`; combining a full export with later incremental exports
 whatever tool consumes them. Read-only against `--db-path`; never touches
 `--output-dir`. See `rdf_export.py`.
 
-On the CLI, this is a third command, like `ask` — a deliberate exception
-to the run/flow parity convention (see `AGENTS.md`).
+On the CLI, this remains a third command, like `ask` — a deliberate
+exception to the run/flow parity convention (`run` does not export RDF —
+see `AGENTS.md`).
 
-A Prefect flow wrapping the same logic (`flows/export_rdf_flow.py`) runs
-separately from `daily_report_flow` — its own process, its own `.serve()`
-call, so a crash/restart of one never touches the other:
-
-```bash
-python -m strategic_reports.daily.flows.export_rdf_flow
-```
-
-**Requires `daily_report_flow`'s deployment to already be registered** —
-start `daily_report.py`'s scheduler at least once before this one (see
-[Scheduling with Prefect](#scheduling-with-prefect)). On startup this flow
-resolves that deployment's id and registers a Prefect Automation that
-fires it immediately when a `daily-strategic-report` flow run completes —
-not a cron schedule of its own — so the day's data has just finished
-writing to the tracking database. If the upstream deployment isn't
-registered yet, this process fails at startup; systemd's
-`Restart=on-failure` (below) retries it every 30s until it is. Always a
-full rebuild (no `--since` watermark tracking on the triggered run, same
-v1 scope choice as the CLI command). Trigger a one-off run, optionally
-overriding `since`:
-
-```bash
-prefect deployment run 'daily-strategic-report-export-rdf/daily-strategic-report-export-rdf'
-prefect deployment run 'daily-strategic-report-export-rdf/daily-strategic-report-export-rdf' --param since=2026-08-01
-```
+The Prefect *flow* is the other side of that exception: `export-rdf` runs
+there automatically as `daily_report_flow`'s last task (see [Flow
+structure](#flow-structure)), on every scheduled run — no separate flow
+file, deployment, or process to operate. It always does a full rebuild (no
+`--since` watermark tracking on the automatic run, same v1 scope choice as
+the CLI command) and writes to `knowledge_graph.ttl` next to the tracking
+database (`--db-path`'s parent directory), since `--output-dir` is wiped
+and recreated on every run and can't hold anything durable. It fails
+gracefully — a failed export logs a warning but doesn't affect the HTML
+report, which has already rendered by the time this task runs.
 
 ---
 
@@ -549,32 +535,10 @@ RestartSec=30
 WantedBy=multi-user.target
 ```
 
-`export_rdf_flow.py` runs as its own separate process (see [Exporting an
-RDF knowledge graph](#exporting-an-rdf-knowledge-graph)) — a second unit,
-so it can restart independently of the daily report scheduler. It resolves
-`daily_report_flow`'s deployment id at startup, so `After=` also names the
-daily-report unit (`strategic-reports.service`) for correct boot ordering;
-that only affects the order systemd *starts* the units in, not whether the
-deployment is actually registered yet, so `Restart=on-failure` +
-`RestartSec=30` is what actually handles a cold start where daily-report
-hasn't registered its deployment the first time this unit comes up:
-
-```ini
-[Unit]
-Description=Strategic Reports RDF export (Prefect-Automation-triggered)
-After=network.target strategic-reports.service
-
-[Service]
-User=<your-user>
-WorkingDirectory=<project-root>
-EnvironmentFile=<project-root>/.env
-ExecStart=/path/to/venv/bin/python -m strategic_reports.daily.flows.export_rdf_flow
-Restart=on-failure
-RestartSec=30
-
-[Install]
-WantedBy=multi-user.target
-```
+There is only this one systemd unit / Prefect deployment to run —
+`export-rdf` executes as `daily_report_flow`'s last task (see [Exporting
+an RDF knowledge graph](#exporting-an-rdf-knowledge-graph)), not as a
+separate process.
 
 **5. Trigger a one-off run immediately** (optional, from a separate terminal):
 
@@ -593,7 +557,7 @@ prefect deployment run 'daily-strategic-report/daily-strategic-report' \
 
 ### Flow structure
 
-The flow contains ten tasks, each tracked independently in the Prefect UI:
+The flow contains eleven tasks, each tracked independently in the Prefect UI:
 
 ```
 daily_report_flow
@@ -616,7 +580,9 @@ daily_report_flow
   │                                        skipped (no diff) on first run
   │                                        inserts into --db-path (bullets table)
   ├── render-html-report          (sync)   Jinja2 → HTML output files
-  └── build-tag-graph             (sync)   tag co-occurrence graph → tag_graph.json + tag_graph.html
+  ├── build-tag-graph             (sync)   tag co-occurrence graph → tag_graph.json + tag_graph.html
+  └── export-rdf                  (sync)   full-rebuild RDF (Turtle) export → knowledge_graph.ttl next to --db-path
+                                            fails gracefully; no --since watermark tracking
 ```
 
 Flow parameters share names with their CLI-flag counterparts (e.g.
@@ -731,8 +697,7 @@ strategic_reports/
       rss_feeds/         One JSON file per topic listing RSS feed URLs — packaged as wheel data
         REMOVED.json     Audit log of feeds removed by `validate-feeds --fix` or by hand
     flows/
-      daily_report.py    Prefect flow (see Scheduling with Prefect)
-      export_rdf_flow.py Prefect flow wrapping export-rdf — Automation-triggered on daily_report_flow completion, own process
+      daily_report.py    Prefect flow (see Scheduling with Prefect) — eleven tasks, including export-rdf as the last one
     config/
       topic_order.py     Ordered list of topic slugs and display titles
     cli.py               typer CLI entrypoint

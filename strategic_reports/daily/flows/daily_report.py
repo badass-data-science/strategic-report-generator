@@ -75,6 +75,7 @@ from strategic_reports.daily.core.models import (
 )
 from strategic_reports.daily.core.overview_archive import record_overview
 from strategic_reports.daily.core.pipeline import summarize_communities, synthesize_cross_topic
+from strategic_reports.daily.core.rdf_export import export_rdf
 from strategic_reports.daily.core.renderer import render_report
 from strategic_reports.daily.core.tag_graph import (
     build_display_graph,
@@ -479,6 +480,32 @@ def build_tag_graph(results: list[TopicResult], output_dir: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Task 11: Export RDF knowledge graph
+# ---------------------------------------------------------------------------
+# Formerly its own Prefect flow/deployment (export_rdf_flow.py), triggered
+# separately after this one finished. Folded in as this flow's last task
+# instead, so there's a single Prefect flow/deployment to operate — see
+# AGENTS.md. Full rebuild every run (no `--since` watermark tracking),
+# same v1 scope as the `export-rdf` CLI command. Written alongside the
+# tracking database rather than into output_dir, since output_dir is
+# deleted and recreated on every run.
+#
+# Fails gracefully: a failure here logs a warning but does not prevent the
+# report from rendering — it already has by the time this task runs.
+
+@task(name="export-rdf")
+def export_rdf_task(db_path: Path) -> None:
+    """Export the tracking database's accumulated archive to Turtle."""
+    logger = get_run_logger()
+    output = db_path.parent / "knowledge_graph.ttl"
+    try:
+        triple_count = export_rdf(db_path, output, since=None)
+        logger.info(f"RDF export written to {output} ({triple_count:,} triples)")
+    except Exception as exc:
+        logger.warning(f"RDF export failed: {exc} — continuing without exporting")
+
+
+# ---------------------------------------------------------------------------
 # Flow — the top-level unit that Prefect schedules and tracks
 # ---------------------------------------------------------------------------
 # All parameters have defaults so the flow runs without any arguments on
@@ -615,6 +642,7 @@ async def daily_report_flow(
 
     render_html_report(results, output_dir, hours_cutoff, overview, diffs)
     build_tag_graph(results, output_dir)
+    export_rdf_task(db_path)
 
 
 # ---------------------------------------------------------------------------

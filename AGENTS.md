@@ -29,49 +29,30 @@ query (graph-guided retrieval over `community_summaries` — see
 equivalent, and that's intentional, not a parity gap to fix.
 
 A third command, `python -m strategic_reports.daily.cli export-rdf`, is
-the same kind of exception: an on-demand export of the tracking database
-to RDF/Turtle (see `rdf_export.py`), not a pipeline step. It complements
-`tag_graph.py`'s per-run co-occurrence JSON/HTML — it does not replace or
-recompute it, and touching one should not require touching the other.
+the same kind of exception **on the CLI side**: an on-demand export of the
+tracking database to RDF/Turtle (see `rdf_export.py`), not part of
+`run`'s pipeline. It complements `tag_graph.py`'s per-run co-occurrence
+JSON/HTML — it does not replace or recompute it, and touching one should
+not require touching the other.
 
-`export-rdf` also has a Prefect flow (`flows/export_rdf_flow.py`) — a
-separate file from `daily_report.py`, not a task folded into it, since
-`export-rdf` is deliberately independent of the daily pipeline. The flow
-is registered as `daily-strategic-report-export-rdf`, not `export-rdf` —
-other codebases in this stack (or future ones) may export their own RDF
-too, each with its own Prefect flow, so a generic `export-rdf` name in
-the Prefect UI wouldn't say which pipeline's export is actually running.
-The CLI command name (`export-rdf`) is unaffected; only the Prefect
-flow/deployment name changed. It's
-run as **its own separate process** (own `.serve()` call, own
-systemd unit — see README's "Scheduling with Prefect"), not folded into
-`daily_report.py`'s `serve()`, so a crash/restart of one never touches
-the other, and always does a full rebuild — no `--since` watermark
-tracking, matching the CLI command's scope.
-
-It is triggered by a Prefect Automation (a `DeploymentEventTrigger`
-registered from within `export_rdf_flow.py`'s own `.serve()` call, via the
-`triggers=` argument — not a standalone automation script) rather than a
-cron schedule: it fires as soon as a `daily-strategic-report` flow run
-completes, so the day's data has just finished writing to the tracking
-database. This is a deliberate exception to the "own process" independence
-above only in the sense that the *trigger* is now coupled to
-`daily_report_flow`'s completion — the processes themselves (and their
-crash/restart behavior) remain fully independent; nothing runs `export-rdf`
-in-process inside `daily_report.py`. Because the trigger scopes itself to
-`daily_report_flow`'s specific deployment id (resolved at `export_rdf_flow.py`
-startup via `read_deployment_by_name`), that deployment must already be
-registered — i.e. `daily_report.py`'s scheduler must have been started at
-least once — before `export_rdf_flow.py` starts; if it isn't yet,
-`export_rdf_flow.py` fails at startup and systemd's `Restart=on-failure`
-(`RestartSec=30`) retries until it is, rather than needing a custom wait
-loop. The deployment's `db_path` reads from the same tracking database
-`daily_report_flow`'s deployment writes to (both anchored via
-`Path.home()`, not cwd). This module no longer exposes a typer/CLI-args
-entry point for ad-hoc runs — that capability is superseded by `prefect
-deployment run 'daily-strategic-report-export-rdf/daily-strategic-report-export-rdf' --param since=...` now that a
-deployment exists; `cli.py export-rdf` remains available for genuinely
-Prefect-independent ad-hoc use.
+On the Prefect side, `export-rdf` is **not** a parity exception: it runs
+as `daily_report_flow`'s last task (`export_rdf_task`, in
+`flows/daily_report.py`), so it fires automatically at the end of every
+scheduled run — no separate flow file, deployment, or process. This used
+to be its own flow (`flows/export_rdf_flow.py`, later triggered off
+`daily_report_flow`'s completion via a Prefect Automation) kept
+deliberately independent so a crash/restart of one wouldn't touch the
+other; that independence was traded away on purpose for operational
+simplicity — one flow/deployment to run and monitor instead of two — so
+don't reintroduce a separate export-rdf flow file without being asked.
+The task fails gracefully (logs a warning, doesn't raise) since the HTML
+report has already rendered by the time it runs, matching the pattern used
+by this flow's other archival/side-effect tasks (`archive-articles`,
+`check-urgency-alerts`, etc.). Always a full rebuild — no `--since`
+watermark tracking, matching the CLI command's scope — and writes
+`knowledge_graph.ttl` next to `--db-path` (not `--output-dir`, which is
+wiped and recreated every run). `cli.py export-rdf` remains available,
+unchanged, for ad-hoc runs with a different `--since`.
 
 A fourth command, `python -m strategic_reports.daily.cli validate-feeds
 [--fix]`, is the same kind of exception: a maintenance utility over the
@@ -163,8 +144,7 @@ strategic_reports/
     templates/            Jinja2 templates (base, index, topic)
     data/rss_feeds/       One JSON file per topic listing feed URLs — packaged as wheel data
       REMOVED.json        Audit log of feeds removed by `validate-feeds --fix` or by hand
-    flows/daily_report.py Prefect flow (10 tasks) for scheduled runs — no `ask` equivalent, deliberately (see above)
-    flows/export_rdf_flow.py Prefect flow wrapping export-rdf — Automation-triggered on daily_report_flow completion, own process (see above)
+    flows/daily_report.py Prefect flow (11 tasks, incl. export-rdf as the last one) for scheduled runs — no `ask` equivalent, deliberately (see above)
     cli.py                typer CLI entrypoint — four commands: run, ask, export-rdf, validate-feeds
     paths.py              default_data_dir() — resolves bundled rss_feeds/ via importlib.resources
     config/topic_order.py Ordered topic slugs + display titles
