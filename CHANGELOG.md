@@ -7,6 +7,12 @@ doesn't tag releases.
 ## 2026-08-13
 
 ### Changed
+- `feeds_usa_news` and `feeds_world_news` removed from `topic_order.py`'s
+  `list_directories_and_titles`, so neither `cli.py run` nor
+  `daily_report_flow` fetches or processes them for now. Their feed
+  configs (`feeds_usa_news.json`, `feeds_world_news.json`) are left in
+  place under `data/rss_feeds/` — kept on disk for later reuse, not
+  deleted. The pipeline now covers 17 active topics, down from 19.
 - `flows/export_rdf_flow.py` is removed. Its logic is folded into
   `daily_report_flow` as a new last task, `export-rdf` (`export_rdf_task`
   in `flows/daily_report.py`), so there's a single Prefect flow/deployment

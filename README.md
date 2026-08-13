@@ -6,9 +6,12 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
 
-A daily briefing pipeline that reads recent news across 19 topic feeds — AI,
-biotech, economics, geopolitics, defense, forex, robotics, energy, IoT, and more —
-and synthesizes strategic recommendations into a linked HTML report.
+A daily briefing pipeline that reads recent news across 17 active topic
+feeds — AI, biotech, economics, geopolitics, defense, forex, robotics,
+energy, IoT, and more — and synthesizes strategic recommendations into a
+linked HTML report. (Two more, USA News and World News, have feed configs
+checked in but are currently excluded from the pipeline — see
+`topic_order.py`.)
 
 The pipeline doesn't just summarize each day's news — it builds a graph from
 it: tags connected whenever they co-occur on the same article, clustered into
@@ -105,7 +108,7 @@ No client code changes required.
 ### Two-phase async architecture
 
 RSS ingestion and LLM inference have different bottlenecks. Feed fetching is
-pure network I/O with no rate limits — all 19 topics' feeds fire concurrently
+pure network I/O with no rate limits — all active topics' feeds fire concurrently
 via `asyncio.gather`. LLM calls are also I/O-bound but API rate-limited — an
 `asyncio.Semaphore` controls how many topics can hit the API simultaneously
 (default: 3, tunable per provider). `feedparser` is synchronous, so it runs
