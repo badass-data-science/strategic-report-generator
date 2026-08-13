@@ -4,6 +4,38 @@ All notable changes to this project are documented here. Entries are
 grouped by date rather than a semantic version number, since this project
 doesn't tag releases.
 
+## 2026-08-13
+
+### Changed
+- `flows/export_rdf_flow.py` is removed. Its logic is folded into
+  `daily_report_flow` as a new last task, `export-rdf` (`export_rdf_task`
+  in `flows/daily_report.py`), so there's a single Prefect flow/deployment
+  (`daily-strategic-report`) to run and monitor instead of two. This
+  supersedes the same-day change below that triggered the standalone flow
+  via a Prefect Automation on `daily_report_flow`'s completion — that
+  two-process, Automation-triggered setup was judged too operationally
+  complex (registration ordering between the two `.serve()` processes,
+  two systemd units) for the benefit it provided. `export-rdf` always does
+  a full rebuild (no `--since` watermark tracking, matching the CLI
+  command's scope), writes `knowledge_graph.ttl` next to `--db-path`, and
+  fails gracefully (logs a warning, doesn't fail the flow run) since the
+  HTML report has already rendered by the time it runs. `cli.py
+  export-rdf` is unaffected and remains available for ad-hoc runs with a
+  different `--since`.
+- (Superseded above, kept for history) `export_rdf_flow.py` was no longer
+  scheduled by its own cron (`0 4 * * *`). It registered a Prefect
+  Automation (a `DeploymentEventTrigger`, via `.serve(triggers=[...])`)
+  that fired it immediately when the `daily-strategic-report` deployment's
+  flow run completed, rather than waiting until a fixed 04:00 offset. The
+  two processes remained fully independent — own `.serve()` call, own
+  systemd unit, no in-process subflow call — only the trigger changed from
+  time-based to event-based. `export_rdf_flow.py` resolved
+  `daily_report_flow`'s deployment id at startup via
+  `read_deployment_by_name`, so `daily_report.py`'s scheduler had to
+  already be registered before this one started; systemd's
+  `Restart=on-failure`/`RestartSec=30` handled the case where it wasn't
+  yet (e.g. on a cold multi-unit boot).
+
 ## 2026-08-05
 
 ### Added
