@@ -67,12 +67,7 @@ list_directories_and_titles = [
         'slug' : 'feeds_forex',
         'title' : 'Forex',
     },
-    {
-        'slug' : 'feeds_usa_news',
-        'title' : 'USA News',
-    },
-    {
-        'slug' : 'feeds_world_news',
-        'title' : 'World News',
-    },
 ]
+
+# feeds_usa_news.json and feeds_world_news.json are intentionally left out
+# of the pipeline for now (not deleted — kept on disk for later reuse).

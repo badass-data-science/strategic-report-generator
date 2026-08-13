@@ -6,7 +6,11 @@ orientation for making changes.
 
 ## What this is
 
-A daily briefing pipeline: fetches RSS across 19 topics, summarizes and
+A daily briefing pipeline: fetches RSS across 17 active topics (19 feed
+configs exist under `data/rss_feeds/`, but `feeds_usa_news.json` and
+`feeds_world_news.json` are deliberately excluded from
+`topic_order.py`'s `list_directories_and_titles` for now — kept on disk
+for later reuse, not deleted), summarizes and
 synthesizes strategic recommendations via an LLM (provider-agnostic via
 litellm), renders an HTML report + tag co-occurrence graph, and tracks
 urgency scores/strategic bullets/article summaries/community summaries
