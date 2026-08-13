@@ -33,7 +33,8 @@ RUNNING WITH LOCAL PREFECT (no cloud account required)
        python -m strategic_reports.daily.flows.daily_report
 
    The flow registers with the local server and polls for scheduled runs.
-   The schedule is 00:30 America/Los_Angeles daily.
+   The schedule is 16:00 America/Los_Angeles, Monday through Friday
+   (no weekend runs).
 
 5. Trigger a one-off run immediately (in a separate terminal):
 
@@ -658,11 +659,11 @@ async def daily_report_flow(
 if __name__ == "__main__":
     daily_report_flow.serve(
         name="daily-strategic-report",
-        schedules=[CronSchedule(cron="30 0 * * *", timezone="America/Los_Angeles")],
+        schedules=[CronSchedule(cron="0 16 * * 1-5", timezone="America/Los_Angeles")],
         tags=["strategic-reports", "daily"],
         description=(
             "Daily strategic intelligence report. "
-            "Runs at 00:30 Pacific time. "
+            "Runs at 16:00 Pacific time, Monday through Friday (no weekend runs). "
             "Synthesizes recent news across AI, biotech, economics, geopolitics, defense, and more."
         ),
         # output_dir and db_path have no function default (see

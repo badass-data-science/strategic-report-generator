@@ -469,7 +469,7 @@ for why.
 
 ## Scheduling with Prefect
 
-The pipeline ships with a [Prefect](https://www.prefect.io) flow that runs automatically at **00:30 America/Los_Angeles** daily. It uses a local Prefect server — no cloud account required.
+The pipeline ships with a [Prefect](https://www.prefect.io) flow that runs automatically at **16:00 America/Los_Angeles, Monday through Friday** (no weekend runs). It uses a local Prefect server — no cloud account required.
 
 ### Why Prefect?
 
