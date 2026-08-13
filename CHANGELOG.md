@@ -7,6 +7,9 @@ doesn't tag releases.
 ## 2026-08-13
 
 ### Changed
+- `daily_report_flow`'s cron schedule changed from `30 0 * * *` (00:30
+  America/Los_Angeles daily) to `0 16 * * 1-5` (16:00 America/Los_Angeles,
+  Monday through Friday — no weekend runs).
 - `feeds_usa_news` and `feeds_world_news` removed from `topic_order.py`'s
   `list_directories_and_titles`, so neither `cli.py run` nor
   `daily_report_flow` fetches or processes them for now. Their feed
