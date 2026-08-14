@@ -629,6 +629,13 @@ def db_upgrade_command(
     from alembic.config import Config
 
     config = Config(str(_ALEMBIC_INI))
+    # alembic.ini's script_location ("alembic") is a relative path, and
+    # Alembic resolves relative script_location against the *current
+    # working directory*, not the ini file's own directory — so without
+    # this override, `strategic-reports db upgrade` only works when
+    # invoked from the repo root. Force it absolute, relative to the ini
+    # file we already located, so this works from any cwd.
+    config.set_main_option("script_location", str(_ALEMBIC_INI.parent / "alembic"))
     command.upgrade(config, revision)
 
 
