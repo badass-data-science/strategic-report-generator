@@ -1,0 +1,120 @@
+{
+    "feeds": [
+        {
+            "title": "RetailWire",
+            "url": "https://retailwire.com/feed/"
+        },
+        {
+            "title": "Total Retail",
+            "url": "https://www.mytotalretail.com/feed/"
+        },
+        {
+            "title": "The Guardian | Retail industry",
+            "url": "https://www.theguardian.com/business/retail/rss"
+        },
+        {
+            "title": "Forrester \u00bb Retail Blog",
+            "url": "https://go.forrester.com/blogs/category/retail/feed/"
+        },
+        {
+            "title": "The Retail Doctor Blog",
+            "url": "https://www.retaildoc.com/blog/rss.xml"
+        },
+        {
+            "title": "Stirlingretail",
+            "url": "https://stirlingretail.com/feed/"
+        },
+        {
+            "title": "Retailing: From A to Z by Joel Evans",
+            "url": "https://bermanevansretail.com/feed/"
+        },
+        {
+            "title": "Retail Technology Trends",
+            "url": "https://retailtechnologytrends.com/feed/"
+        },
+        {
+            "title": "LS Retail",
+            "url": "https://www.lsretail.com/resources/rss.xml"
+        },
+        {
+            "title": "iVend Retail s Blog",
+            "url": "https://ivend.com/feed/"
+        },
+        {
+            "title": "KORONA.pos Blog",
+            "url": "https://koronapos.com/feed/"
+        },
+        {
+            "title": "Tinuiti Blog",
+            "url": "https://tinuiti.com/feed/"
+        },
+        {
+            "title": "Cross-Border Commerce Europe Blog",
+            "url": "https://www.cbcommerce.eu/feed/"
+        },
+        {
+            "title": "Retail Customer Experience Blog",
+            "url": "https://www.retailcustomerexperience.com/rss/"
+        },
+        {
+            "title": "Retail Design Blog",
+            "url": "https://retaildesignblog.net/feed/"
+        },
+        {
+            "title": "Retail Focus Magazine",
+            "url": "https://retail-focus.co.uk/feed/"
+        },
+        {
+            "title": "Medallion Retail Blog",
+            "url": "https://medallionretail.com/retail-marketing-ideas/feed/"
+        },
+        {
+            "title": "Miller Zell Blog",
+            "url": "https://www.millerzell.com/insights/rss.xml"
+        },
+        {
+            "title": "Tokinomo Blog",
+            "url": "https://www.tokinomo.com/blog/rss.xml"
+        },
+        {
+            "title": "Drapers",
+            "url": "https://www.drapersonline.com/feed"
+        },
+        {
+            "title": "The Fashion Retailer",
+            "url": "https://fashionretail.blog/feed/"
+        },
+        {
+            "title": "Talking Retail",
+            "url": "https://www.talkingretail.com/feed/"
+        },
+        {
+            "title": "Hardware Retailing",
+            "url": "https://hardwareretailing.com/feed/"
+        },
+        {
+            "title": "Vitamin Retailer Magazine",
+            "url": "https://vitaminretailer.com/feed/"
+        },
+        {
+            "title": "Retail updates from UK retail jewellers",
+            "url": "https://www.retail-jeweller.com/retail/feed/"
+        },
+        {
+            "title": "RangeMe Blog",
+            "url": "https://www.rangeme.com/blog/feed/"
+        },
+        {
+            "title": "ET Retail \u00bb E-commerce",
+            "url": "https://retail.economictimes.indiatimes.com/rss/e-commerce"
+        },
+        {
+            "title": "Retailing Africa",
+            "url": "https://retailingafrica.com/feed/"
+        },
+        {
+            "title": "Lebensmittel Zeitung",
+            "url": "https://www.lebensmittelzeitung.net/news/feed/"
+        }
+    ]
+}

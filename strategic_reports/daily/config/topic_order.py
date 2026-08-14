@@ -8,8 +8,8 @@ list_directories_and_titles = [
         'title' : 'Artificial Intelligence',
     },
     {
-        'slug' : 'feeds_iot',
-        'title' : 'IoT',
+        'slug' : 'feeds_iot_edge_computing',
+        'title' : 'IoT & Edge Computing',
     },
     {
         'slug' : 'feeds_data_science',
@@ -22,10 +22,6 @@ list_directories_and_titles = [
     {
         'slug' : 'feeds_energy',
         'title' : 'Energy',
-    },
-    {
-        'slug' : 'feeds_edge_computing',
-        'title' : 'Edge Computing',
     },
     {
         'slug' : 'feeds_geopolitics',
@@ -56,16 +52,20 @@ list_directories_and_titles = [
         'title' : 'Healthcare',
     },
     {
+        'slug' : 'feeds_retail',
+        'title' : 'Retail',
+    },
+    {
         'slug' : 'feeds_leadership',
         'title' : 'Leadership',
     },
     {
-        'slug' : 'feeds_blockchain',
-        'title' : 'Blockchain',
-    },
-    {
         'slug' : 'feeds_forex',
         'title' : 'Forex',
+    },
+    {
+        'slug' : 'feeds_blockchain',
+        'title' : 'Blockchain',
     },
 ]
 
