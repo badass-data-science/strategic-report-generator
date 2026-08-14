@@ -43,7 +43,6 @@ This refactor:
 """
 
 import asyncio
-from pathlib import Path
 from typing import Any
 
 import structlog
@@ -322,7 +321,7 @@ async def extract_query_tags(question: str, client: LLMClient) -> list[str]:
 
 async def answer_archive_question(
     question: str,
-    db_path: Path,
+    database_url: str,
     client: LLMClient,
     max_communities: int = 8,
 ) -> dict[str, Any]:
@@ -341,7 +340,7 @@ async def answer_archive_question(
     candidate_tags = await extract_query_tags(question, client)
     log.info("archive_query_tags_extracted", tags=candidate_tags)
 
-    communities = find_relevant_communities(db_path, candidate_tags, limit=max_communities)
+    communities = find_relevant_communities(database_url, candidate_tags, limit=max_communities)
     if not communities:
         return {
             "answer": "No archived coverage matches this question yet.",

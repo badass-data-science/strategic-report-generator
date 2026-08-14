@@ -54,14 +54,14 @@ def _make_result(topic_title: str = "Artificial Intelligence") -> TopicResult:
     return TopicResult(config=config, articles=[article], strategy=strategy)
 
 
-def _seed_full_run(db_path: Path, run_id: str, article_count: int = 1) -> None:
-    record_run(db_path, run_id, article_count=article_count)
+def _seed_full_run(database_url: str, run_id: str, article_count: int = 1) -> None:
+    record_run(database_url, run_id, article_count=article_count)
     results = [_make_result()]
-    record_articles(db_path, run_id, results)
-    append_run(db_path, results, run_id)
-    append_bullet_run(db_path, results, run_id)
+    record_articles(database_url, run_id, results)
+    append_run(database_url, results, run_id)
+    append_bullet_run(database_url, results, run_id)
     record_community_summaries(
-        db_path,
+        database_url,
         run_id,
         {0: {
             "label": "AI", "tags": _TAGS,
@@ -69,17 +69,17 @@ def _seed_full_run(db_path: Path, run_id: str, article_count: int = 1) -> None:
         }},
     )
     record_bridge_tags(
-        db_path,
+        database_url,
         run_id,
         [{"tag": _TAGS[0], "topics": ["Artificial Intelligence", "Business"], "count": 4}],
     )
-    record_overview(db_path, run_id, [f"Overview bullet for {run_id}."])
+    record_overview(database_url, run_id, [f"Overview bullet for {run_id}."])
 
 
 class TestBuildGraphArticles:
-    def test_article_has_headline_url_and_tags(self, db_path: Path) -> None:
-        _seed_full_run(db_path, "run-0")
-        graph = build_graph(db_path)
+    def test_article_has_headline_url_and_tags(self, database_url: str) -> None:
+        _seed_full_run(database_url, "run-0")
+        graph = build_graph(database_url)
 
         articles = list(graph.subjects(RDF.type, SDO.Article))
         assert len(articles) == 1
@@ -96,38 +96,38 @@ class TestBuildGraphArticles:
             "Models are faster.", "Costs are dropping.", "New benchmarks set.",
         }
 
-    def test_article_generated_by_its_run(self, db_path: Path) -> None:
-        _seed_full_run(db_path, "run-0")
-        graph = build_graph(db_path)
+    def test_article_generated_by_its_run(self, database_url: str) -> None:
+        _seed_full_run(database_url, "run-0")
+        graph = build_graph(database_url)
         article = next(graph.subjects(RDF.type, SDO.Article))
         assert (article, PROV.wasGeneratedBy, BASE["run/run-0"]) in graph
 
-    def test_date_published_is_typed_xsd_datetime(self, db_path: Path) -> None:
+    def test_date_published_is_typed_xsd_datetime(self, database_url: str) -> None:
         """Regression guard: `Literal(publish_date)` with no `datatype=` used to
         serialize as a bare, untyped string -- valid RDF, but importers (e.g.
         neosemantics) then had no way to tell it apart from ordinary text and
         loaded it as a Neo4j STRING instead of a native temporal type,
         breaking date comparisons/arithmetic downstream."""
-        _seed_full_run(db_path, "run-0")
-        graph = build_graph(db_path)
+        _seed_full_run(database_url, "run-0")
+        graph = build_graph(database_url)
         article = next(graph.subjects(RDF.type, SDO.Article))
         date_literal = graph.value(article, SDO.datePublished)
         assert isinstance(date_literal, Literal)
         assert date_literal.datatype == XSD.dateTime
         assert str(date_literal) == "2026-07-31T09:00:00"
 
-    def test_run_started_at_time_is_typed_xsd_datetime(self, db_path: Path) -> None:
-        _seed_full_run(db_path, "run-0")
-        graph = build_graph(db_path)
+    def test_run_started_at_time_is_typed_xsd_datetime(self, database_url: str) -> None:
+        _seed_full_run(database_url, "run-0")
+        graph = build_graph(database_url)
         started_at = graph.value(BASE["run/run-0"], PROV.startedAtTime)
         assert isinstance(started_at, Literal)
         assert started_at.datatype == XSD.dateTime
 
 
 class TestBuildGraphCommunitiesAndBridgeTags:
-    def test_community_is_skos_collection_with_members(self, db_path: Path) -> None:
-        _seed_full_run(db_path, "run-0")
-        graph = build_graph(db_path)
+    def test_community_is_skos_collection_with_members(self, database_url: str) -> None:
+        _seed_full_run(database_url, "run-0")
+        graph = build_graph(database_url)
 
         collections = list(graph.subjects(RDF.type, SKOS.Collection))
         assert len(collections) == 1
@@ -139,9 +139,9 @@ class TestBuildGraphCommunitiesAndBridgeTags:
         }
         assert member_labels == set(_TAGS)
 
-    def test_bridge_tag_becomes_observation_node(self, db_path: Path) -> None:
-        _seed_full_run(db_path, "run-0")
-        graph = build_graph(db_path)
+    def test_bridge_tag_becomes_observation_node(self, database_url: str) -> None:
+        _seed_full_run(database_url, "run-0")
+        graph = build_graph(database_url)
 
         observations = list(graph.subjects(RDF.type, STRATREP.BridgeTagObservation))
         assert len(observations) == 1
@@ -153,9 +153,11 @@ class TestBuildGraphCommunitiesAndBridgeTags:
 
 
 class TestBuildGraphTopicRun:
-    def test_urgency_score_and_strategic_bullets_share_topic_run_node(self, db_path: Path) -> None:
-        _seed_full_run(db_path, "run-0")
-        graph = build_graph(db_path)
+    def test_urgency_score_and_strategic_bullets_share_topic_run_node(
+        self, database_url: str
+    ) -> None:
+        _seed_full_run(database_url, "run-0")
+        graph = build_graph(database_url)
 
         topic_runs = list(graph.subjects(RDF.type, STRATREP.TopicRun))
         assert len(topic_runs) == 1
@@ -170,9 +172,9 @@ class TestBuildGraphTopicRun:
 
 
 class TestBuildGraphOverview:
-    def test_overview_bullet_included(self, db_path: Path) -> None:
-        _seed_full_run(db_path, "run-0")
-        graph = build_graph(db_path)
+    def test_overview_bullet_included(self, database_url: str) -> None:
+        _seed_full_run(database_url, "run-0")
+        graph = build_graph(database_url)
 
         overviews = list(graph.subjects(RDF.type, STRATREP.CrossTopicOverview))
         assert len(overviews) == 1
@@ -182,31 +184,31 @@ class TestBuildGraphOverview:
 
 
 class TestSinceFilter:
-    def test_full_rebuild_includes_both_runs(self, db_path: Path) -> None:
-        _seed_full_run(db_path, "run-0")
-        _seed_full_run(db_path, "run-1")
-        graph = build_graph(db_path)
+    def test_full_rebuild_includes_both_runs(self, database_url: str) -> None:
+        _seed_full_run(database_url, "run-0")
+        _seed_full_run(database_url, "run-1")
+        graph = build_graph(database_url)
         assert len(list(graph.subjects(RDF.type, PROV.Activity))) == 2
 
-    def test_since_run_id_excludes_earlier_runs(self, db_path: Path) -> None:
-        _seed_full_run(db_path, "run-0")
-        _seed_full_run(db_path, "run-1")
-        graph = build_graph(db_path, since="run-1")
+    def test_since_run_id_excludes_earlier_runs(self, database_url: str) -> None:
+        _seed_full_run(database_url, "run-0")
+        _seed_full_run(database_url, "run-1")
+        graph = build_graph(database_url, since="run-1")
         runs = list(graph.subjects(RDF.type, PROV.Activity))
         assert runs == [BASE["run/run-1"]]
 
-    def test_since_with_no_matching_runs_returns_empty_graph(self, db_path: Path) -> None:
-        _seed_full_run(db_path, "run-0")
-        graph = build_graph(db_path, since="2099-01-01T00:00:00+00:00")
+    def test_since_with_no_matching_runs_returns_empty_graph(self, database_url: str) -> None:
+        _seed_full_run(database_url, "run-0")
+        graph = build_graph(database_url, since="2099-01-01T00:00:00+00:00")
         assert len(graph) == 0
 
 
 class TestExportRdf:
-    def test_export_writes_parseable_turtle(self, db_path: Path, tmp_path: Path) -> None:
-        _seed_full_run(db_path, "run-0")
+    def test_export_writes_parseable_turtle(self, database_url: str, tmp_path: Path) -> None:
+        _seed_full_run(database_url, "run-0")
         output_path = tmp_path / "kg.ttl"
 
-        triple_count = export_rdf(db_path, output_path)
+        triple_count = export_rdf(database_url, output_path)
 
         assert output_path.exists()
         assert triple_count > 0

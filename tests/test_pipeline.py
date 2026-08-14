@@ -535,15 +535,15 @@ class TestExtractQueryTags:
 
 
 class TestAnswerArchiveQuestion:
-    async def test_no_matching_communities_returns_fallback(self, db_path: Path) -> None:
+    async def test_no_matching_communities_returns_fallback(self, database_url: str) -> None:
         client = make_archive_mock_client(tags=["nonexistent-topic"])
-        result = await answer_archive_question("anything?", db_path, client)
+        result = await answer_archive_question("anything?", database_url, client)
         assert result["communities"] == []
         assert "No archived coverage" in result["answer"]
 
-    async def test_returns_grounded_answer_with_communities(self, db_path: Path) -> None:
-        record_run(db_path, "run-0", article_count=10)
-        record_community_summaries(db_path, "run-0", {
+    async def test_returns_grounded_answer_with_communities(self, database_url: str) -> None:
+        record_run(database_url, "run-0", article_count=10)
+        record_community_summaries(database_url, "run-0", {
             0: {
                 "label": "policy", "tags": ["export controls"],
                 "summary": "Coverage of new export rules.", "article_count": 3,
@@ -553,15 +553,15 @@ class TestAnswerArchiveQuestion:
             tags=["export controls"], answer_text="Export controls tightened recently."
         )
         result = await answer_archive_question(
-            "What's happening with export controls?", db_path, client
+            "What's happening with export controls?", database_url, client
         )
         assert result["answer"] == "Export controls tightened recently."
         assert len(result["communities"]) == 1
         assert result["communities"][0]["label"] == "policy"
 
-    async def test_max_communities_passed_through(self, db_path: Path) -> None:
-        record_run(db_path, "run-0", article_count=10)
-        record_community_summaries(db_path, "run-0", {
+    async def test_max_communities_passed_through(self, database_url: str) -> None:
+        record_run(database_url, "run-0", article_count=10)
+        record_community_summaries(database_url, "run-0", {
             i: {
                 "label": f"topic{i}", "tags": ["shared"],
                 "summary": f"Coverage {i}.", "article_count": 1,
@@ -569,5 +569,5 @@ class TestAnswerArchiveQuestion:
             for i in range(5)
         })
         client = make_archive_mock_client(tags=["shared"])
-        result = await answer_archive_question("question", db_path, client, max_communities=2)
+        result = await answer_archive_question("question", database_url, client, max_communities=2)
         assert len(result["communities"]) == 2

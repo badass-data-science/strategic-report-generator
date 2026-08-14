@@ -50,8 +50,16 @@ import os
 from pathlib import Path
 
 import instructor
+from dotenv import load_dotenv
 from prefect import flow, get_run_logger, task
 from prefect.client.schemas.schedules import CronSchedule
+
+# Must run before _DEFAULT_MODEL and the daily_report_flow signature's
+# ollama_api_base/ollama_api_key defaults below, since those evaluate at
+# import time — a .env file wouldn't be loaded in time otherwise. No-op if
+# no .env file exists (e.g. production, where systemd's EnvironmentFile=
+# injects the environment directly).
+load_dotenv()
 
 from strategic_reports.daily.config.topic_order import list_directories_and_titles
 from strategic_reports.daily.core import LLMClient, configure_logging, run_pipeline
@@ -61,13 +69,7 @@ from strategic_reports.daily.core.bullet_diff import (
     diff_all_topics,
     load_bullet_history,
 )
-from strategic_reports.daily.core.db import (
-    connect as connect_db,
-)
-from strategic_reports.daily.core.db import (
-    ensure_safe_db_path,
-    record_run,
-)
+from strategic_reports.daily.core.db import ensure_database_reachable, record_run
 from strategic_reports.daily.core.models import (
     BulletDiff,
     CrossTopicSynthesis,
@@ -240,7 +242,7 @@ async def run_cross_topic_synthesis(
     temperature: float,
     instructor_mode_str: str,
     run_id: str,
-    db_path: Path,
+    database_url: str,
     api_base: str | None = None,
     api_key: str | None = None,
 ) -> CrossTopicSynthesis | None:
@@ -259,7 +261,7 @@ async def run_cross_topic_synthesis(
         synthesis = await synthesize_cross_topic(results, client)
         logger.info("Cross-topic synthesis complete")
         try:
-            record_overview(db_path, run_id, synthesis.bullets)
+            record_overview(database_url, run_id, synthesis.bullets)
         except Exception as exc:
             logger.warning(f"Overview archiving failed: {exc} — continuing without archiving")
         return synthesis
@@ -280,11 +282,11 @@ async def run_cross_topic_synthesis(
 # rendering.
 
 @task(name="archive-articles")
-def archive_articles(results: list[TopicResult], run_id: str, db_path: Path) -> None:
+def archive_articles(results: list[TopicResult], run_id: str, database_url: str) -> None:
     """Persist this run's article summaries into the tracking database."""
     logger = get_run_logger()
     try:
-        record_articles(db_path, run_id, results)
+        record_articles(database_url, run_id, results)
         article_total = sum(len(r.articles) for r in results)
         logger.info(f"Archived {article_total} article summaries")
     except Exception as exc:
@@ -305,16 +307,16 @@ def archive_articles(results: list[TopicResult], run_id: str, db_path: Path) -> 
 def check_urgency_alerts(
     results: list[TopicResult],
     run_id: str,
-    db_path: Path,
+    database_url: str,
     absolute_threshold: float,
     z_score_threshold: float,
 ) -> None:
     """Check per-topic urgency scores against history; log alerts and update history."""
     logger = get_run_logger()
     try:
-        history = load_history(db_path)
+        history = load_history(database_url)
         alerts = check_alerts(results, history, absolute_threshold, z_score_threshold)
-        append_run(db_path, results, run_id)
+        append_run(database_url, results, run_id)
 
         if alerts:
             logger.warning(f"URGENCY ALERTS ({len(alerts)} topic(s)):")
@@ -344,7 +346,7 @@ def check_urgency_alerts(
 def check_emerging_tag_alerts(
     results: list[TopicResult],
     run_id: str,
-    db_path: Path,
+    database_url: str,
     article_count: int,
     tag_z_score_threshold: float,
 ) -> None:
@@ -352,11 +354,11 @@ def check_emerging_tag_alerts(
     logger = get_run_logger()
     try:
         graph_data = build_graph_data(results)
-        history = load_tag_rate_history(db_path)
+        history = load_tag_rate_history(database_url)
         alerts = check_emerging_tags(graph_data, article_count, history, tag_z_score_threshold)
-        record_tags(db_path, run_id, graph_data)
-        record_emerging_tag_alerts(db_path, run_id, alerts)
-        record_bridge_tags(db_path, run_id, find_bridge_tags(graph_data))
+        record_tags(database_url, run_id, graph_data)
+        record_emerging_tag_alerts(database_url, run_id, alerts)
+        record_bridge_tags(database_url, run_id, find_bridge_tags(graph_data))
 
         if alerts:
             logger.warning(f"EMERGING TAG ALERTS ({len(alerts)} tag(s)):")
@@ -383,7 +385,7 @@ def check_emerging_tag_alerts(
 async def summarize_community_tags(
     results: list[TopicResult],
     run_id: str,
-    db_path: Path,
+    database_url: str,
     model: str,
     temperature: float,
     instructor_mode_str: str,
@@ -404,7 +406,7 @@ async def summarize_community_tags(
             api_key=api_key,
         )
         community_summaries = await summarize_communities(results, display_data, client)
-        record_community_summaries(db_path, run_id, community_summaries)
+        record_community_summaries(database_url, run_id, community_summaries)
         logger.info(
             f"Community summaries: {len(community_summaries)} of "
             f"{display_data['n_communities']} communities"
@@ -427,7 +429,7 @@ async def summarize_community_tags(
 @task(name="run-bullet-diff", retries=2, retry_delay_seconds=60)
 async def run_bullet_diff(
     results: list[TopicResult],
-    db_path: Path,
+    database_url: str,
     model: str,
     temperature: float,
     instructor_mode_str: str,
@@ -438,10 +440,10 @@ async def run_bullet_diff(
     """Diff today's strategic bullets against yesterday's and return per-topic results."""
     logger = get_run_logger()
     try:
-        yesterday = load_bullet_history(db_path)
+        yesterday = load_bullet_history(database_url)
         if not yesterday:
             logger.info("No bullet history yet — skipping diff on first run")
-            append_bullet_run(db_path, results, run_id)
+            append_bullet_run(database_url, results, run_id)
             return {}
 
         mode = _INSTRUCTOR_MODES.get(instructor_mode_str.upper(), instructor.Mode.TOOLS)
@@ -454,7 +456,7 @@ async def run_bullet_diff(
             api_key=api_key,
         )
         diffs = await diff_all_topics(results, yesterday, client)
-        append_bullet_run(db_path, results, run_id)
+        append_bullet_run(database_url, results, run_id)
 
         new_count = sum(len(d.new) for d in diffs.values())
         dropped_count = sum(len(d.dropped) for d in diffs.values())
@@ -487,20 +489,22 @@ def build_tag_graph(results: list[TopicResult], output_dir: Path) -> None:
 # separately after this one finished. Folded in as this flow's last task
 # instead, so there's a single Prefect flow/deployment to operate — see
 # AGENTS.md. Full rebuild every run (no `--since` watermark tracking),
-# same v1 scope as the `export-rdf` CLI command. Written alongside the
-# tracking database rather than into output_dir, since output_dir is
-# deleted and recreated on every run.
+# same v1 scope as the `export-rdf` CLI command. Written next to output_dir
+# (output_dir.parent), not inside it, since output_dir is deleted and
+# recreated on every run — output_dir.parent is the same stable directory
+# the old SQLite db_path used to live in (see .serve(parameters={...})
+# below), now that there's no local db file whose parent to piggyback on.
 #
 # Fails gracefully: a failure here logs a warning but does not prevent the
 # report from rendering — it already has by the time this task runs.
 
 @task(name="export-rdf")
-def export_rdf_task(db_path: Path) -> None:
+def export_rdf_task(database_url: str, output_dir: Path) -> None:
     """Export the tracking database's accumulated archive to Turtle."""
     logger = get_run_logger()
-    output = db_path.parent / "knowledge_graph.ttl"
+    output = output_dir.parent / "knowledge_graph.ttl"
     try:
-        triple_count = export_rdf(db_path, output, since=None)
+        triple_count = export_rdf(database_url, output, since=None)
         logger.info(f"RDF export written to {output} ({triple_count:,} triples)")
     except Exception as exc:
         logger.warning(f"RDF export failed: {exc} — continuing without exporting")
@@ -523,7 +527,7 @@ def export_rdf_task(db_path: Path) -> None:
 )
 async def daily_report_flow(
     output_dir: Path,
-    db_path: Path,
+    database_url: str,
     model: str = _DEFAULT_MODEL,
     hours_cutoff: int = 24,
     data_dir: Path = default_data_dir(),
@@ -541,14 +545,12 @@ async def daily_report_flow(
     tag_z_score_threshold: float = 2.0,
 ) -> None:
     """Daily strategic report: ingest RSS feeds, summarize, synthesize, render HTML."""
-    # output_dir is deleted and recreated on every run (see render_report()),
-    # so the tracking database can never live inside it — check before doing
-    # any real work.
-    ensure_safe_db_path(db_path, output_dir)
-    # Fail-fast check only (closed right away) — the urgency/bullet tasks
-    # below each open their own short connection per call rather than sharing
-    # this one, since a sqlite3.Connection isn't picklable across tasks.
-    connect_db(db_path).close()
+    # Fail fast if database_url is unreachable/misconfigured, before doing
+    # any real work (expensive LLM calls). Schema is applied separately,
+    # once, via `alembic upgrade head` (or `strategic-reports db upgrade`)
+    # — not implicitly here, unlike the old SQLite connect()-creates-schema
+    # idiom this replaced.
+    ensure_database_reachable(database_url)
 
     # Validate before doing any real work — otherwise an invalid instructor_mode
     # silently falls back to TOOLS inside each task's own _INSTRUCTOR_MODES.get(),
@@ -588,9 +590,9 @@ async def daily_report_flow(
     # comparison divides by. Must happen before the urgency/bullet tasks
     # below, since those insert rows referencing this run_id.
     article_count = sum(len(r.articles) for r in results)
-    record_run(db_path, run_id, article_count)
+    record_run(database_url, run_id, article_count)
 
-    archive_articles(results=results, run_id=run_id, db_path=db_path)
+    archive_articles(results=results, run_id=run_id, database_url=database_url)
 
     overview = await run_cross_topic_synthesis(
         results=results,
@@ -598,7 +600,7 @@ async def daily_report_flow(
         temperature=temperature,
         instructor_mode_str=instructor_mode,
         run_id=run_id,
-        db_path=db_path,
+        database_url=database_url,
         api_base=ollama_api_base,
         api_key=ollama_api_key,
     )
@@ -606,7 +608,7 @@ async def daily_report_flow(
     check_urgency_alerts(
         results=results,
         run_id=run_id,
-        db_path=db_path,
+        database_url=database_url,
         absolute_threshold=absolute_threshold,
         z_score_threshold=z_score_threshold,
     )
@@ -614,7 +616,7 @@ async def daily_report_flow(
     check_emerging_tag_alerts(
         results=results,
         run_id=run_id,
-        db_path=db_path,
+        database_url=database_url,
         article_count=article_count,
         tag_z_score_threshold=tag_z_score_threshold,
     )
@@ -622,7 +624,7 @@ async def daily_report_flow(
     await summarize_community_tags(
         results=results,
         run_id=run_id,
-        db_path=db_path,
+        database_url=database_url,
         model=model,
         temperature=temperature,
         instructor_mode_str=instructor_mode,
@@ -632,7 +634,7 @@ async def daily_report_flow(
 
     diffs = await run_bullet_diff(
         results=results,
-        db_path=db_path,
+        database_url=database_url,
         model=model,
         temperature=temperature,
         instructor_mode_str=instructor_mode,
@@ -643,7 +645,7 @@ async def daily_report_flow(
 
     render_html_report(results, output_dir, hours_cutoff, overview, diffs)
     build_tag_graph(results, output_dir)
-    export_rdf_task(db_path)
+    export_rdf_task(database_url, output_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -666,19 +668,24 @@ if __name__ == "__main__":
             "Runs at 16:00 Pacific time, Monday through Friday (no weekend runs). "
             "Synthesizes recent news across AI, biotech, economics, geopolitics, defense, and more."
         ),
-        # output_dir and db_path have no function default (see
-        # daily_report_flow) — the scheduled cron run has no CLI invocation to
-        # supply them, so their values are fixed here, once, at deployment
-        # registration time. Path.home() (not cwd) so these stay correct
-        # regardless of the working directory the process is started from.
+        # output_dir has no function default (see daily_report_flow) — the
+        # scheduled cron run has no CLI invocation to supply it, so its value
+        # is fixed here, once, at deployment registration time. Path.home()
+        # (not cwd) so this stays correct regardless of the working
+        # directory the process is started from.
+        #
+        # database_url also has no function default, but unlike output_dir
+        # it's read from DATABASE_URL here (via load_dotenv() + os.environ
+        # at the top of this module) rather than hardcoded — it's a secret
+        # (embeds the database password), so it belongs in the systemd
+        # unit's EnvironmentFile=.env, not committed in this parameters
+        # dict. Fails loudly at registration time if unset, rather than
+        # registering a deployment that will fail on its first scheduled run.
         parameters={
             "output_dir": Path.home()
             / "output"
             / "daily-strategic-report-from-RSS-feeds"
             / "daily-report",
-            "db_path": Path.home()
-            / "output"
-            / "daily-strategic-report-from-RSS-feeds"
-            / "strategic-reports.db",
+            "database_url": os.environ["DATABASE_URL"],
         },
     )

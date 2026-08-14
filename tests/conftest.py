@@ -57,9 +57,11 @@ If you pass a datetime directly, mktime(datetime) raises TypeError.
 
 import datetime
 import json
+import os
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import psycopg
 import pytest
 from strategic_reports.daily.core.models import (
     ArticleSummary,
@@ -73,17 +75,58 @@ from strategic_reports.daily.core.models import (
 # ---------------------------------------------------------------------------
 # Tracking-database fixture
 # ---------------------------------------------------------------------------
+# A real, reachable Postgres instance is a hard test dependency (see the
+# `postgres` service container in .github/workflows/tests.yml, and
+# docker-compose.yml for local dev) — there's no free zero-setup isolation
+# like SQLite's tmp_path-backed file used to give. DATABASE_URL must point
+# at that instance when running the suite.
+
+_TRACKING_TABLES = [
+    "runs", "urgency_scores", "bullets", "tag_counts", "tag_topics", "tag_edges",
+    "emerging_tag_alerts", "bridge_tags", "bridge_tag_topics", "articles",
+    "article_summary_bullets", "article_tags", "community_summaries",
+    "community_summary_tags", "cross_topic_overviews",
+]
+
+
+@pytest.fixture(scope="session")
+def _test_database_url() -> str:
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        pytest.skip("DATABASE_URL must point at a reachable Postgres instance to run DB tests")
+    return url
+
+
+@pytest.fixture(scope="session")
+def _migrated(_test_database_url: str) -> None:
+    """Apply Alembic migrations once per test session — idempotent, cheap to skip on rerun."""
+    from alembic import command
+    from alembic.config import Config
+
+    config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+    command.upgrade(config, "head")
+
 
 @pytest.fixture
-def db_path(tmp_path: Path) -> Path:
+def database_url(_test_database_url: str, _migrated: None) -> str:
     """
-    Path to a fresh SQLite tracking database for one test.
+    A migrated Postgres tracking database, truncated to empty before every
+    test function — full isolation without re-running migrations per test.
 
-    Doesn't call db.connect() itself — the functions under test (record_run,
-    load_history, append_run, etc.) each open their own short connection via
-    db.connect(), which creates the file and schema on first use.
+    Doesn't call db.get_connection() itself — the functions under test
+    (record_run, load_history, append_run, etc.) each open their own pooled
+    connection via db.get_connection().
+
+    TRUNCATE ... RESTART IDENTITY CASCADE (not a transaction-rollback
+    trick): the application code itself calls conn.commit() inside every
+    function under test, which would defeat a wrapping-transaction-rollback
+    approach without invasive monkeypatching. Truncating is cheap relative
+    to re-running migrations, and CASCADE handles the FK dependency graph
+    regardless of the table list's order.
     """
-    return tmp_path / "test.db"
+    with psycopg.connect(_test_database_url, autocommit=True) as conn:
+        conn.execute("TRUNCATE " + ", ".join(_TRACKING_TABLES) + " RESTART IDENTITY CASCADE")
+    return _test_database_url
 
 
 # ---------------------------------------------------------------------------

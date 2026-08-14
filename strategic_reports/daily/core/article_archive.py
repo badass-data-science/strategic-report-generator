@@ -6,7 +6,7 @@ otherwise exists only in memory during a run.
 
 record_articles() inserts one row per ArticleSummary (title, link,
 publish_date), plus its summary bullets and tags as child rows. Call it
-once per run, after db.record_run(db_path, run_id, ...).
+once per run, after db.record_run(database_url, run_id, ...).
 
 load_articles() reconstructs a run's article summaries from the database —
 a round-trip counterpart. The `ask` archive-query command (see
@@ -16,79 +16,74 @@ to ground answers in raw article text rather than community summaries.
 """
 
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
-from .db import connect
+from .db import get_connection
 from .models import TopicResult
 
 
-def record_articles(db_path: Path, run_id: str, results: list[TopicResult]) -> None:
+def record_articles(database_url: str, run_id: str, results: list[TopicResult]) -> None:
     """
     Insert this run's article summaries (title, link, publish_date, summary
     bullets, tags) into the database, linked to run_id.
 
     Iterates result.articles directly (empty for error/empty topics, so no
     separate strategy-success check is needed — same pattern as
-    tag_graph.build_graph_data). Assumes db.record_run(db_path, run_id, ...)
-    has already been called this run, so the run_id foreign key exists.
+    tag_graph.build_graph_data). Assumes db.record_run(database_url, run_id,
+    ...) has already been called this run, so the run_id foreign key exists.
     """
     now = datetime.now(UTC).isoformat()
-    conn = connect(db_path)
-    try:
+    with get_connection(database_url) as conn:
         for result in results:
             topic_title = result.config.title
             for article in result.articles:
                 cursor = conn.execute(
                     "INSERT INTO articles (run_id, created_at, topic, title, link, publish_date) "
-                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    "VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
                     (run_id, now, topic_title, article.title, article.link, article.publish_date),
                 )
-                article_id = cursor.lastrowid
-                conn.executemany(
+                row = cursor.fetchone()
+                assert row is not None
+                article_id = row[0]
+                conn.cursor().executemany(
                     "INSERT INTO article_summary_bullets "
                     "(article_id, run_id, created_at, bullet_index, bullet_text) "
-                    "VALUES (?, ?, ?, ?, ?)",
+                    "VALUES (%s, %s, %s, %s, %s)",
                     [
                         (article_id, run_id, now, i, bullet)
                         for i, bullet in enumerate(article.summary)
                     ],
                 )
-                conn.executemany(
+                conn.cursor().executemany(
                     "INSERT INTO article_tags (article_id, run_id, created_at, tag) "
-                    "VALUES (?, ?, ?, ?)",
+                    "VALUES (%s, %s, %s, %s)",
                     [(article_id, run_id, now, tag) for tag in article.tags],
                 )
         conn.commit()
-    finally:
-        conn.close()
 
 
-def load_articles(db_path: Path, run_id: str) -> list[dict[str, Any]]:
+def load_articles(database_url: str, run_id: str) -> list[dict[str, Any]]:
     """
     Reconstruct this run's article summaries from the database: a list of
     dicts shaped like {"topic", "title", "link", "publish_date", "summary",
     "tags"} — the same fields ArticleSummary carries, per article.
     """
-    conn = connect(db_path)
-    try:
+    with get_connection(database_url) as conn:
         article_rows = conn.execute(
             "SELECT id, topic, title, link, publish_date FROM articles "
-            "WHERE run_id = ? ORDER BY id",
+            "WHERE run_id = %s ORDER BY id",
             (run_id,),
         ).fetchall()
 
         bullet_rows = conn.execute(
             "SELECT article_id, bullet_text FROM article_summary_bullets "
-            "WHERE run_id = ? ORDER BY article_id, bullet_index",
+            "WHERE run_id = %s ORDER BY article_id, bullet_index",
             (run_id,),
         ).fetchall()
         tag_rows = conn.execute(
-            "SELECT article_id, tag FROM article_tags WHERE run_id = ? ORDER BY article_id, id",
+            "SELECT article_id, tag FROM article_tags WHERE run_id = %s ORDER BY article_id, id",
             (run_id,),
         ).fetchall()
-    finally:
-        conn.close()
 
     bullets_by_article: dict[int, list[str]] = {}
     for article_id, bullet_text in bullet_rows:

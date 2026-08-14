@@ -14,7 +14,7 @@ for later reuse, not deleted), summarizes and
 synthesizes strategic recommendations via an LLM (provider-agnostic via
 litellm), renders an HTML report + tag co-occurrence graph, and tracks
 urgency scores/strategic bullets/article summaries/community summaries
-across runs in a SQLite database. Two scheduled/batch entry points, kept
+across runs in a PostgreSQL database. Two scheduled/batch entry points, kept
 at full feature parity with each other:
 
 - `python -m strategic_reports.daily.cli run` — the batch pipeline, run once, manually
@@ -54,9 +54,13 @@ report has already rendered by the time it runs, matching the pattern used
 by this flow's other archival/side-effect tasks (`archive-articles`,
 `check-urgency-alerts`, etc.). Always a full rebuild — no `--since`
 watermark tracking, matching the CLI command's scope — and writes
-`knowledge_graph.ttl` next to `--db-path` (not `--output-dir`, which is
-wiped and recreated every run). `cli.py export-rdf` remains available,
-unchanged, for ad-hoc runs with a different `--since`.
+`knowledge_graph.ttl` next to `output_dir` (`output_dir.parent`, not
+`--output-dir` itself, which is wiped and recreated every run — see
+`export_rdf_task` in `flows/daily_report.py`). There's no local `db_path`
+directory to piggyback on anymore now that `--database-url` is a
+connection string, not a file path. `cli.py export-rdf` remains available,
+unchanged, for ad-hoc runs with a different `--since` and an explicit
+`--output` path.
 
 A fourth command, `python -m strategic_reports.daily.cli validate-feeds
 [--fix]`, is the same kind of exception: a maintenance utility over the
@@ -71,8 +75,8 @@ file rather than overwriting it, so re-running `--fix` periodically
 accumulates history. It has no Prefect equivalent, and that's intentional,
 same as `ask`.
 
-**CLI invocation shape**: `cli.py` now has four commands (`run`, `ask`,
-`export-rdf`, `validate-feeds`), so naming one explicitly is required
+**CLI invocation shape**: `cli.py` now has five commands (`run`, `ask`,
+`export-rdf`, `validate-feeds`, `db upgrade`), so naming one explicitly is required
 (`... cli.py run --output-dir ...`) — typer's single-command auto-invoke
 shorthand (bare `... cli.py --output-dir ...`) only applies when there's
 exactly one command, and no longer applies here. If you ever reduce back
@@ -104,10 +108,13 @@ ruff check .
 mypy
 ```
 
-- 217 tests across `tests/test_*.py`, no real network or LLM calls, runs in
-  under a second. CI (`.github/workflows/tests.yml`) runs all three as
-  separate jobs (`pytest`, `lint`, `typecheck`) on every push/PR to `main`,
-  no credentials needed there either.
+- 216 tests across `tests/test_*.py`, no real network or LLM calls. Unlike
+  before the PostgreSQL migration, DB-touching tests now need a reachable
+  Postgres instance (`DATABASE_URL` env var) — see `docker-compose.yml` for
+  local dev; CI provides one as a service container. CI
+  (`.github/workflows/tests.yml`) runs `pytest`/`lint`/`typecheck` as
+  separate jobs on every push/PR to `main`; only the `pytest` job has the
+  Postgres service (`lint`/`typecheck` are static, no DB needed).
 - `pytest.ini` sets `asyncio_mode = auto` — async test functions don't need
   `@pytest.mark.asyncio`.
 - Run the whole suite after any change to `strategic_reports/daily/core/*`;
@@ -136,25 +143,27 @@ strategic_reports/
       renderer.py         Jinja2 HTML rendering
       tag_normalizer.py   Tag synonym map, normalize_tags() (Pydantic validator)
       tag_graph.py        Tag co-occurrence graph + Louvain community detection + find_bridge_tags() + group_articles_by_community()
-      urgency.py          Urgency alerting: absolute threshold + z-score (SQLite-backed)
-      bullet_diff.py      Historical diffing vs. yesterday's bullets (SQLite-backed)
-      db.py               SQLite tracking db: schema, connection helper, output_dir/db_path safety guard, run registration
+      urgency.py          Urgency alerting: absolute threshold + z-score (PostgreSQL-backed)
+      bullet_diff.py      Historical diffing vs. yesterday's bullets (PostgreSQL-backed)
+      db.py               PostgreSQL tracking db: pooled connection helper, reachability check, run registration (schema lives in alembic/, not here)
       article_archive.py  Persists each run's article summaries (source material), linked to run_id
       overview_archive.py Persists each run's cross-topic synthesis overview bullets, linked to run_id
       archive_query.py    Graph-guided retrieval: find_relevant_communities() — pure SQL, no LLM calls
-      tag_tracking.py     Per-run tag-graph persistence (linked to run_id) + emerging-tag z-score + community-summary persistence (SQLite-backed)
+      tag_tracking.py     Per-run tag-graph persistence (linked to run_id) + emerging-tag z-score + community-summary persistence (PostgreSQL-backed)
       rdf_export.py        Builds an RDF/Turtle export of the tracking db (SKOS/PROV-O/schema.org + a custom stratrep: namespace) for `export-rdf`
       tracing.py          Langfuse / Phoenix instrumentation (opt-in)
     templates/            Jinja2 templates (base, index, topic)
     data/rss_feeds/       One JSON file per topic listing feed URLs — packaged as wheel data
       REMOVED.json        Audit log of feeds removed by `validate-feeds --fix` or by hand
     flows/daily_report.py Prefect flow (11 tasks, incl. export-rdf as the last one) for scheduled runs — no `ask` equivalent, deliberately (see above)
-    cli.py                typer CLI entrypoint — four commands: run, ask, export-rdf, validate-feeds
+    cli.py                typer CLI entrypoint — five commands: run, ask, export-rdf, validate-feeds, db upgrade
     paths.py              default_data_dir() — resolves bundled rss_feeds/ via importlib.resources
     config/topic_order.py Ordered topic slugs + display titles
-tests/                  Per-module test files + conftest.py fixtures
+alembic/                Tracking-db schema migrations (Postgres) — versions/0001_initial_schema.py is the whole schema, hand-written, no autogeneration (no SQLAlchemy models in this codebase)
+tests/                  Per-module test files + conftest.py fixtures (database_url fixture requires a reachable Postgres — see docker-compose.yml)
 blog-posts/             Human-written companion articles about this project — not code, not shipped
 pyproject.toml          Package metadata, dependencies, extras, console script
+docker-compose.yml      Local-dev Postgres for the database_url test fixture / manual runs
 LICENSE                 MIT
 ```
 
@@ -175,24 +184,38 @@ LICENSE                 MIT
   `feedparser` is sync and must stay wrapped in `asyncio.to_thread`.
 - Config values follow the CLI-flag + env-var + default pattern already used
   throughout `cli.py` and `flows/daily_report.py` — extend that pattern for
-  new options rather than inventing a new config mechanism. Exceptions:
-  `--output-dir` and `--db-path` are required (no default, no env var) on
-  both entry points — deliberate, not an oversight.
+  new options rather than inventing a new config mechanism. Exception:
+  `--output-dir` is required (no default, no env var) on both entry points —
+  deliberate, not an oversight. `--database-url` is required too but does
+  have an env var (`DATABASE_URL`, also loadable from a gitignored `.env`
+  via `load_dotenv()` at the top of `cli.py`/`flows/daily_report.py`) —
+  it's a secret, not a path-collision risk, so the old `--db-path`
+  no-default-no-envvar rationale doesn't carry over; see below.
 - **`--output-dir` is deleted and recreated on every run** (see
   `render_report()`). Never assume anything written there survives past the
   current run, and never point persistent state at a path inside it.
-- **`--db-path` (SQLite tracking db) must never resolve inside
-  `--output-dir`.** `db.ensure_safe_db_path()` enforces this at startup on
-  both entry points — call it before any real work if you add a third entry
+- **Schema lives in `alembic/`, not in `db.py`.** Run `alembic upgrade head`
+  (or `strategic-reports db upgrade`) once per environment, explicitly — it
+  is not applied implicitly on connect the way the old SQLite `_SCHEMA`
+  script was. `db.ensure_database_reachable()` is the fail-fast check that
+  replaced the old SQLite-file-collision guard (`ensure_safe_db_path()`,
+  now removed) — call it before any real work if you add a third entry
   point that touches the tracking db.
-- **Tracking-db functions take `db_path: Path`, not a live `sqlite3.Connection`.**
-  Each call (`load_history`, `append_run`, `load_bullet_history`,
-  `append_bullet_run`, `record_run`, `record_tags`, `load_tag_rate_history`,
-  `rebuild_graph_data`, `record_emerging_tag_alerts`, `record_bridge_tags`,
-  `record_articles`, `load_articles`, `record_community_summaries`) opens
-  and closes its own short connection. This is deliberate: a
-  `sqlite3.Connection` isn't picklable, so a shared one can't safely cross a
-  Prefect task boundary.
+- **Tracking-db functions take `database_url: str`, not a live
+  `psycopg.Connection`.** Each call (`load_history`, `append_run`,
+  `load_bullet_history`, `append_bullet_run`, `record_run`, `record_tags`,
+  `load_tag_rate_history`, `rebuild_graph_data`, `record_emerging_tag_alerts`,
+  `record_bridge_tags`, `record_articles`, `load_articles`,
+  `record_community_summaries`) opens its own connection via
+  `db.get_connection()`, backed by a process-local connection pool keyed by
+  `database_url` (see `db._get_pool()`). This is deliberate: a live
+  connection isn't picklable, so it can't safely cross a Prefect task
+  boundary — only the connection-string type changed (`Path` → `str`), not
+  this calling convention.
+- **SQL placeholders are `%s` (psycopg), not `?`.** And `conn.executemany()`
+  doesn't exist on a psycopg `Connection` the way it did on
+  `sqlite3.Connection` — use `conn.cursor().executemany(...)`. Both are easy
+  to get wrong if copying an old SQLite-era pattern.
 - **Community summaries are LLM-grounded in that community's articles, not
   in the label alone.** `pipeline.summarize_communities()` calls
   `tag_graph.group_articles_by_community()` to gather the article summaries
@@ -266,7 +289,7 @@ LICENSE                 MIT
   must confirm, not repeat verbatim. If you touch `build_cross_topic_prompt`
   or `synthesize_cross_topic`, keep this: bridge tags are grounding
   context, not a replacement for the model's own reasoning.
-- **`record_bridge_tags(db_path, run_id, bridge_tags)` is self-contained**
+- **`record_bridge_tags(database_url, run_id, bridge_tags)` is self-contained**
   (stores each bridge tag's own topics in `bridge_tag_topics`, rather than
   joining against `tag_topics`), because `cli.py` and the Prefect flow call
   the emerging-tag block (which persists this) at *different* points
@@ -286,7 +309,7 @@ LICENSE                 MIT
   (z-score baselines, future drift detection), not just row-insertion order.
   Nothing in the tracking db is pruned (unlike the JSON files it replaced,
   which capped bullet history at 7 entries) — full history is intentional.
-- `db.record_run(db_path, run_id, article_count)` must be called once per
+- `db.record_run(database_url, run_id, article_count)` must be called once per
   run, before `append_run`/`append_bullet_run` (those insert rows that
   reference `run_id` as a foreign key). `article_count` is the total
   articles considered that run — the denominator for comparing tag/urgency

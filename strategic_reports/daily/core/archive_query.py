@@ -23,15 +23,14 @@ lives in pipeline.py, consistent with this project's separation between
 "pure DB/graph access" modules and pipeline.py's LLM-calling orchestration.
 """
 
-from pathlib import Path
 from typing import Any
 
-from .db import connect
+from .db import get_connection
 from .tag_normalizer import normalize_tags
 
 
 def find_relevant_communities(
-    db_path: Path,
+    database_url: str,
     candidate_tags: list[str],
     limit: int = 8,
 ) -> list[dict[str, Any]]:
@@ -42,8 +41,9 @@ def find_relevant_communities(
     Two-pass match:
       1. Exact tag membership via community_summary_tags (candidate_tags
          normalized the same way pipeline tags are, so this usually hits).
-      2. A substring fallback against each community's label/summary text,
-         for candidate tags/phrases that don't exactly match a stored tag.
+      2. A case-insensitive substring fallback (ILIKE) against each
+         community's label/summary text, for candidate tags/phrases that
+         don't exactly match a stored tag.
 
     Results are deduplicated, sorted most-recent-first, and capped at
     `limit`. Returns [] if candidate_tags is empty or nothing matches.
@@ -53,9 +53,8 @@ def find_relevant_communities(
 
     normalized = normalize_tags(candidate_tags)
 
-    conn = connect(db_path)
-    try:
-        placeholders = ",".join("?" for _ in normalized)
+    with get_connection(database_url) as conn:
+        placeholders = ",".join("%s" for _ in normalized)
         membership_rows = conn.execute(
             f"SELECT DISTINCT run_id, community_id FROM community_summary_tags "
             f"WHERE tag IN ({placeholders})",
@@ -66,7 +65,7 @@ def find_relevant_communities(
         for tag in normalized:
             like_rows = conn.execute(
                 "SELECT run_id, community_id FROM community_summaries "
-                "WHERE label LIKE ? OR summary LIKE ?",
+                "WHERE label ILIKE %s OR summary ILIKE %s",
                 (f"%{tag}%", f"%{tag}%"),
             ).fetchall()
             matched.update(like_rows)
@@ -78,7 +77,7 @@ def find_relevant_communities(
         for run_id, community_id in matched:
             row = conn.execute(
                 "SELECT run_id, created_at, community_id, label, summary, article_count "
-                "FROM community_summaries WHERE run_id = ? AND community_id = ?",
+                "FROM community_summaries WHERE run_id = %s AND community_id = %s",
                 (run_id, community_id),
             ).fetchone()
             if row is not None:
@@ -90,8 +89,6 @@ def find_relevant_communities(
                     "summary": row[4],
                     "article_count": row[5],
                 })
-    finally:
-        conn.close()
 
     results.sort(key=lambda r: r["created_at"], reverse=True)
     return results[:limit]

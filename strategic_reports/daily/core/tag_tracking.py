@@ -1,5 +1,5 @@
 """
-Per-run tag tracking and emerging-tag z-score alerting — SQLite-backed.
+Per-run tag tracking and emerging-tag z-score alerting — PostgreSQL-backed.
 
 record_tags() persists a run's tag graph (per-tag counts, per-tag topics,
 and tag-pair co-occurrence edges) into the tracking database, linked to
@@ -24,7 +24,7 @@ Louvain community from pipeline.summarize_communities(), replacing
 tag_graph.group_articles_by_community() groups by community.
 
 Call order per run (same pattern as urgency.py/bullet_diff.py):
-  0. db.record_run(db_path, run_id, article_count) — once per run
+  0. db.record_run(database_url, run_id, article_count) — once per run
   1. load_tag_rate_history      (reads only, does not include the current run)
   2. check_emerging_tags         (current rates vs. historical baseline)
   3. record_tags                 (writes current run's tag graph for future runs)
@@ -43,10 +43,9 @@ silently skipped rather than guessed at.
 import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
-from .db import connect
+from .db import get_connection
 
 # Minimum number of historical runs required before a tag can be flagged.
 # Matches urgency.py's _MIN_HISTORY_RUNS for consistency.
@@ -69,7 +68,7 @@ class EmergingTagAlert:
         )
 
 
-def record_tags(db_path: Path, run_id: str, graph_data: dict[str, Any]) -> None:
+def record_tags(database_url: str, run_id: str, graph_data: dict[str, Any]) -> None:
     """
     Insert this run's tag graph into the tracking database, linked to
     run_id: per-tag counts, per-tag topics, and tag-pair co-occurrence
@@ -77,54 +76,48 @@ def record_tags(db_path: Path, run_id: str, graph_data: dict[str, Any]) -> None:
     same object you're about to write to tag_graph.json so the database and
     the JSON file always agree.
 
-    Assumes db.record_run(db_path, run_id, ...) has already been called
-    this run, so the run_id foreign key exists.
+    Assumes db.record_run(database_url, run_id, ...) has already been
+    called this run, so the run_id foreign key exists.
     """
     now = datetime.now(UTC).isoformat()
     nodes = graph_data["nodes"]
     links = graph_data["links"]
 
-    conn = connect(db_path)
-    try:
-        conn.executemany(
-            "INSERT INTO tag_counts (run_id, created_at, tag, count) VALUES (?, ?, ?, ?)",
+    with get_connection(database_url) as conn:
+        conn.cursor().executemany(
+            "INSERT INTO tag_counts (run_id, created_at, tag, count) VALUES (%s, %s, %s, %s)",
             [(run_id, now, n["id"], n["count"]) for n in nodes],
         )
-        conn.executemany(
-            "INSERT INTO tag_topics (run_id, created_at, tag, topic) VALUES (?, ?, ?, ?)",
+        conn.cursor().executemany(
+            "INSERT INTO tag_topics (run_id, created_at, tag, topic) VALUES (%s, %s, %s, %s)",
             [(run_id, now, n["id"], topic) for n in nodes for topic in n["topics"]],
         )
-        conn.executemany(
+        conn.cursor().executemany(
             "INSERT INTO tag_edges (run_id, created_at, tag_a, tag_b, weight) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "VALUES (%s, %s, %s, %s, %s)",
             [(run_id, now, link["source"], link["target"], link["weight"]) for link in links],
         )
         conn.commit()
-    finally:
-        conn.close()
 
 
-def rebuild_graph_data(db_path: Path, run_id: str) -> dict[str, Any]:
+def rebuild_graph_data(database_url: str, run_id: str) -> dict[str, Any]:
     """
     Reconstruct tag_graph.json's {"nodes": [...], "links": [...]} shape
     from the tracking database for a single run_id.
     """
-    conn = connect(db_path)
-    try:
+    with get_connection(database_url) as conn:
         count_rows = conn.execute(
-            "SELECT tag, count FROM tag_counts WHERE run_id = ? ORDER BY count DESC, tag ASC",
+            "SELECT tag, count FROM tag_counts WHERE run_id = %s ORDER BY count DESC, tag ASC",
             (run_id,),
         ).fetchall()
         topic_rows = conn.execute(
-            "SELECT tag, topic FROM tag_topics WHERE run_id = ? ORDER BY tag, topic",
+            "SELECT tag, topic FROM tag_topics WHERE run_id = %s ORDER BY tag, topic",
             (run_id,),
         ).fetchall()
         edge_rows = conn.execute(
-            "SELECT tag_a, tag_b, weight FROM tag_edges WHERE run_id = ? ORDER BY weight DESC",
+            "SELECT tag_a, tag_b, weight FROM tag_edges WHERE run_id = %s ORDER BY weight DESC",
             (run_id,),
         ).fetchall()
-    finally:
-        conn.close()
 
     topics_by_tag: dict[str, list[str]] = {}
     for tag, topic in topic_rows:
@@ -138,14 +131,13 @@ def rebuild_graph_data(db_path: Path, run_id: str) -> dict[str, Any]:
     return {"nodes": nodes, "links": links}
 
 
-def load_tag_rate_history(db_path: Path) -> dict[str, list[float]]:
+def load_tag_rate_history(database_url: str) -> dict[str, list[float]]:
     """
     Return every tag's historical rate (tag count / that run's total
     article_count), oldest-first per tag. Does not include the current
     run — call this before record_tags().
     """
-    conn = connect(db_path)
-    try:
+    with get_connection(database_url) as conn:
         rows = conn.execute(
             """
             SELECT tc.tag, tc.count, r.article_count
@@ -154,8 +146,6 @@ def load_tag_rate_history(db_path: Path) -> dict[str, list[float]]:
             ORDER BY tc.tag, tc.created_at ASC
             """
         ).fetchall()
-    finally:
-        conn.close()
 
     history: dict[str, list[float]] = {}
     for tag, count, article_count in rows:
@@ -211,7 +201,9 @@ def check_emerging_tags(
     return alerts
 
 
-def record_emerging_tag_alerts(db_path: Path, run_id: str, alerts: list[EmergingTagAlert]) -> None:
+def record_emerging_tag_alerts(
+    database_url: str, run_id: str, alerts: list[EmergingTagAlert]
+) -> None:
     """
     Persist the emerging-tag alerts that fired this run, as an audit trail —
     "what was tag X's z-score on day N" is then answerable directly, without
@@ -220,30 +212,30 @@ def record_emerging_tag_alerts(db_path: Path, run_id: str, alerts: list[Emerging
     recomputable from tag_counts + runs.article_count via
     load_tag_rate_history(), so nothing is lost by not storing them all.
 
-    Assumes db.record_run(db_path, run_id, ...) has already been called
-    this run, so the run_id foreign key exists. A no-op if alerts is empty.
+    Assumes db.record_run(database_url, run_id, ...) has already been
+    called this run, so the run_id foreign key exists. A no-op if alerts is
+    empty.
     """
     if not alerts:
         return
 
     now = datetime.now(UTC).isoformat()
-    conn = connect(db_path)
-    try:
-        conn.executemany(
+    with get_connection(database_url) as conn:
+        conn.cursor().executemany(
             "INSERT INTO emerging_tag_alerts "
             "(run_id, created_at, tag, count, rate, mean, std, z_score) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
             [
                 (run_id, now, a.tag, a.count, a.rate, a.mean, a.std, a.z_score)
                 for a in alerts
             ],
         )
         conn.commit()
-    finally:
-        conn.close()
 
 
-def record_bridge_tags(db_path: Path, run_id: str, bridge_tags: list[dict[str, Any]]) -> None:
+def record_bridge_tags(
+    database_url: str, run_id: str, bridge_tags: list[dict[str, Any]]
+) -> None:
     """
     Persist the bridge tags surfaced to the cross-topic synthesis prompt
     this run (tag_graph.find_bridge_tags()'s output: [{"tag", "topics",
@@ -255,24 +247,25 @@ def record_bridge_tags(db_path: Path, run_id: str, bridge_tags: list[dict[str, A
     against tag_topics, since the two entry points call this at different
     points relative to record_tags() in their pipeline order.
 
-    Assumes db.record_run(db_path, run_id, ...) has already been called
-    this run. A no-op if bridge_tags is empty.
+    Assumes db.record_run(database_url, run_id, ...) has already been
+    called this run. A no-op if bridge_tags is empty.
     """
     if not bridge_tags:
         return
 
     now = datetime.now(UTC).isoformat()
-    conn = connect(db_path)
-    try:
-        conn.executemany(
-            "INSERT INTO bridge_tags (run_id, created_at, tag, count, rank) VALUES (?, ?, ?, ?, ?)",
+    with get_connection(database_url) as conn:
+        conn.cursor().executemany(
+            "INSERT INTO bridge_tags (run_id, created_at, tag, count, rank) "
+            "VALUES (%s, %s, %s, %s, %s)",
             [
                 (run_id, now, b["tag"], b["count"], rank)
                 for rank, b in enumerate(bridge_tags, start=1)
             ],
         )
-        conn.executemany(
-            "INSERT INTO bridge_tag_topics (run_id, created_at, tag, topic) VALUES (?, ?, ?, ?)",
+        conn.cursor().executemany(
+            "INSERT INTO bridge_tag_topics (run_id, created_at, tag, topic) "
+            "VALUES (%s, %s, %s, %s)",
             [
                 (run_id, now, b["tag"], topic)
                 for b in bridge_tags
@@ -280,12 +273,10 @@ def record_bridge_tags(db_path: Path, run_id: str, bridge_tags: list[dict[str, A
             ],
         )
         conn.commit()
-    finally:
-        conn.close()
 
 
 def record_community_summaries(
-    db_path: Path,
+    database_url: str,
     run_id: str,
     community_summaries: dict[int, dict[str, Any]],
 ) -> None:
@@ -298,27 +289,26 @@ def record_community_summaries(
     reconstructing them from tag_counts, since Louvain community
     membership (build_display_graph) is never itself persisted.
 
-    Assumes db.record_run(db_path, run_id, ...) has already been called
-    this run. A no-op if community_summaries is empty.
+    Assumes db.record_run(database_url, run_id, ...) has already been
+    called this run. A no-op if community_summaries is empty.
     """
     if not community_summaries:
         return
 
     now = datetime.now(UTC).isoformat()
-    conn = connect(db_path)
-    try:
-        conn.executemany(
+    with get_connection(database_url) as conn:
+        conn.cursor().executemany(
             "INSERT INTO community_summaries "
             "(run_id, created_at, community_id, label, summary, article_count) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "VALUES (%s, %s, %s, %s, %s, %s)",
             [
                 (run_id, now, comm_id, info["label"], info["summary"], info["article_count"])
                 for comm_id, info in community_summaries.items()
             ],
         )
-        conn.executemany(
+        conn.cursor().executemany(
             "INSERT INTO community_summary_tags (run_id, created_at, community_id, tag) "
-            "VALUES (?, ?, ?, ?)",
+            "VALUES (%s, %s, %s, %s)",
             [
                 (run_id, now, comm_id, tag)
                 for comm_id, info in community_summaries.items()
@@ -326,5 +316,3 @@ def record_community_summaries(
             ],
         )
         conn.commit()
-    finally:
-        conn.close()
