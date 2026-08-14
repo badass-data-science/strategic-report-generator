@@ -613,13 +613,6 @@
                 "exception": "HTTP 404; malformed XML (2:1303: not well-formed (invalid token))"
             }
         ],
-        "feeds_edge_computing": [
-            {
-                "title": "Western Digital Blog \u00bb Edge",
-                "url": "https://blog.westerndigital.com/tag/edge/feed/",
-                "exception": "HTTP 200 but no parseable entries"
-            }
-        ],
         "feeds_energy": [
             {
                 "title": "Energy Saver Blog",
@@ -627,7 +620,7 @@
                 "exception": "HTTP 404; malformed XML (23:347: not well-formed (invalid token))"
             }
         ],
-        "feeds_iot": [
+        "feeds_iot_edge_computing": [
             {
                 "title": "DornerWorks Blog",
                 "url": "https://www.dornerworks.com/feed/",
@@ -641,6 +634,11 @@
             {
                 "title": "Libelium",
                 "url": "https://www.libelium.com/feed/",
+                "exception": "HTTP 200 but no parseable entries"
+            },
+            {
+                "title": "Western Digital Blog » Edge",
+                "url": "https://blog.westerndigital.com/tag/edge/feed/",
                 "exception": "HTTP 200 but no parseable entries"
             }
         ],

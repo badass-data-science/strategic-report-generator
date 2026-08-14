@@ -7,6 +7,13 @@ doesn't tag releases.
 ## 2026-08-13
 
 ### Changed
+- `feeds_iot.json` and `feeds_edge_computing.json` merged into a single
+  `feeds_iot_edge_computing.json` (39 feeds combined). `topic_order.py`'s
+  `list_directories_and_titles` now has one `IoT & Edge Computing` entry
+  in place of the separate `IoT` and `Edge Computing` entries, and their
+  respective histories in `REMOVED.json` are combined under the
+  `feeds_iot_edge_computing` key. The pipeline now covers 16 active
+  topics, down from 17.
 - `daily_report_flow`'s cron schedule changed from `30 0 * * *` (00:30
   America/Los_Angeles daily) to `0 16 * * 1-5` (16:00 America/Los_Angeles,
   Monday through Friday — no weekend runs).
