@@ -7,6 +7,8 @@ doesn't tag releases.
 ## 2026-08-13
 
 ### Changed
+- `topic_order.py`'s `list_directories_and_titles` reordered so `Forex`
+  comes before `Blockchain`, swapping their previous order.
 - `feeds_iot.json` and `feeds_edge_computing.json` merged into a single
   `feeds_iot_edge_computing.json` (39 feeds combined). `topic_order.py`'s
   `list_directories_and_titles` now has one `IoT & Edge Computing` entry
