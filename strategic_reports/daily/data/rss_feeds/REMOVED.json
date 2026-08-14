@@ -637,7 +637,7 @@
                 "exception": "HTTP 200 but no parseable entries"
             },
             {
-                "title": "Western Digital Blog » Edge",
+                "title": "Western Digital Blog \u00bb Edge",
                 "url": "https://blog.westerndigital.com/tag/edge/feed/",
                 "exception": "HTTP 200 but no parseable entries"
             }
@@ -724,6 +724,33 @@
                 "title": "Fox 4 Now WFTX \u00bb World News",
                 "url": "https://www.fox4now.com/world-news.rss",
                 "exception": "HTTP 404 but no parseable entries"
+            }
+        ],
+        "feeds_retail": [
+            {
+                "title": "Retail Prophet - Retail Speaker Blog",
+                "url": "http://www.retailprophet.com/feed/",
+                "exception": "HTTP 302; malformed XML (4:261: not well-formed (invalid token))"
+            },
+            {
+                "title": "Retail Minded",
+                "url": "https://retailminded.com/feed",
+                "exception": "HTTP 500; malformed XML (8:18: undefined entity)"
+            },
+            {
+                "title": "The Retail Creative and Consulting Agency Blog",
+                "url": "https://rccagency.com/feed/",
+                "exception": "HTTP 404 but no parseable entries"
+            },
+            {
+                "title": "GSP Blog",
+                "url": "https://www.gspretail.com/blog/feed/",
+                "exception": "HTTP 200 but no parseable entries"
+            },
+            {
+                "title": "Retail Gurukul Gyaan Blog",
+                "url": "https://retailgurukul.com/blog/feed/",
+                "exception": "HTTP 200; malformed XML (11:0: XML or text declaration not at start of entity)"
             }
         ]
     }
