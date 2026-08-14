@@ -11,21 +11,17 @@ graph.
 """
 
 from datetime import UTC, datetime
-from pathlib import Path
 
-from .db import connect
+from .db import get_connection
 
 
-def record_overview(db_path: Path, run_id: str, bullets: list[str]) -> None:
+def record_overview(database_url: str, run_id: str, bullets: list[str]) -> None:
     """Insert this run's cross-topic synthesis bullets into the database."""
     now = datetime.now(UTC).isoformat()
-    conn = connect(db_path)
-    try:
-        conn.executemany(
+    with get_connection(database_url) as conn:
+        conn.cursor().executemany(
             "INSERT INTO cross_topic_overviews "
-            "(run_id, created_at, bullet_index, bullet_text) VALUES (?, ?, ?, ?)",
+            "(run_id, created_at, bullet_index, bullet_text) VALUES (%s, %s, %s, %s)",
             [(run_id, now, i, bullet) for i, bullet in enumerate(bullets)],
         )
         conn.commit()
-    finally:
-        conn.close()

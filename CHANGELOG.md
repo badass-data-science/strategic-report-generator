@@ -6,6 +6,37 @@ doesn't tag releases.
 
 ## 2026-08-13
 
+### Changed
+- Tracking database migrated from SQLite to PostgreSQL, reflecting this
+  project's move from personal demo to critical infrastructure. `db.py`
+  now holds a `psycopg`-backed, process-local connection pool
+  (`get_connection`/`ensure_database_reachable`) keyed by a single
+  `DATABASE_URL` connection string, replacing the old `db_path: Path` +
+  `sqlite3.Connection` design — every DB-touching function's calling
+  convention is otherwise unchanged (still takes a picklable identifier,
+  not a live connection, for Prefect task-boundary safety). Schema
+  ownership moved to Alembic (`alembic/`, one hand-written initial
+  revision mirroring the old `_SCHEMA` string) — DDL is no longer applied
+  implicitly on every connect; run `alembic upgrade head` (or
+  `strategic-reports db upgrade`, a new CLI command) once per environment.
+  Foreign keys are enforced from day one (SQLite declared but never
+  enforced them). `--db-path` is retired in favor of `--database-url`
+  (env `DATABASE_URL`, also loadable from a gitignored `.env` via
+  `python-dotenv`) on `run`/`ask`/`export-rdf` and the Prefect flow — unlike
+  the old `--db-path`, it has an env-var fallback, since the SQLite-era
+  no-default-no-envvar rationale (protecting against an `--output-dir`
+  path collision) doesn't apply to a connection string. Per explicit
+  decision, existing SQLite data was **not** migrated — Postgres starts
+  empty; the old `strategic-reports.db` file is left in place, untouched,
+  as a cold reference. `knowledge_graph.ttl` (written by the Prefect
+  flow's `export-rdf` task) now lives next to `output_dir.parent` instead
+  of the old SQLite file's parent directory, since there's no local
+  tracking-db file to piggyback on anymore. Tests need a reachable
+  Postgres instance (`docker-compose.yml` for local dev; a `postgres:16`
+  service container in CI's `pytest` job); `tests/conftest.py`'s
+  `db_path` fixture became `database_url`, truncating all 14 tables before
+  each test instead of relying on a free-per-test SQLite file.
+
 ### Added
 - New `Retail` topic category (`feeds_retail.json`, 29 feeds after
   pruning — see below) registered in `topic_order.py`'s

@@ -53,8 +53,7 @@ def configure_logging(level: str = "INFO") -> None:
 from .archive_query import find_relevant_communities
 from .article_archive import load_articles, record_articles
 from .bullet_diff import append_bullet_run, diff_all_topics, load_bullet_history
-from .db import connect as connect_db
-from .db import ensure_safe_db_path, record_run
+from .db import ensure_database_reachable, get_connection, record_run
 from .feed_validation import FeedCheckResult, remove_dead_feeds, validate_topic_feeds
 from .ingestion import fetch_topic_articles
 from .llm_client import LLMClient
@@ -141,8 +140,8 @@ __all__ = [
     "find_bridge_tags",
     "group_articles_by_community",
     "write_tag_graph",
-    "connect_db",
-    "ensure_safe_db_path",
+    "get_connection",
+    "ensure_database_reachable",
     "record_run",
     "load_articles",
     "record_articles",

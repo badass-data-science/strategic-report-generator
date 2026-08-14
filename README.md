@@ -19,8 +19,8 @@ communities via Louvain community detection, each community given its own
 LLM-written summary of what it's actually about. Structural signals are read
 directly off that graph rather than guessed at by an LLM: which tags bridge
 otherwise-unrelated domains, which tags' rates are spiking above their own
-historical baseline. Every run's graph accumulates into a queryable SQLite
-archive spanning every past run, and `ask` lets you pose free-text questions
+historical baseline. Every run's graph accumulates into a queryable
+PostgreSQL archive spanning every past run, and `ask` lets you pose free-text questions
 against that accumulated structure directly. The HTML report is this
 pipeline's most visible output today; the graph and its growing archive are
 the parts meant to matter more over time.
@@ -57,10 +57,10 @@ Phase 3 — Cross-topic Synthesis  [single LLM call]
 
 Phase 4 — Historical Diffing  [concurrent per-topic LLM calls]
 
-  --db-path (bullets table) ──► yesterday's bullets (per topic)
+  --database-url (bullets table) ──► yesterday's bullets (per topic)
   list[TopicResult]         ──► diff vs. yesterday ──► dict[topic, BulletDiff]
                                                         (new / continued / dropped)
-  (skipped on first run; today's bullets inserted into --db-path after diff)
+  (skipped on first run; today's bullets inserted into --database-url after diff)
 
 Phase 5 — Rendering  [Jinja2 templates]
 
@@ -254,17 +254,30 @@ export LLM_MODEL="gpt-4o"
 export OPENAI_API_KEY="..."
 ```
 
-Run, specifying where the report gets written and where the tracking
-database lives (both required). The CLI has four commands (`run`,
-`ask`, `export-rdf`, and `validate-feeds` — see [Asking questions about the archive](#asking-questions-about-the-archive),
+Start a local PostgreSQL instance for the tracking database (or point
+`DATABASE_URL` at an existing one) and apply the schema migrations:
+
+```bash
+docker compose up -d                      # starts postgres:16 on localhost:5432
+export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/strategic_reports"
+python -m strategic_reports.daily.cli db upgrade
+```
+
+`DATABASE_URL` can also go in a gitignored `.env` file (see `.env.example`)
+instead of `export`ing it — both `cli.py` and `flows/daily_report.py` load
+it automatically via `python-dotenv`.
+
+Run, specifying where the report gets written (required — the tracking
+database connection comes from `--database-url`/`DATABASE_URL` above). The
+CLI has five commands (`run`, `ask`, `export-rdf`, `validate-feeds`, and
+`db upgrade` — see [Asking questions about the archive](#asking-questions-about-the-archive),
 [Exporting an RDF knowledge graph](#exporting-an-rdf-knowledge-graph), and
 [Validating RSS feeds](#validating-rss-feeds)), so naming one explicitly is
 required:
 
 ```bash
 python -m strategic_reports.daily.cli run \
-  --output-dir output/daily/strategic-report \
-  --db-path output/daily/strategic_reports.db
+  --output-dir output/daily/strategic-report
 ```
 
 Open `index.html` in the output directory in a browser to read the report.
@@ -274,7 +287,9 @@ Open `index.html` in the output directory in a browser to read the report.
 ## Configuration
 
 Most options can be set via CLI flag or environment variable and have a
-default. `--output-dir` and `--db-path` are the exception: both are required.
+default. `--output-dir` is the exception: it's required with no default and
+no env var. `--database-url` is also required, but does have an env var
+(`DATABASE_URL`) — see [Quick start](#quick-start).
 
 | Flag | Env var | Default | Description |
 |------|---------|---------|-------------|
@@ -282,7 +297,7 @@ default. `--output-dir` and `--db-path` are the exception: both are required.
 | `--model` | `LLM_MODEL` | `ollama_chat/glm-5.2:cloud` | litellm model string |
 | `--hours-cutoff` | — | `24` | Article age window in hours |
 | `--data-dir` | `STRATEGIC_REPORTS_DATA_DIR` | bundled `rss_feeds/` package data | RSS feed config directory |
-| `--db-path` | — | *(required)* | SQLite tracking database — created on first use if missing, persists across runs, never wiped. Must not be inside `--output-dir` (checked at startup). |
+| `--database-url` | `DATABASE_URL` | *(required)* | PostgreSQL tracking database URL — persists across runs. Schema must already be migrated (`strategic-reports db upgrade`); not applied implicitly on connect. |
 | `--batch-size` | — | `50` | Articles per LLM summarization call |
 | `--max-concurrent` | — | `3` | Max topics hitting the LLM API simultaneously |
 | `--temperature` | — | `0.1` | LLM sampling temperature |
@@ -317,7 +332,6 @@ Example — run against Claude with higher concurrency and debug logging:
 ```bash
 python -m strategic_reports.daily.cli run \
   --output-dir output/daily/strategic-report \
-  --db-path output/daily/strategic_reports.db \
   --model anthropic/claude-sonnet-4-6 \
   --max-concurrent 5 \
   --log-level DEBUG
@@ -328,7 +342,6 @@ Example — run against an Ollama model without tool-calling support:
 ```bash
 python -m strategic_reports.daily.cli run \
   --output-dir output/daily/strategic-report \
-  --db-path output/daily/strategic_reports.db \
   --model ollama_chat/gpt-oss:120b \
   --instructor-mode JSON
 ```
@@ -343,8 +356,7 @@ not just today's report:
 
 ```bash
 python -m strategic_reports.daily.cli ask \
-  "What's happening with export controls?" \
-  --db-path output/daily/strategic_reports.db
+  "What's happening with export controls?"
 ```
 
 This is **graph-guided retrieval, not full GraphRAG**: it extracts a
@@ -352,14 +364,14 @@ handful of candidate tags from your question, matches them against the
 LLM-written summaries `run` writes for each Louvain tag-community every day
 (`community_summaries` — see [Output](#output)), and answers grounded only
 in what's retrieved — no embeddings, no hierarchical multi-level community
-summarization, no outside knowledge. It's read-only against `--db-path`
-and never touches `--output-dir`. See `archive_query.py` and
-`pipeline.answer_archive_question()`.
+summarization, no outside knowledge. It's read-only against
+`--database-url` and never touches `--output-dir`. See `archive_query.py`
+and `pipeline.answer_archive_question()`.
 
 | Flag | Env var | Default | Description |
 |------|---------|---------|-------------|
 | `question` (positional) | — | *(required)* | Free-text question about the archive |
-| `--db-path` | — | *(required)* | SQLite tracking database to query — the same one `run` writes to |
+| `--database-url` | `DATABASE_URL` | *(required)* | PostgreSQL tracking database to query — the same one `run` writes to |
 | `--max-communities` | — | `8` | Max matching archived tag-communities to include as retrieved context |
 | `--model`, `--temperature`, `--instructor-mode`, `--ollama-api-base`, `--ollama-api-key`, `--log-level` | — | same as `run` | See [Configuration](#configuration) |
 
@@ -377,7 +389,6 @@ else this pipeline produces:
 
 ```bash
 python -m strategic_reports.daily.cli export-rdf \
-  --db-path output/daily/strategic_reports.db \
   --output output/daily/knowledge_graph.ttl
 ```
 
@@ -385,7 +396,7 @@ This **complements `tag_graph.py`'s per-run co-occurrence JSON/HTML output
 — it doesn't replace or recompute it.** `tag_graph.json`/`tag_graph.html`
 keep being written exactly as before, per run, for that run's D3 viewer.
 `export-rdf` instead reads the durable, cross-run archive already in
-`--db-path` (articles, tags, community summaries, bridge tags, per-topic
+`--database-url` (articles, tags, community summaries, bridge tags, per-topic
 strategic bullets, urgency scores, cross-topic overviews — see
 [Output](#output)) and gives it a standard, portable RDF shape:
 
@@ -405,7 +416,7 @@ strategic bullets, urgency scores, cross-topic overviews — see
 
 | Flag | Env var | Default | Description |
 |------|---------|---------|-------------|
-| `--db-path` | — | *(required)* | SQLite tracking database to export — the same one `run` writes to |
+| `--database-url` | `DATABASE_URL` | *(required)* | PostgreSQL tracking database to export — the same one `run` writes to |
 | `--output` | — | *(required)* | Turtle (`.ttl`) file to write the export to |
 | `--since` | — | *(none — full rebuild)* | Only include runs at or after this point — a `run_id` or an ISO 8601 timestamp. With no cutoff, rebuilds from every run in the database. |
 
@@ -413,8 +424,8 @@ strategic bullets, urgency scores, cross-topic overviews — see
 **not** merge into an existing `.ttl` file. Each invocation writes a fresh
 file at `--output`; combining a full export with later incremental exports
 (e.g. loading multiple `.ttl` files into a triple store) is left to
-whatever tool consumes them. Read-only against `--db-path`; never touches
-`--output-dir`. See `rdf_export.py`.
+whatever tool consumes them. Read-only against `--database-url`; never
+touches `--output-dir`. See `rdf_export.py`.
 
 On the CLI, this remains a third command, like `ask` — a deliberate
 exception to the run/flow parity convention (`run` does not export RDF —
@@ -425,9 +436,11 @@ there automatically as `daily_report_flow`'s last task (see [Flow
 structure](#flow-structure)), on every scheduled run — no separate flow
 file, deployment, or process to operate. It always does a full rebuild (no
 `--since` watermark tracking on the automatic run, same v1 scope choice as
-the CLI command) and writes to `knowledge_graph.ttl` next to the tracking
-database (`--db-path`'s parent directory), since `--output-dir` is wiped
-and recreated on every run and can't hold anything durable. It fails
+the CLI command) and writes to `knowledge_graph.ttl` next to `output_dir`
+(`output_dir`'s parent directory), since `--output-dir` itself is wiped
+and recreated on every run and can't hold anything durable — there's no
+local tracking-db directory to piggyback on anymore now that the tracking
+database is PostgreSQL, not a SQLite file. It fails
 gracefully — a failed export logs a warning but doesn't affect the HTML
 report, which has already rendered by the time this task runs.
 
@@ -499,15 +512,24 @@ prefect config set PREFECT_API_URL=http://localhost:4200/api
 
 This only needs to be run once — the setting is persisted in your Prefect profile.
 
-**3. Set environment variables** for your Ollama instance and model:
+**3. Set environment variables** for your Ollama instance, model, and tracking database:
 
 ```bash
 export LLM_MODEL="ollama_chat/gpt-oss:120b"
 export OLLAMA_API_BASE="http://your-ollama-server:11434"
 export OLLAMA_API_KEY="your-key-if-required"   # omit if not needed
+export DATABASE_URL="postgresql://user:pass@host:5432/strategic_reports"
 ```
 
-These can also be placed in a `.env` file and loaded with `source .env`, or referenced via the `EnvironmentFile` directive in the systemd unit below.
+`DATABASE_URL` must already be migrated (`strategic-reports db upgrade` —
+see [Quick start](#quick-start)) before the first scheduled run; schema
+creation is no longer implicit on connect the way it was under SQLite.
+
+These can also be placed in a `.env` file — both this scheduler process
+and `cli.py` load it automatically via `python-dotenv`, so `source .env`
+isn't strictly required, though it still works for a one-off shell. In
+production, referenced via the `EnvironmentFile` directive in the systemd
+unit below.
 
 **4. Start the scheduler** (keep this terminal open):
 
@@ -570,21 +592,21 @@ daily_report_flow
   ├── run-cross-topic-synthesis   (async)  single LLM call across all topic insights
   │                                        retries=2; fails gracefully to None
   ├── archive-articles            (sync)   persist article summaries (source material)
-  │                                        inserts into --db-path (articles/article_summary_bullets/article_tags)
+  │                                        inserts into --database-url (articles/article_summary_bullets/article_tags)
   ├── check-urgency-alerts        (sync)   score each topic; alert if above threshold
-  │                                        inserts into --db-path (urgency_scores table)
+  │                                        inserts into --database-url (urgency_scores table)
   ├── check-emerging-tags         (sync)   compare today's tag rates vs. each tag's baseline
-  │                                        inserts into --db-path (tag_counts/tag_topics/tag_edges)
+  │                                        inserts into --database-url (tag_counts/tag_topics/tag_edges)
   ├── summarize-communities       (async)  one LLM call per Louvain tag-community
   │                                        retries=2; fails gracefully, continues without summaries
-  │                                        inserts into --db-path (community_summaries/community_summary_tags)
+  │                                        inserts into --database-url (community_summaries/community_summary_tags)
   ├── run-bullet-diff             (async)  diff today's bullets vs. yesterday's per topic
   │                                        retries=2; fails gracefully to {}
   │                                        skipped (no diff) on first run
-  │                                        inserts into --db-path (bullets table)
+  │                                        inserts into --database-url (bullets table)
   ├── render-html-report          (sync)   Jinja2 → HTML output files
   ├── build-tag-graph             (sync)   tag co-occurrence graph → tag_graph.json + tag_graph.html
-  └── export-rdf                  (sync)   full-rebuild RDF (Turtle) export → knowledge_graph.ttl next to --db-path
+  └── export-rdf                  (sync)   full-rebuild RDF (Turtle) export → knowledge_graph.ttl next to output_dir
                                             fails gracefully; no --since watermark tracking
 ```
 
@@ -625,8 +647,7 @@ pip install arize-phoenix openinference-instrumentation-litellm \
 
 export PHOENIX_TRACING=true
 python -m strategic_reports.daily.cli run \
-  --output-dir output/daily/strategic-report \
-  --db-path output/daily/strategic_reports.db
+  --output-dir output/daily/strategic-report
 ```
 
 ---
@@ -639,12 +660,15 @@ ruff check .
 mypy
 ```
 
-217 tests across 16 files. No real API calls — the LLM client is fully mocked.
-Runs in under a second. A GitHub Actions workflow
-(`.github/workflows/tests.yml`) runs all three as separate jobs (`pytest`,
-`lint`, `typecheck`) on every push and pull request to `main` — no LLM
-credentials needed there either. `mypy` runs in `--strict` mode across both
-`strategic_reports/` and `tests/`.
+216 tests across 16 files. No real API calls — the LLM client is fully mocked.
+DB-touching tests need a reachable PostgreSQL instance (`DATABASE_URL`) —
+run `docker compose up -d` first for local dev (see [Quick
+start](#quick-start)). A GitHub Actions workflow
+(`.github/workflows/tests.yml`) runs `pytest`/`lint`/`typecheck` as
+separate jobs on every push and pull request to `main`; only the `pytest`
+job has a Postgres service container (`lint`/`typecheck` are static
+analysis, no DB needed) — no LLM credentials needed anywhere. `mypy` runs
+in `--strict` mode across both `strategic_reports/` and `tests/`.
 
 ```
 tests/test_models.py      Pydantic validation and TokenUsage arithmetic
@@ -683,9 +707,9 @@ strategic_reports/
       renderer.py        Jinja2 HTML rendering
       tag_normalizer.py  Tag synonym map and normalize_tags(); applied via Pydantic validator
       tag_graph.py       Tag co-occurrence graph builder; full tag_graph.json + pruned/community tag_graph_display.json + tag_graph.html; find_bridge_tags(), group_articles_by_community()
-      urgency.py         Urgency alert logic: absolute threshold + z-score baseline (SQLite-backed)
-      bullet_diff.py     Historical bullet diffing: load/append history, concurrent per-topic LLM diff (SQLite-backed)
-      db.py              SQLite tracking database: schema, connection helper, output_dir/db_path safety guard, run registration
+      urgency.py         Urgency alert logic: absolute threshold + z-score baseline (PostgreSQL-backed)
+      bullet_diff.py     Historical bullet diffing: load/append history, concurrent per-topic LLM diff (PostgreSQL-backed)
+      db.py              PostgreSQL tracking database: pooled connection helper, reachability check, run registration (schema lives in alembic/)
       article_archive.py Persists each run's article summaries (source material), linked to run_id
       overview_archive.py  Persists each run's cross-topic synthesis overview bullets, linked to run_id
       archive_query.py   Graph-guided retrieval: find_relevant_communities() for the `ask` CLI command
@@ -705,11 +729,14 @@ strategic_reports/
       topic_order.py     Ordered list of topic slugs and display titles
     cli.py               typer CLI entrypoint
     paths.py             default_data_dir() — resolves the bundled rss_feeds/ via importlib.resources
+alembic/                Tracking-db schema migrations (Postgres) — versions/0001_initial_schema.py is the whole schema, hand-written
 tests/
-  conftest.py          Shared fixtures and feedparser mock helpers
+  conftest.py          Shared fixtures and feedparser mock helpers, incl. the database_url fixture
   test_*.py            Per-module test files
 blog-posts/            Human-written companion articles about this project — not code, not shipped
 pyproject.toml         Package metadata, dependencies, and the `strategic-reports` console script
+docker-compose.yml      Local-dev PostgreSQL for the test suite / manual runs
+.env.example            Template for a gitignored .env (DATABASE_URL, LLM config)
 ```
 
 ---
@@ -725,13 +752,13 @@ pyproject.toml         Package metadata, dependencies, and the `strategic-report
 The pipeline writes the following files to `--output-dir`:
 
 - **`index.html`** — the main report. Opens with a highlighted **Strategic Overview** section (3–4 cross-cutting bullets synthesized across all topics), followed by one section per topic with 3–5 strategic bullet points. On runs after the first, each topic also shows a **Since yesterday** annotation: new bullets highlighted in green, dropped bullets in muted strikethrough. Errors and empty topics are surfaced inline rather than hidden.
-- **`{topic}_summaries.html`** — per-article summaries and tags for every article that fed into that topic's strategic synthesis. Each article is also marked up as a `schema:Article` JSON-LD block (`headline`/`url`/`datePublished`) — the same fields `export-rdf` maps onto `schema:Article` — for structured-data consumers (search engines, scrapers) that only have access to the HTML, not `--db-path`.
+- **`{topic}_summaries.html`** — per-article summaries and tags for every article that fed into that topic's strategic synthesis. Each article is also marked up as a `schema:Article` JSON-LD block (`headline`/`url`/`datePublished`) — the same fields `export-rdf` maps onto `schema:Article` — for structured-data consumers (search engines, scrapers) that only have access to the HTML, not `--database-url`.
 - **`tag_graph.html`** — interactive D3.js force-directed graph of tag co-occurrences. Self-contained: graph data is inlined at build time so it opens directly from the filesystem (`file://`) without a web server. Node color = Louvain community cluster; node size = article count; edge thickness = co-occurrence count. Sliders allow further filtering by minimum co-occurrence and minimum article count. Hovering a node shows its community label (named after the highest-count tag in that cluster).
 - **`tag_graph_display.json`** — pruned and community-annotated graph consumed by `tag_graph.html`. Nodes with fewer than 3 article appearances and edges with fewer than 2 co-occurrences are dropped before Louvain community detection runs. Typically ~200 nodes and ~800 edges.
 - **`tag_graph.json`** — full graph (all tags and co-occurrence edges, unfiltered) for downstream data science use.
 
-Cross-run history is kept separately, in the SQLite database at `--db-path`
-(never inside `--output-dir` — see [Configuration](#configuration)):
+Cross-run history is kept separately, in the PostgreSQL database at
+`--database-url` (see [Configuration](#configuration)):
 
 - **`runs`** — one row per pipeline run: `run_id`, `created_at` timestamp, and `article_count` (total articles considered that run — the denominator for comparing tag weights across runs, since a raw tag count means something different on a 400-article day than a 50-article one).
 - **`articles`**, **`article_summary_bullets`**, **`article_tags`** — every article's title, link, publish date, summary bullets, and tags, linked to `run_id`. This is the source material every derived signal below (tags, bullets, urgency scores) is computed from — otherwise it exists only in memory during a run and is lost once `{topic}_summaries.html` (in the wiped `--output-dir`) is gone. Not currently read by `ask` (which reads `community_summaries` instead) — available for a future retrieval mode grounded in raw article text.

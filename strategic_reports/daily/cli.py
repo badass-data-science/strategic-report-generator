@@ -4,25 +4,28 @@ Daily strategic report pipeline — CLI entrypoint.
 Two commands (naming one explicitly is required now that there are two —
 typer's single-command auto-invoke shorthand only applies to a one-command app):
 
-    python -m strategic_reports.daily.cli run --output-dir /path/to/output \
-        --db-path /path/to/db
-    python -m strategic_reports.daily.cli ask "What's happening with export controls?" \
-        --db-path /path/to/db
+    python -m strategic_reports.daily.cli run --output-dir /path/to/output
+    python -m strategic_reports.daily.cli ask "What's happening with export controls?"
+
+Both read the tracking database connection string from --database-url or
+the DATABASE_URL environment variable (or a .env file — see load_dotenv()
+below), the same envvar= pattern used by --model/LLM_MODEL below.
 
 `run` key options:
     --output-dir        Where to write HTML output (required)
     --model             litellm model string  (default: env LLM_MODEL or ollama_chat/glm-5.2:cloud)
     --hours-cutoff      Article age window in hours (default: 24)
     --data-dir          Where to find rss_feeds/*.json files
-    --db-path           SQLite tracking database (required; persists across
-                        runs; must not be inside --output-dir)
+    --database-url       PostgreSQL tracking database for cross-run history
+                        (required; env DATABASE_URL; persists across runs)
     --batch-size        Articles per LLM summarization call
     --max-concurrent    Max concurrent LLM calls (semaphore width)
     --log-level         Logging verbosity
 
 `ask` key options:
     question (positional)  Free-text question about the accumulated archive
-    --db-path              SQLite tracking database to query (required)
+    --database-url          PostgreSQL tracking database to query (required;
+                            env DATABASE_URL)
     --max-communities       Max matching tag-communities used as context (default: 8)
     Graph-guided retrieval over community_summaries written by `run` — see
     archive_query.py and pipeline.answer_archive_question. Read-only;
@@ -49,6 +52,13 @@ from pathlib import Path
 
 import instructor
 import typer
+from dotenv import load_dotenv
+
+# Must run before _DEFAULT_MODEL (and any other module-level os.environ.get())
+# below, since those evaluate at import time — a .env file wouldn't be
+# loaded in time otherwise. No-op if no .env file exists (e.g. production,
+# where systemd's EnvironmentFile= injects the environment directly).
+load_dotenv()
 
 from strategic_reports.daily.config.topic_order import list_directories_and_titles
 from strategic_reports.daily.core import (
@@ -62,6 +72,7 @@ from strategic_reports.daily.core import (
     check_emerging_tags,
     configure_logging,
     diff_all_topics,
+    ensure_database_reachable,
     find_bridge_tags,
     load_bullet_history,
     load_history,
@@ -71,19 +82,13 @@ from strategic_reports.daily.core import (
     record_community_summaries,
     record_emerging_tag_alerts,
     record_overview,
+    record_run,
     record_tags,
     remove_dead_feeds,
     run_pipeline,
     summarize_communities,
     validate_topic_feeds,
     write_tag_graph,
-)
-from strategic_reports.daily.core.db import (
-    connect as connect_db,
-)
-from strategic_reports.daily.core.db import (
-    ensure_safe_db_path,
-    record_run,
 )
 from strategic_reports.daily.core.models import BulletDiff, TopicConfig
 from strategic_reports.daily.core.pipeline import synthesize_cross_topic
@@ -160,11 +165,12 @@ def run(
         envvar="STRATEGIC_REPORTS_DATA_DIR",
         help="Directory containing rss_feeds/*.json files",
     ),
-    db_path: Path = typer.Option(
+    database_url: str = typer.Option(
         ...,
-        help="SQLite tracking database for cross-run history (urgency scores, "
-             "bullet history) (required). Persists across runs — never wiped, "
-             "unlike --output-dir. Must not be located inside --output-dir.",
+        envvar="DATABASE_URL",
+        help="PostgreSQL tracking database URL for cross-run history (urgency "
+             "scores, bullet history) (required). Persists across runs. "
+             "Also read from DATABASE_URL env var (or a .env file).",
     ),
     batch_size: int = typer.Option(50, help="Max articles per LLM summarization call"),
     max_concurrent: int = typer.Option(3, help="Max topics hitting the LLM API simultaneously"),
@@ -205,21 +211,15 @@ def run(
 ) -> None:
     """Run the daily strategic report pipeline and write results to output_dir."""
 
-    # Validate --db-path before doing any real work: output_dir is deleted and
-    # recreated by render_report() on every run, so the tracking database can
-    # never live inside it.
+    # Fail fast if --database-url is unreachable/misconfigured, before doing
+    # any real work (expensive LLM calls). Schema is applied separately, once,
+    # via `alembic upgrade head` (or `strategic-reports db upgrade`) — not
+    # implicitly here, unlike the old SQLite connect()-creates-schema idiom.
     try:
-        ensure_safe_db_path(db_path, output_dir)
-    except ValueError as e:
-        typer.echo(str(e), err=True)
+        ensure_database_reachable(database_url)
+    except Exception as e:
+        typer.echo(f"--database-url is not reachable: {e}", err=True)
         raise typer.Exit(code=1)
-
-    # connect_db() creates the database file (and parent dirs, and the schema)
-    # on first use, and never touches existing data — this is what makes
-    # cross-run history possible. Just a fail-fast check here (closed right
-    # away); the urgency/bullet functions below each open their own short
-    # connection per call rather than sharing this one.
-    connect_db(db_path).close()
 
     # Validate --instructor-mode before doing any real work.
     mode_upper = instructor_mode.upper()
@@ -255,7 +255,7 @@ def run(
     typer.echo(f"Topics:           {len(topics)}")
     typer.echo(f"Hours cutoff:     {hours_cutoff}h")
     typer.echo(f"Output:           {output_dir}")
-    typer.echo(f"Tracking DB:      {db_path}")
+    typer.echo(f"Tracking DB:      {database_url}")
     typer.echo(f"Run ID:           {run_id}")
     if any(active_backends.values()):
         active = [k for k, v in active_backends.items() if v]
@@ -289,14 +289,14 @@ def run(
     # comparison divides by. Must happen before append_run()/append_bullet_run()
     # below, since those insert rows referencing this run_id.
     article_count = sum(len(r.articles) for r in results)
-    record_run(db_path, run_id, article_count)
+    record_run(database_url, run_id, article_count)
 
     # Archive today's article summaries — the source material every derived
     # signal (tags, bullets, urgency scores) is computed from, which
     # otherwise only exists in memory during this run. Never blocks
     # rendering on failure.
     try:
-        record_articles(db_path, run_id, results)
+        record_articles(database_url, run_id, results)
     except Exception as exc:
         typer.echo(
             f"[warn] Article archiving failed: {exc} — continuing without archiving", err=True
@@ -310,13 +310,13 @@ def run(
     # synthesis below, as an audit trail. Never blocks rendering on failure.
     try:
         graph_data = build_graph_data(results)
-        tag_rate_history = load_tag_rate_history(db_path)
+        tag_rate_history = load_tag_rate_history(database_url)
         tag_alerts = check_emerging_tags(
             graph_data, article_count, tag_rate_history, tag_z_score_threshold
         )
-        record_tags(db_path, run_id, graph_data)
-        record_emerging_tag_alerts(db_path, run_id, tag_alerts)
-        record_bridge_tags(db_path, run_id, find_bridge_tags(graph_data))
+        record_tags(database_url, run_id, graph_data)
+        record_emerging_tag_alerts(database_url, run_id, tag_alerts)
+        record_bridge_tags(database_url, run_id, find_bridge_tags(graph_data))
         if tag_alerts:
             typer.echo(f"EMERGING TAG ALERTS ({len(tag_alerts)} tag(s)):")
             for alert in tag_alerts:
@@ -347,7 +347,7 @@ def run(
         community_summaries = asyncio.run(
             summarize_communities(results, display_data, community_client)
         )
-        record_community_summaries(db_path, run_id, community_summaries)
+        record_community_summaries(database_url, run_id, community_summaries)
         typer.echo(
             f"Community summaries: {len(community_summaries)} of "
             f"{display_data['n_communities']} communities"
@@ -375,7 +375,7 @@ def run(
     try:
         overview = asyncio.run(synthesize_cross_topic(results, synthesis_client))
         try:
-            record_overview(db_path, run_id, overview.bullets)
+            record_overview(database_url, run_id, overview.bullets)
         except Exception as exc:
             typer.echo(
                 f"[warn] Overview archiving failed: {exc} — continuing without archiving",
@@ -393,9 +393,9 @@ def run(
     # the current run is checked before it's appended, so it never inflates
     # its own baseline. Never blocks rendering on failure.
     try:
-        urgency_history = load_history(db_path)
+        urgency_history = load_history(database_url)
         alerts = check_alerts(results, urgency_history, absolute_threshold, z_score_threshold)
-        append_run(db_path, results, run_id)
+        append_run(database_url, results, run_id)
         if alerts:
             typer.echo(f"URGENCY ALERTS ({len(alerts)} topic(s)):")
             for urgency_alert in alerts:
@@ -410,10 +410,10 @@ def run(
     # Skipped (no diff) on the very first run. Never blocks rendering on failure.
     diffs: dict[str, BulletDiff] = {}
     try:
-        yesterday = load_bullet_history(db_path)
+        yesterday = load_bullet_history(database_url)
         if not yesterday:
             typer.echo("No bullet history yet — skipping diff on first run")
-            append_bullet_run(db_path, results, run_id)
+            append_bullet_run(database_url, results, run_id)
         else:
             diff_client = LLMClient(
                 model=model,
@@ -424,7 +424,7 @@ def run(
                 api_key=ollama_api_key,
             )
             diffs = asyncio.run(diff_all_topics(results, yesterday, diff_client))
-            append_bullet_run(db_path, results, run_id)
+            append_bullet_run(database_url, results, run_id)
     except Exception as exc:
         typer.echo(
             f"[warn] Bullet diff failed: {exc} — report will render without diffs", err=True
@@ -461,10 +461,12 @@ def run(
 @app.command()
 def ask(
     question: str = typer.Argument(..., help="Question to ask about the accumulated archive"),
-    db_path: Path = typer.Option(
+    database_url: str = typer.Option(
         ...,
-        help="SQLite tracking database to query (required) — the same one "
-             "--db-path pointed at during `run` invocations.",
+        envvar="DATABASE_URL",
+        help="PostgreSQL tracking database URL to query (required) — the same "
+             "one --database-url pointed at during `run` invocations. Also "
+             "read from DATABASE_URL env var (or a .env file).",
     ),
     model: str = typer.Option(
         _DEFAULT_MODEL,
@@ -505,7 +507,7 @@ def ask(
     the question, matches them against archived tag-community summaries
     (see tag_tracking.record_community_summaries — written by `run` each
     day), then answers grounded only in what's retrieved. Doesn't touch
-    --output-dir; read-only against --db-path.
+    --output-dir; read-only against --database-url.
     """
     mode_upper = instructor_mode.upper()
     if mode_upper not in _INSTRUCTOR_MODES:
@@ -519,9 +521,11 @@ def ask(
 
     configure_logging(log_level)
 
-    # connect_db() creates the database (and schema) if it doesn't exist yet
-    # — harmless; a fresh archive just has nothing to retrieve from.
-    connect_db(db_path).close()
+    try:
+        ensure_database_reachable(database_url)
+    except Exception as e:
+        typer.echo(f"--database-url is not reachable: {e}", err=True)
+        raise typer.Exit(code=1)
 
     client = LLMClient(
         model=model,
@@ -536,7 +540,9 @@ def ask(
     )
 
     try:
-        result = asyncio.run(answer_archive_question(question, db_path, client, max_communities))
+        result = asyncio.run(
+            answer_archive_question(question, database_url, client, max_communities)
+        )
     except Exception as exc:
         typer.echo(f"Archive query failed: {exc}", err=True)
         raise typer.Exit(code=1)
@@ -553,10 +559,12 @@ def ask(
 
 @app.command(name="export-rdf")
 def export_rdf_command(
-    db_path: Path = typer.Option(
+    database_url: str = typer.Option(
         ...,
-        help="SQLite tracking database to export (required) — the same one "
-             "--db-path pointed at during `run` invocations.",
+        envvar="DATABASE_URL",
+        help="PostgreSQL tracking database URL to export (required) — the "
+             "same one --database-url pointed at during `run` invocations. "
+             "Also read from DATABASE_URL env var (or a .env file).",
     ),
     output: Path = typer.Option(
         ...,
@@ -574,18 +582,54 @@ def export_rdf_command(
 
     Complements tag_graph.py's per-run co-occurrence JSON/HTML output —
     doesn't replace or recompute it. Reads durable, cross-run data from
-    --db-path (articles, tags, community summaries, bridge tags, per-topic
-    strategic bullets, urgency scores, cross-topic overviews) and gives it
-    a standard RDF shape (SKOS for tags/communities, PROV-O for run
+    --database-url (articles, tags, community summaries, bridge tags,
+    per-topic strategic bullets, urgency scores, cross-topic overviews) and
+    gives it a standard RDF shape (SKOS for tags/communities, PROV-O for run
     lineage, schema.org for article metadata) intended for integration
     into a broader, multi-source knowledge base. Read-only against
-    --db-path; never touches --output-dir.
+    --database-url; never touches --output-dir.
     """
-    connect_db(db_path).close()
+    try:
+        ensure_database_reachable(database_url)
+    except Exception as e:
+        typer.echo(f"--database-url is not reachable: {e}", err=True)
+        raise typer.Exit(code=1)
 
-    triple_count = export_rdf(db_path, output, since=since)
+    triple_count = export_rdf(database_url, output, since=since)
 
     typer.echo(f"RDF export written to {output} ({triple_count:,} triples)")
+
+
+db_app = typer.Typer(add_completion=False, help="Tracking-database schema management.")
+app.add_typer(db_app, name="db")
+
+# alembic.ini lives at the repo root, not inside the installed package —
+# consistent with this project's current deployment model (git checkout +
+# venv, per README), not a PyPI-distributed wheel. If that ever changes,
+# this path needs to move to packaged data (see paths.default_data_dir()
+# for the equivalent pattern already used for rss_feeds/*.json).
+_ALEMBIC_INI = Path(__file__).resolve().parents[2] / "alembic.ini"
+
+
+@db_app.command(name="upgrade")
+def db_upgrade_command(
+    revision: str = typer.Argument("head", help="Target revision (default: head, i.e. latest)."),
+) -> None:
+    """
+    Apply tracking-database schema migrations via Alembic.
+
+    Thin wrapper around `alembic upgrade` so operators use this project's
+    one CLI entry point rather than learning Alembic's. Reads DATABASE_URL
+    from the environment or a .env file (alembic/env.py calls load_dotenv()
+    itself), the same way every other command reads it — there's no
+    separate --database-url option here since Alembic's own config owns the
+    connection at migration time.
+    """
+    from alembic import command
+    from alembic.config import Config
+
+    config = Config(str(_ALEMBIC_INI))
+    command.upgrade(config, revision)
 
 
 @app.command(name="validate-feeds")

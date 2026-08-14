@@ -1,5 +1,5 @@
 """
-Urgency scoring history and alert detection — SQLite-backed.
+Urgency scoring history and alert detection — PostgreSQL-backed.
 
 Each pipeline run inserts per-topic urgency scores into the tracking
 database (see db.py). After enough history has accumulated the alert logic
@@ -9,26 +9,25 @@ avoids alert fatigue on domains that are inherently high-scoring (e.g.
 Defense).
 
 Call order per run (same pattern as bullet_diff.py):
-  0. db.record_run(db_path, run_id, article_count) — once per run, before
-     any of the below (creates the run_id foreign key both tables use)
+  0. db.record_run(database_url, run_id, article_count) — once per run,
+     before any of the below (creates the run_id foreign key both tables use)
   1. load_history   (reads only, does not include the current run)
   2. check_alerts    (current scores vs. historical baseline)
   3. append_run       (writes current scores into the db for future runs)
 
 This ordering means the current run never inflates its own baseline.
 
-load_history/append_run take db_path rather than a live connection: each
-call opens and closes its own short connection. This keeps the functions
-safe to call from Prefect tasks, where a shared sqlite3.Connection can't be
-passed between tasks (it isn't picklable).
+load_history/append_run take database_url rather than a live connection:
+each call opens its own pooled connection (see db.get_connection). This
+keeps the functions safe to call from Prefect tasks, where a shared
+connection can't be passed between tasks (it isn't picklable).
 """
 
 import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 
-from .db import connect
+from .db import get_connection
 from .models import TopicResult
 
 # Minimum number of historical runs required before the statistical baseline
@@ -58,19 +57,16 @@ class UrgencyAlert:
         )
 
 
-def load_history(db_path: Path) -> dict[str, list[float]]:
+def load_history(database_url: str) -> dict[str, list[float]]:
     """
     Return every topic's historical urgency scores, oldest-first per topic.
 
     Does not include the current run — call this before append_run().
     """
-    conn = connect(db_path)
-    try:
+    with get_connection(database_url) as conn:
         rows = conn.execute(
             "SELECT topic, score FROM urgency_scores ORDER BY topic, created_at ASC"
         ).fetchall()
-    finally:
-        conn.close()
     history: dict[str, list[float]] = {}
     for topic, score in rows:
         history.setdefault(topic, []).append(score)
@@ -78,21 +74,20 @@ def load_history(db_path: Path) -> dict[str, list[float]]:
 
 
 def append_run(
-    db_path: Path,
+    database_url: str,
     results: list[TopicResult],
     run_id: str,
 ) -> None:
     """
     Insert the current run's urgency scores into the database.
 
-    Assumes db.record_run(db_path, run_id, ...) has already been called this
-    run, so the run_id foreign key exists.
+    Assumes db.record_run(database_url, run_id, ...) has already been called
+    this run, so the run_id foreign key exists.
     """
     now = datetime.now(UTC).isoformat()
-    conn = connect(db_path)
-    try:
-        conn.executemany(
-            "INSERT INTO urgency_scores (run_id, created_at, topic, score) VALUES (?, ?, ?, ?)",
+    with get_connection(database_url) as conn:
+        conn.cursor().executemany(
+            "INSERT INTO urgency_scores (run_id, created_at, topic, score) VALUES (%s, %s, %s, %s)",
             [
                 (run_id, now, r.config.title, r.strategy.urgency_score)
                 for r in results
@@ -100,8 +95,6 @@ def append_run(
             ],
         )
         conn.commit()
-    finally:
-        conn.close()
 
 
 def check_alerts(

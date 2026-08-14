@@ -21,6 +21,9 @@ dependencies = [
     "networkx>=3.0.0",
     "typer>=0.16.0",
     "rdflib>=7.0.0",
+    "psycopg[binary,pool]>=3.2.0",
+    "alembic>=1.13.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -51,6 +54,10 @@ select = ["E", "F", "I", "UP"]
 # Imports deliberately placed after configure_logging()'s definition -- see
 # the module docstring for why.
 "strategic_reports/daily/core/__init__.py" = ["E402"]
+# load_dotenv() must run before any module-level os.environ.get() reads
+# further down the file, so it's deliberately placed between import blocks.
+"strategic_reports/daily/cli.py" = ["E402"]
+"strategic_reports/daily/flows/daily_report.py" = ["E402"]
 
 [tool.mypy]
 python_version = "3.12"

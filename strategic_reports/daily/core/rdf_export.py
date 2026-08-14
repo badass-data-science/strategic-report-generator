@@ -27,14 +27,14 @@ under a small custom namespace, STRATREP.
 """
 
 import re
-import sqlite3
 from collections.abc import Sequence
 from pathlib import Path
 
+import psycopg
 from rdflib import RDF, RDFS, XSD, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import PROV, SDO, SKOS
 
-from .db import connect
+from .db import get_connection
 
 BASE = Namespace("https://strategic-reports.local/kg/")
 STRATREP = Namespace("https://strategic-reports.local/ontology#")
@@ -47,25 +47,25 @@ def _slug(text: str) -> str:
 
 
 def _placeholders(items: Sequence[object]) -> str:
-    return ",".join("?" for _ in items)
+    return ",".join("%s" for _ in items)
 
 
-def _run_ids_since(conn: sqlite3.Connection, since: str | None) -> list[str] | None:
+def _run_ids_since(conn: psycopg.Connection, since: str | None) -> list[str] | None:
     """
     Resolve --since (a run_id or an ISO timestamp) to the list of run_ids
     at or after that point. None means no filter (full rebuild).
     """
     if since is None:
         return None
-    row = conn.execute("SELECT created_at FROM runs WHERE run_id = ?", (since,)).fetchone()
+    row = conn.execute("SELECT created_at FROM runs WHERE run_id = %s", (since,)).fetchone()
     cutoff = row[0] if row is not None else since
     rows = conn.execute(
-        "SELECT run_id FROM runs WHERE created_at >= ? ORDER BY created_at", (cutoff,)
+        "SELECT run_id FROM runs WHERE created_at >= %s ORDER BY created_at", (cutoff,)
     ).fetchall()
     return [r[0] for r in rows]
 
 
-def build_graph(db_path: Path, since: str | None = None) -> Graph:
+def build_graph(database_url: str, since: str | None = None) -> Graph:
     """
     Build an in-memory RDF graph from the tracking database.
 
@@ -78,8 +78,7 @@ def build_graph(db_path: Path, since: str | None = None) -> Graph:
     graph.bind("schema", SDO)
     graph.bind("stratrep", STRATREP)
 
-    conn = connect(db_path)
-    try:
+    with get_connection(database_url) as conn:
         run_ids = _run_ids_since(conn, since)
         if run_ids is not None and not run_ids:
             return graph
@@ -219,18 +218,16 @@ def build_graph(db_path: Path, since: str | None = None) -> Graph:
             graph.add((overview_uri, RDF.type, STRATREP.CrossTopicOverview))
             graph.add((overview_uri, PROV.wasGeneratedBy, BASE[f"run/{run_id}"]))
             graph.add((overview_uri, STRATREP.overviewBullet, Literal(bullet_text)))
-    finally:
-        conn.close()
 
     return graph
 
 
-def export_rdf(db_path: Path, output_path: Path, since: str | None = None) -> int:
+def export_rdf(database_url: str, output_path: Path, since: str | None = None) -> int:
     """
     Build the RDF graph from the database and serialize it to output_path
     as Turtle. Returns the number of triples written.
     """
-    graph = build_graph(db_path, since=since)
+    graph = build_graph(database_url, since=since)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     graph.serialize(destination=str(output_path), format="turtle")
     return len(graph)

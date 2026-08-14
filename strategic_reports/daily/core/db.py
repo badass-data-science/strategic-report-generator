@@ -1,258 +1,91 @@
 """
-SQLite tracking database — schema and connection helper shared by the CLI
-and the Prefect flow.
+PostgreSQL tracking database — pooled connection helper and run registration.
 
-Both entry points wipe and recreate --output-dir on every run (see
-renderer.render_report), but the tracking database (urgency scores, bullet
-history, and future cross-run trackers) must survive across runs. Keeping
-db_path management entirely separate from output_dir means a run can never
-delete its own history by accident.
+Both entry points (cli.py, flows/daily_report.py) wipe and recreate
+--output-dir on every run (see renderer.render_report), but the tracking
+database (urgency scores, bullet history, and other cross-run trackers)
+must survive across runs. Schema ownership lives in alembic/ (run `alembic
+upgrade head`, or `strategic-reports db upgrade`) — not here. Unlike the
+old SQLite version, connecting never implicitly creates or updates tables;
+running DDL on every pooled-connection acquisition is expensive and
+lock-prone on Postgres, whereas it was free on SQLite.
 
-SCHEMA NOTES
-------------
-Every row carries both a run_id (join key back to a specific run) and its
-own created_at timestamp (ISO 8601, UTC) — not just a date — so change
-tracking (z-score baselines, diffing, future drift-detection queries) has a
-precise, orderable time axis rather than relying on row-insertion order or
-comparing opaque run_id strings.
+CONNECTION POOLING
+-------------------
+Every DB-touching function in this package takes database_url: str, not a
+live connection — the same picklability requirement the old db_path: Path
+signatures had, since a shared connection can't cross a Prefect task
+boundary (it isn't picklable). A plain connection string has the same
+picklability, so the calling convention is unchanged; only the type is
+(Path -> str).
 
-Unlike the JSON files this replaces (bullet_history.json capped itself at
-the last 7 entries to bound file size), nothing here is pruned. SQLite has
-no equivalent file-size pressure, and full history is more useful, not less
-— several ideas discussed for this project (emerging-tag detection,
-community drift) want as much history as they can get.
+Each process keeps its own small pool per database_url (see _get_pool),
+built lazily on first use and reused by every subsequent call in that
+process — this avoids paying a full TCP+auth handshake on every call, which
+was free with SQLite's on-disk connections but isn't with Postgres.
+get_connection() hands back a single pooled connection as a context
+manager; callers keep the same "with ... as conn: ...; conn.commit()"
+shape as before.
 """
 
-import sqlite3
+from contextlib import AbstractContextManager
 from datetime import UTC, datetime
-from pathlib import Path
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS runs (
-    run_id TEXT PRIMARY KEY,
-    created_at TEXT NOT NULL,
-    article_count INTEGER NOT NULL
-);
+import psycopg
+from psycopg_pool import ConnectionPool
 
-CREATE TABLE IF NOT EXISTS urgency_scores (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_id TEXT NOT NULL REFERENCES runs(run_id),
-    created_at TEXT NOT NULL,
-    topic TEXT NOT NULL,
-    score REAL NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_urgency_scores_topic ON urgency_scores(topic, created_at);
-
-CREATE TABLE IF NOT EXISTS bullets (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_id TEXT NOT NULL REFERENCES runs(run_id),
-    created_at TEXT NOT NULL,
-    topic TEXT NOT NULL,
-    bullet_index INTEGER NOT NULL,
-    bullet_text TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_bullets_topic ON bullets(topic, created_at);
-
--- The three tables below let a given run's tag_graph.json be reconstructed
--- from the database (see tag_tracking.rebuild_graph_data) and let a tag's
--- rate (count / that run's article_count) be tracked over time for
--- emerging-tag z-score alerts (see tag_tracking.check_emerging_tags).
-
-CREATE TABLE IF NOT EXISTS tag_counts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_id TEXT NOT NULL REFERENCES runs(run_id),
-    created_at TEXT NOT NULL,
-    tag TEXT NOT NULL,
-    count INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_tag_counts_tag ON tag_counts(tag, created_at);
-CREATE INDEX IF NOT EXISTS idx_tag_counts_run ON tag_counts(run_id);
-
-CREATE TABLE IF NOT EXISTS tag_topics (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_id TEXT NOT NULL REFERENCES runs(run_id),
-    created_at TEXT NOT NULL,
-    tag TEXT NOT NULL,
-    topic TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_tag_topics_run_tag ON tag_topics(run_id, tag);
-
-CREATE TABLE IF NOT EXISTS tag_edges (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_id TEXT NOT NULL REFERENCES runs(run_id),
-    created_at TEXT NOT NULL,
-    tag_a TEXT NOT NULL,
-    tag_b TEXT NOT NULL,
-    weight INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_tag_edges_run ON tag_edges(run_id);
-
--- Audit trail of emerging-tag alerts that actually fired (not every tag's
--- rate/z-score every run — those are always recomputable from tag_counts +
--- runs.article_count via tag_tracking.load_tag_rate_history). Lets "what
--- was tag X's z-score on day N" be answered without redoing the historical
--- window calculation.
-CREATE TABLE IF NOT EXISTS emerging_tag_alerts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_id TEXT NOT NULL REFERENCES runs(run_id),
-    created_at TEXT NOT NULL,
-    tag TEXT NOT NULL,
-    count INTEGER NOT NULL,
-    rate REAL NOT NULL,
-    mean REAL NOT NULL,
-    std REAL NOT NULL,
-    z_score REAL NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_emerging_tag_alerts_tag ON emerging_tag_alerts(tag, created_at);
-CREATE INDEX IF NOT EXISTS idx_emerging_tag_alerts_run ON emerging_tag_alerts(run_id);
-
--- Audit trail of the bridge tags actually surfaced to the cross-topic
--- synthesis prompt each run (see tag_graph.find_bridge_tags and
--- pipeline.synthesize_cross_topic). Self-contained — stores its own
--- topics rather than joining against tag_topics — because the two entry
--- points call the emerging-tag block (which persists this) at different
--- points relative to cross-topic synthesis in their pipeline order, so a
--- join can't be relied on to already have this run_id's tag_topics rows.
-CREATE TABLE IF NOT EXISTS bridge_tags (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_id TEXT NOT NULL REFERENCES runs(run_id),
-    created_at TEXT NOT NULL,
-    tag TEXT NOT NULL,
-    count INTEGER NOT NULL,
-    rank INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_bridge_tags_run ON bridge_tags(run_id);
-CREATE INDEX IF NOT EXISTS idx_bridge_tags_tag ON bridge_tags(tag, created_at);
-
-CREATE TABLE IF NOT EXISTS bridge_tag_topics (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_id TEXT NOT NULL REFERENCES runs(run_id),
-    created_at TEXT NOT NULL,
-    tag TEXT NOT NULL,
-    topic TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_bridge_tag_topics_run_tag ON bridge_tag_topics(run_id, tag);
-
--- Persists each run's article summaries (title, link, publish_date,
--- summary bullets, tags), which otherwise exist only in memory during a
--- run and get rendered to {topic}_summaries.html — a file that lives in
--- --output-dir and is wiped every run (see renderer.render_report). This
--- is the source material every derived signal (tag_counts, bullets,
--- urgency_scores) is computed from; without it, cross-run archive queries
--- can only ever reason over structure (which tags co-occurred), never
--- substance (what was actually said). See article_archive.py.
-CREATE TABLE IF NOT EXISTS articles (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_id TEXT NOT NULL REFERENCES runs(run_id),
-    created_at TEXT NOT NULL,
-    topic TEXT NOT NULL,
-    title TEXT NOT NULL,
-    link TEXT NOT NULL,
-    publish_date TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_articles_run ON articles(run_id);
-CREATE INDEX IF NOT EXISTS idx_articles_topic ON articles(topic, created_at);
-
-CREATE TABLE IF NOT EXISTS article_summary_bullets (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    article_id INTEGER NOT NULL REFERENCES articles(id),
-    run_id TEXT NOT NULL REFERENCES runs(run_id),
-    created_at TEXT NOT NULL,
-    bullet_index INTEGER NOT NULL,
-    bullet_text TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_article_summary_bullets_article
-    ON article_summary_bullets(article_id);
-
-CREATE TABLE IF NOT EXISTS article_tags (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    article_id INTEGER NOT NULL REFERENCES articles(id),
-    run_id TEXT NOT NULL REFERENCES runs(run_id),
-    created_at TEXT NOT NULL,
-    tag TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_article_tags_article ON article_tags(article_id);
-CREATE INDEX IF NOT EXISTS idx_article_tags_tag ON article_tags(tag, created_at);
-
--- LLM-written summary of each Louvain tag-community's news coverage this
--- run (see tag_graph.group_articles_by_community and
--- pipeline.summarize_communities) — replaces "labeled by top tag" with an
--- actual paragraph describing what the cluster is substantively about.
--- Self-contained: stores each community's own member tags rather than
--- reconstructing them from tag_counts, since community membership is
--- itself only ever computed transiently (build_display_graph is never
--- persisted).
-CREATE TABLE IF NOT EXISTS community_summaries (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_id TEXT NOT NULL REFERENCES runs(run_id),
-    created_at TEXT NOT NULL,
-    community_id INTEGER NOT NULL,
-    label TEXT NOT NULL,
-    summary TEXT NOT NULL,
-    article_count INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_community_summaries_run ON community_summaries(run_id);
-
-CREATE TABLE IF NOT EXISTS community_summary_tags (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_id TEXT NOT NULL REFERENCES runs(run_id),
-    created_at TEXT NOT NULL,
-    community_id INTEGER NOT NULL,
-    tag TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_community_summary_tags_run_comm
-    ON community_summary_tags(run_id, community_id);
-
--- The cross-topic synthesis overview (see pipeline.synthesize_cross_topic)
--- is rendered into index.html but was otherwise never persisted. One row
--- per bullet (same shape as bullets/article_summary_bullets above) since
--- CrossTopicSynthesis.bullets is a list, not a single blob of text. See
--- overview_archive.py.
-CREATE TABLE IF NOT EXISTS cross_topic_overviews (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_id TEXT NOT NULL REFERENCES runs(run_id),
-    created_at TEXT NOT NULL,
-    bullet_index INTEGER NOT NULL,
-    bullet_text TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_cross_topic_overviews_run ON cross_topic_overviews(run_id);
-"""
+_pools: dict[str, ConnectionPool] = {}
 
 
-def ensure_safe_db_path(db_path: Path, output_dir: Path) -> None:
+def _get_pool(database_url: str) -> ConnectionPool:
     """
-    Raise ValueError if db_path sits inside output_dir.
-
-    output_dir is deleted and recreated by render_report() on every run. A
-    db_path nested inside it (or equal to it) would be destroyed the moment
-    the next run starts, silently erasing all accumulated history.
+    Return this process's connection pool for database_url, creating it on
+    first use. min_size=1/max_size=5 is sized for a sequential daily batch
+    job (one topic/task at a time), not a concurrent web server.
     """
-    db_resolved = db_path.resolve()
-    output_resolved = output_dir.resolve()
-    if db_resolved == output_resolved or output_resolved in db_resolved.parents:
-        raise ValueError(
-            f"--db-path ({db_path}) is inside --output-dir ({output_dir}), "
-            f"which is deleted and recreated on every run. Choose a --db-path "
-            f"outside of --output-dir."
-        )
+    pool = _pools.get(database_url)
+    if pool is None:
+        pool = ConnectionPool(database_url, min_size=1, max_size=5, open=True)
+        _pools[database_url] = pool
+    return pool
 
 
-def connect(db_path: Path) -> sqlite3.Connection:
+def get_connection(database_url: str) -> AbstractContextManager[psycopg.Connection]:
     """
-    Open the tracking database, creating it (and any missing parent
-    directories) on first use. Never truncates or deletes an existing
-    database file — that's what makes cross-run history possible.
+    Context manager yielding a pooled connection: `with get_connection(url) as conn:`.
 
-    Runs the schema on every connect via CREATE TABLE/INDEX IF NOT EXISTS,
-    so a fresh database gets its tables and an existing one is left alone.
+    Every call site still ends with an explicit conn.commit(), matching the
+    explicit-commit style every DB-touching function already used under
+    SQLite — psycopg_pool's connection() context manager would auto-commit
+    on clean exit anyway, so this is a harmless no-op in the success case,
+    not a second real commit.
     """
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path)
-    conn.executescript(_SCHEMA)
-    return conn
+    return _get_pool(database_url).connection()
 
 
-def record_run(db_path: Path, run_id: str, article_count: int) -> None:
+def ensure_database_reachable(database_url: str, connect_timeout: int = 5) -> None:
+    """
+    Fail fast if database_url isn't reachable, before doing any real work.
+
+    Replaces the old ensure_safe_db_path() + connect_db(db_path).close()
+    pair, whose job was catching an unusable SQLite path (schema creation
+    on first use, output_dir collision) before a run's expensive LLM calls.
+    That specific risk (a wiped-and-recreated output_dir colliding with the
+    tracking db) was SQLite-file-specific and has no Postgres-URL analog;
+    an unreachable/misconfigured database is the equivalent failure mode
+    here, and schema is no longer created implicitly — see module docstring.
+
+    Deliberately bypasses the pool (a direct, short-lived psycopg.connect())
+    rather than going through get_connection(): a bad database_url would
+    otherwise make the pool retry with backoff for its own timeout (default
+    30s, several retries) before surfacing a failure, which is far too slow
+    for a startup check meant to fail fast.
+    """
+    with psycopg.connect(database_url, connect_timeout=connect_timeout) as conn:
+        conn.execute("SELECT 1")
+
+
+def record_run(database_url: str, run_id: str, article_count: int) -> None:
     """
     Register a pipeline run in the runs table, with the total number of
     articles considered across all topics that run.
@@ -266,12 +99,10 @@ def record_run(db_path: Path, run_id: str, article_count: int) -> None:
     Call once per run, before any urgency/bullet-history inserts that
     reference run_id — those don't create the runs row themselves.
     """
-    conn = connect(db_path)
-    try:
+    with get_connection(database_url) as conn:
         conn.execute(
-            "INSERT OR IGNORE INTO runs (run_id, created_at, article_count) VALUES (?, ?, ?)",
+            "INSERT INTO runs (run_id, created_at, article_count) VALUES (%s, %s, %s) "
+            "ON CONFLICT (run_id) DO NOTHING",
             (run_id, datetime.now(UTC).isoformat(), article_count),
         )
         conn.commit()
-    finally:
-        conn.close()
