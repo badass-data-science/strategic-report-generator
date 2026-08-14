@@ -52,6 +52,10 @@ list_directories_and_titles = [
         'title' : 'Healthcare',
     },
     {
+        'slug' : 'feeds_retail',
+        'title' : 'Retail',
+    },
+    {
         'slug' : 'feeds_leadership',
         'title' : 'Leadership',
     },

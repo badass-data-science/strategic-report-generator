@@ -6,7 +6,16 @@ doesn't tag releases.
 
 ## 2026-08-13
 
+### Added
+- New `Retail` topic category (`feeds_retail.json`, 29 feeds after
+  pruning — see below) registered in `topic_order.py`'s
+  `list_directories_and_titles`, between `Healthcare` and `Leadership`.
+  The pipeline now covers 17 active topics, up from 16.
+
 ### Changed
+- `feeds_retail.json` validated (34 feeds checked); 5 dead feeds removed
+  (malformed XML, HTTP errors, HTTP 200 with no parseable entries) and
+  logged under a new `feeds_retail` key in `REMOVED.json`.
 - `topic_order.py`'s `list_directories_and_titles` reordered so `Forex`
   comes before `Blockchain`, swapping their previous order.
 - `feeds_iot.json` and `feeds_edge_computing.json` merged into a single
