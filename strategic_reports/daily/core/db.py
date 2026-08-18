@@ -28,6 +28,7 @@ manager; callers keep the same "with ... as conn: ...; conn.commit()"
 shape as before.
 """
 
+import atexit
 from contextlib import AbstractContextManager
 from datetime import UTC, datetime
 
@@ -48,6 +49,24 @@ def _get_pool(database_url: str) -> ConnectionPool:
         pool = ConnectionPool(database_url, min_size=1, max_size=5, open=True)
         _pools[database_url] = pool
     return pool
+
+
+@atexit.register
+def _close_pools() -> None:
+    """
+    Close every pool before interpreter shutdown.
+
+    Without this, pools are only torn down when garbage-collected, which
+    for module-level globals happens during interpreter finalization.
+    ConnectionPool.__del__ joins its worker threads at that point, and on
+    Python 3.13+ joining a thread during finalization raises
+    PythonFinalizationError instead of working — harmless (the process is
+    exiting anyway) but noisy. Closing explicitly here avoids relying on
+    __del__ at all.
+    """
+    for pool in _pools.values():
+        pool.close()
+    _pools.clear()
 
 
 def get_connection(database_url: str) -> AbstractContextManager[psycopg.Connection]:
