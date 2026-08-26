@@ -296,10 +296,17 @@ def run(
     # otherwise only exists in memory during this run. Never blocks
     # rendering on failure.
     try:
-        record_articles(database_url, run_id, results)
+        article_total = sum(len(r.articles) for r in results)
+        failed_count = record_articles(database_url, run_id, results)
+        if failed_count:
+            typer.echo(
+                f"[warn] Article archiving: {failed_count}/{article_total} article(s) failed "
+                "to archive (see logs for per-article detail) — continuing with partial archive",
+                err=True,
+            )
     except Exception as exc:
         typer.echo(
-            f"[warn] Article archiving failed: {exc} — continuing without archiving", err=True
+            f"[warn] Article archiving failed: {exc!r} — continuing without archiving", err=True
         )
 
     # Emerging-tag check: compare today's tag rates (tag count / articles

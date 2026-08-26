@@ -286,11 +286,17 @@ def archive_articles(results: list[TopicResult], run_id: str, database_url: str)
     """Persist this run's article summaries into the tracking database."""
     logger = get_run_logger()
     try:
-        record_articles(database_url, run_id, results)
         article_total = sum(len(r.articles) for r in results)
-        logger.info(f"Archived {article_total} article summaries")
+        failed_count = record_articles(database_url, run_id, results)
+        if failed_count:
+            logger.warning(
+                f"Archived {article_total - failed_count}/{article_total} article summaries "
+                f"({failed_count} failed — see per-article warnings above)"
+            )
+        else:
+            logger.info(f"Archived {article_total} article summaries")
     except Exception as exc:
-        logger.warning(f"Article archiving failed: {exc} — continuing without archiving")
+        logger.warning(f"Article archiving failed: {exc!r} — continuing without archiving")
 
 
 # ---------------------------------------------------------------------------
