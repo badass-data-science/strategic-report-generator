@@ -181,12 +181,29 @@ def load_topic_urgency_series(
     run has no urgency_scores row for that topic (e.g. the topic errored
     out that run) -- left as a gap, not coerced to 0.0, since 0.0 is itself
     a meaningful low-urgency score, not a "missing" sentinel.
+
+    A run whose article archive failed entirely (nonzero runs.article_count
+    but zero rows in `articles`) also gets None for every topic that run --
+    see _runs_missing_from. Confirmed to have actually happened
+    pre-article_archive_savepoint_fix: two 2026-08-24 runs had real urgency
+    scores computed but an empty article archive, and their spuriously low,
+    correlated scores were what drove the Energy<->Forex r=0.92 false
+    positive investigated the same session as that fix -- see
+    energy_forex_correlation_artifact memory.
     """
     run_order = load_run_order(database_url)
     run_index = {run_id: i for i, run_id in enumerate(run_order)}
 
     with get_connection(database_url) as conn:
         rows = conn.execute("SELECT run_id, topic, score FROM urgency_scores").fetchall()
+        article_counts: dict[str, int] = dict(
+            conn.execute("SELECT run_id, article_count FROM runs").fetchall()
+        )
+        runs_with_article_data = {
+            row[0] for row in conn.execute("SELECT DISTINCT run_id FROM articles").fetchall()
+        }
+
+    runs_with_missing_article_data = _runs_missing_from(article_counts, runs_with_article_data)
 
     series: dict[str, list[float | None]] = {}
     for run_id, topic, score in rows:
@@ -194,6 +211,13 @@ def load_topic_urgency_series(
         if idx is None:
             continue
         series.setdefault(topic, [None] * len(run_order))[idx] = score
+
+    for run_id in runs_with_missing_article_data:
+        idx = run_index.get(run_id)
+        if idx is None:
+            continue
+        for scores in series.values():
+            scores[idx] = None
 
     return run_order, series
 
