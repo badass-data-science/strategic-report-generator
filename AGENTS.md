@@ -22,9 +22,16 @@ at full feature parity with each other:
   Prefect flow, scheduled daily via cron
 
 If you add a pipeline step to one entry point (cross-topic synthesis,
-urgency alerts, bullet diffing, tag graph, community summaries), add it to
-the other too unless told otherwise — this parity was an explicit,
-deliberate decision.
+urgency alerts, bullet diffing, tag graph, community summaries, systems
+signals), add it to the other too unless told otherwise — this parity was
+an explicit, deliberate decision. Systems signals is the running
+cautionary example of what happens when this rule is skipped: it was
+wired into `cli.py`/`flows/daily_report.py` first, and a separate,
+hand-maintained Airflow port of this same flow (outside this repo, not
+tracked here) silently kept rendering a stale "no signals" state until
+the drift was noticed and fixed as a follow-up. If you're aware of other
+mirrors of this pipeline living outside this repo, treat their drift the
+same way — worth a mention to the user, not silently left alone.
 
 A second command, `python -m strategic_reports.daily.cli ask "<question>"`,
 is a deliberate exception: an interactive, human-in-the-loop archive
@@ -108,7 +115,7 @@ ruff check .
 mypy
 ```
 
-- 216 tests across `tests/test_*.py`, no real network or LLM calls. Unlike
+- 286 tests across `tests/test_*.py`, no real network or LLM calls. Unlike
   before the PostgreSQL migration, DB-touching tests now need a reachable
   Postgres instance (`DATABASE_URL` env var) — see `docker-compose.yml` for
   local dev; CI provides one as a service container. CI
@@ -150,12 +157,13 @@ strategic_reports/
       overview_archive.py Persists each run's cross-topic synthesis overview bullets, linked to run_id
       archive_query.py    Graph-guided retrieval: find_relevant_communities() — pure SQL, no LLM calls
       tag_tracking.py     Per-run tag-graph persistence (linked to run_id) + emerging-tag z-score + community-summary persistence (PostgreSQL-backed)
+      systems_signals.py  Lagged/partial correlation over topic urgency + tag coverage rate history; FDR correction + five-filter tag-rate chain; read-only, nothing persisted
       rdf_export.py        Builds an RDF/Turtle export of the tracking db (SKOS/PROV-O/schema.org + a custom stratrep: namespace) for `export-rdf`
       tracing.py          Langfuse / Phoenix instrumentation (opt-in)
     templates/            Jinja2 templates (base, index, topic)
     data/rss_feeds/       One JSON file per topic listing feed URLs — packaged as wheel data
       REMOVED.json        Audit log of feeds removed by `validate-feeds --fix` or by hand
-    flows/daily_report.py Prefect flow (11 tasks, incl. export-rdf as the last one) for scheduled runs — no `ask` equivalent, deliberately (see above)
+    flows/daily_report.py Prefect flow (12 tasks, incl. export-rdf as the last one) for scheduled runs — no `ask` equivalent, deliberately (see above)
     cli.py                typer CLI entrypoint — five commands: run, ask, export-rdf, validate-feeds, db upgrade
     paths.py              default_data_dir() — resolves bundled rss_feeds/ via importlib.resources
     config/topic_order.py Ordered topic slugs + display titles
@@ -216,6 +224,28 @@ LICENSE                 MIT
   doesn't exist on a psycopg `Connection` the way it did on
   `sqlite3.Connection` — use `conn.cursor().executemany(...)`. Both are easy
   to get wrong if copying an old SQLite-era pattern.
+- **Bulk inserts must isolate per-row failures — one bad row must never
+  silently discard the rest of that run's data.** `get_connection()`'s
+  pooled connection rolls back its *entire* transaction when any exception
+  escapes the `with` block, so a single bad article/tag/community-summary
+  row used to take out every other row already inserted that run, with no
+  trace beyond a one-line stderr/log warning at the call site — this
+  actually happened in production (two real runs ended up with fully
+  populated `tag_counts` but zero rows in `articles`/`article_tags`, found
+  by manually cross-referencing systems-signals output against real
+  articles). `article_archive.record_articles` wraps each article's insert
+  in its own `conn.transaction()` savepoint. `tag_tracking.record_tags`/
+  `record_community_summaries` do the same via a shared helper,
+  `_insert_rows_isolating_failures`, but batch first (a single
+  `executemany()` inside one savepoint) and only fall back to a per-row
+  savepoint loop if the batch as a whole fails — a table like `tag_edges`
+  can have tens of thousands of rows in one run, so an unconditional
+  per-row loop the way `record_articles` uses would be a real performance
+  regression for the common case where nothing fails. All three functions
+  now return a failed-row count instead of `None`; both `cli.py` and
+  `flows/daily_report.py` log a partial-failure warning when it's nonzero.
+  If you add another bulk insert against the tracking db, use this same
+  pattern rather than a bare `executemany()` in one shared transaction.
 - **Community summaries are LLM-grounded in that community's articles, not
   in the label alone.** `pipeline.summarize_communities()` calls
   `tag_graph.group_articles_by_community()` to gather the article summaries
@@ -249,6 +279,39 @@ LICENSE                 MIT
   does not merge into an existing `.ttl` file; don't add merge/watermark
   logic without discussing it first, since this was a deliberate v1 scope
   choice, not an oversight.
+- **`systems_signals.py` is read-only and persists nothing — don't add a
+  table for it without discussing first.** `topic_urgency_lagged_correlations()`
+  and `tag_rate_lagged_correlations()` recompute their result fresh from
+  `urgency_scores`/`tag_counts`/`tag_edges`/`tag_topics`/
+  `community_summary_tags`/`articles` on every call; the only place the
+  output goes is that run's `index.html` Systems Signals section, and it
+  doesn't survive to the next run — this was a deliberate choice, not an
+  oversight, made explicitly when asked. An uncorrected all-pairs scan is
+  almost pure noise (a 14-run archive produced ~40 "significant" topic
+  pairs and ~9,700 tag pairs before any correction), so both functions run
+  a Benjamini-Hochberg FDR correction across every test in a single scan,
+  and `tag_rate_lagged_correlations` additionally runs five structural/
+  statistical filters before a candidate is even correlated or reported: a
+  sparsity floor (`_MIN_ACTIVE_RUNS_FOR_TAG_CORRELATION`), a containment-
+  ratio check for near-synonymous tags (`_drop_near_synonymous_pairs`), a
+  Louvain-community filter reusing `community_summary_tags`
+  (`_drop_topically_clustered_pairs` — the clustering itself comes from
+  `tag_graph.py`, no LLM call), a partial-correlation topic-volume control
+  for cross-topic confounds (`lagged_partial_pearson` +
+  `_topic_weights`/`_weighted_topic_volume` — a *weighted blend* across
+  every topic a tag has ever appeared under, not just its single most
+  common one, since a single-topic version of this control was tried
+  first and missed a confound spanning several topics at once), and a
+  source-dominance filter for pairs that mostly co-occur via one recurring
+  publisher (`_drop_single_source_pairs`). `lag` is counted in runs, not
+  calendar days. Wired into both `cli.py run()` and the Prefect flow as
+  the last step before rendering (needs the current run's own DB rows
+  already persisted), following the same fail-soft
+  try/except-log-warn-continue pattern as every other optional stage in
+  this file — there's no CLI toggle flag, matching the existing
+  convention that no optional stage here has one (see `validate-feeds`'s
+  `--fix` below for the one exception, which is an action flag on a
+  separate command, not a stage toggle).
 - **`validate-feeds`/`feed_validation.py` is a maintenance utility over the
   feed configs, not a pipeline step — keep it that way.** It has no
   Prefect equivalent and isn't called from `run`, same deliberate
