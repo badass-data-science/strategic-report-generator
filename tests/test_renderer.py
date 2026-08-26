@@ -59,7 +59,22 @@ from strategic_reports.daily.core.models import (
     TopicConfig,
     TopicResult,
 )
-from strategic_reports.daily.core.renderer import render_report
+from strategic_reports.daily.core.renderer import _dedupe_bidirectional_lag_zero, render_report
+from strategic_reports.daily.core.systems_signals import LaggedCorrelation
+
+
+def _correlation(
+    subject_a: str, subject_b: str, lag: int = 0, correlation: float = 0.9, q_value: float = 0.02
+) -> LaggedCorrelation:
+    return LaggedCorrelation(
+        subject_a=subject_a,
+        subject_b=subject_b,
+        lag=lag,
+        correlation=correlation,
+        n=12,
+        p_value=0.001,
+        q_value=q_value,
+    )
 
 
 @pytest.fixture
@@ -337,3 +352,107 @@ class TestTopicSummaryPage:
         )
         render_report([result], output_dir=tmp_path)
         assert (tmp_path / "data_science_summaries.html").exists()
+
+
+class TestDedupeBidirectionalLagZero:
+    """Tests for renderer._dedupe_bidirectional_lag_zero (display-only, not systems_signals.py)."""
+
+    def test_lag_zero_mirror_pair_collapses_to_one(self) -> None:
+        a_to_b = _correlation("Energy", "Forex", lag=0)
+        b_to_a = _correlation("Forex", "Energy", lag=0)
+        assert _dedupe_bidirectional_lag_zero([a_to_b, b_to_a]) == [a_to_b]
+
+    def test_lag_greater_than_zero_keeps_both_directions(self) -> None:
+        a_to_b = _correlation("Energy", "Forex", lag=1)
+        b_to_a = _correlation("Forex", "Energy", lag=1)
+        assert _dedupe_bidirectional_lag_zero([a_to_b, b_to_a]) == [a_to_b, b_to_a]
+
+    def test_unrelated_pairs_all_kept(self) -> None:
+        c1 = _correlation("Energy", "Forex", lag=0)
+        c2 = _correlation("Defense", "Genomics", lag=0)
+        assert _dedupe_bidirectional_lag_zero([c1, c2]) == [c1, c2]
+
+    def test_empty_list(self) -> None:
+        assert _dedupe_bidirectional_lag_zero([]) == []
+
+
+class TestSystemsSignalsSection:
+    """Tests for the "Systems Signals" section of index.html."""
+
+    def test_omitted_content_when_no_signals(
+        self, tmp_path: Path, successful_result: TopicResult
+    ) -> None:
+        render_report([successful_result], output_dir=tmp_path)
+        html = (tmp_path / "index.html").read_text()
+        assert "Systems Signals" in html
+        assert "No candidate feedback loops cleared significance today." in html
+
+    def test_topic_signal_appears(self, tmp_path: Path, successful_result: TopicResult) -> None:
+        render_report(
+            [successful_result],
+            output_dir=tmp_path,
+            topic_signals=[_correlation("Energy", "Forex", lag=0, correlation=0.92, q_value=0.002)],
+        )
+        html = (tmp_path / "index.html").read_text()
+        assert "Topic Urgency" in html
+        assert "Energy" in html and "Forex" in html
+        assert "0.002" in html
+        assert "No candidate feedback loops cleared significance today." not in html
+
+    def test_tag_signal_appears(self, tmp_path: Path, successful_result: TopicResult) -> None:
+        render_report(
+            [successful_result],
+            output_dir=tmp_path,
+            tag_signals=[_correlation("derivatives", "market", lag=1, correlation=0.99, q_value=0.01)],
+        )
+        html = (tmp_path / "index.html").read_text()
+        assert "Tag Coverage" in html
+        assert "derivatives" in html and "market" in html
+        # lag > 0 is directional -- "led ... by 1 run", not the "↔" symmetric symbol.
+        assert "led" in html
+
+    def test_only_topic_signals_omits_tag_coverage_group(
+        self, tmp_path: Path, successful_result: TopicResult
+    ) -> None:
+        render_report(
+            [successful_result],
+            output_dir=tmp_path,
+            topic_signals=[_correlation("Energy", "Forex")],
+        )
+        html = (tmp_path / "index.html").read_text()
+        assert "Topic Urgency" in html
+        assert "Tag Coverage" not in html
+
+    def test_bidirectional_lag_zero_pair_shown_once(
+        self, tmp_path: Path, successful_result: TopicResult
+    ) -> None:
+        render_report(
+            [successful_result],
+            output_dir=tmp_path,
+            topic_signals=[
+                _correlation("Energy", "Forex", lag=0),
+                _correlation("Forex", "Energy", lag=0),
+            ],
+        )
+        html = (tmp_path / "index.html").read_text()
+        assert html.count("Significant · q =") == 1
+
+    def test_toc_entry_present_even_with_no_signals(
+        self, tmp_path: Path, successful_result: TopicResult
+    ) -> None:
+        render_report([successful_result], output_dir=tmp_path)
+        html = (tmp_path / "index.html").read_text()
+        assert '<a href="#systems-signals">Systems Signals</a>' in html
+
+    def test_xss_escaping_in_subject_names(
+        self, tmp_path: Path, successful_result: TopicResult
+    ) -> None:
+        """Tag strings ultimately derive from feed content -- same threat model as article titles."""
+        render_report(
+            [successful_result],
+            output_dir=tmp_path,
+            tag_signals=[_correlation("<script>alert(1)</script>", "market")],
+        )
+        html = (tmp_path / "index.html").read_text()
+        assert "<script>alert(1)</script>" not in html
+        assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html

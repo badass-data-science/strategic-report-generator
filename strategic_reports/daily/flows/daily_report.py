@@ -80,6 +80,11 @@ from strategic_reports.daily.core.overview_archive import record_overview
 from strategic_reports.daily.core.pipeline import summarize_communities, synthesize_cross_topic
 from strategic_reports.daily.core.rdf_export import export_rdf
 from strategic_reports.daily.core.renderer import render_report
+from strategic_reports.daily.core.systems_signals import (
+    LaggedCorrelation,
+    tag_rate_lagged_correlations,
+    topic_urgency_lagged_correlations,
+)
 from strategic_reports.daily.core.tag_graph import (
     build_display_graph,
     build_graph_data,
@@ -216,11 +221,19 @@ def render_html_report(
     hours_cutoff: int,
     overview: CrossTopicSynthesis | None = None,
     diffs: dict[str, BulletDiff] | None = None,
+    topic_signals: list[LaggedCorrelation] | None = None,
+    tag_signals: list[LaggedCorrelation] | None = None,
 ) -> None:
     """Render TopicResults into the HTML report using Jinja2 templates."""
     logger = get_run_logger()
     render_report(
-        results, output_dir=output_dir, hours_cutoff=hours_cutoff, overview=overview, diffs=diffs
+        results,
+        output_dir=output_dir,
+        hours_cutoff=hours_cutoff,
+        overview=overview,
+        diffs=diffs,
+        topic_signals=topic_signals,
+        tag_signals=tag_signals,
     )
     logger.info(f"Report written to {output_dir / 'index.html'}")
 
@@ -481,6 +494,38 @@ async def run_bullet_diff(
 
 
 # ---------------------------------------------------------------------------
+# Task 12: Compute systems signals
+# ---------------------------------------------------------------------------
+# Candidate feedback-loop correlations across topic urgency and tag
+# coverage rate history (see core/systems_signals.py). Reads this run's
+# own urgency_scores/tag_counts/tag_edges/tag_topics/community_summary_tags/
+# articles rows, all written by earlier tasks -- must run after all of
+# them and before render-html-report, hence the definition placement
+# here even though it isn't numbered 3 (render-html-report, defined
+# earlier, is likewise called last in the flow body below -- task numbers
+# here track definition order, not call order).
+# Fails gracefully: a failure here logs a warning but does not block
+# rendering, same pattern as every other optional stage in this file.
+
+@task(name="compute-systems-signals")
+def compute_systems_signals(
+    database_url: str,
+) -> tuple[list[LaggedCorrelation], list[LaggedCorrelation]]:
+    """Candidate feedback-loop correlations across topic urgency and tag coverage rate history."""
+    logger = get_run_logger()
+    try:
+        topic_signals = topic_urgency_lagged_correlations(database_url)
+        tag_signals = tag_rate_lagged_correlations(database_url)
+        logger.info(
+            f"Systems signals: {len(topic_signals)} topic-level, {len(tag_signals)} tag-level"
+        )
+        return topic_signals, tag_signals
+    except Exception as exc:
+        logger.warning(f"Systems signals failed: {exc!r} — report will render without them")
+        return [], []
+
+
+# ---------------------------------------------------------------------------
 # Task 10: Build tag co-occurrence network graph
 # ---------------------------------------------------------------------------
 
@@ -653,7 +698,11 @@ async def daily_report_flow(
         api_key=ollama_api_key,
     )
 
-    render_html_report(results, output_dir, hours_cutoff, overview, diffs)
+    topic_signals, tag_signals = compute_systems_signals(database_url)
+
+    render_html_report(
+        results, output_dir, hours_cutoff, overview, diffs, topic_signals, tag_signals
+    )
     build_tag_graph(results, output_dir)
     export_rdf_task(database_url, output_dir)
 

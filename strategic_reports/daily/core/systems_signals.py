@@ -17,8 +17,11 @@ populate every run:
   - tag_edges       (tag_a x tag_b x run -> weight)  supplies that
     candidate-pair restriction.
 
-This is a spike (branch: systems-thinking-prototype), not a shipped
-feature -- no CLI/Prefect wiring, no new migration. Everything here is
+Originally a spike (branch: systems-thinking-prototype) -- no new
+migration was ever needed (read-only), and it's now wired into both
+report-generation entry points (cli.py's `run()` and
+flows/daily_report.py's Prefect flow), rendered as the "Systems Signals"
+section in index.html.j2. Everything here is
 gated by _MIN_RUNS_FOR_LAG, the same "skip rather than guess" pattern as
 tag_tracking's _MIN_HISTORY_RUNS: with only a handful of runs since the
 PostgreSQL migration (2026-08-13), real queries against the live database

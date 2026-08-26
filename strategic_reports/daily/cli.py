@@ -87,6 +87,8 @@ from strategic_reports.daily.core import (
     remove_dead_feeds,
     run_pipeline,
     summarize_communities,
+    tag_rate_lagged_correlations,
+    topic_urgency_lagged_correlations,
     validate_topic_feeds,
     write_tag_graph,
 )
@@ -450,9 +452,31 @@ def run(
         )
         diffs = {}
 
+    # Systems signals: candidate feedback-loop correlations across topic
+    # urgency and tag coverage rate history (see systems_signals.py). Runs
+    # last, right before rendering, since it reads this run's own
+    # urgency_scores/tag_counts/tag_edges/tag_topics/community_summary_tags/
+    # articles rows — all written by steps above. Never blocks rendering
+    # on failure.
+    try:
+        topic_signals = topic_urgency_lagged_correlations(database_url)
+        tag_signals = tag_rate_lagged_correlations(database_url)
+    except Exception as exc:
+        typer.echo(
+            f"[warn] Systems signals failed: {exc!r} — report will render without them",
+            err=True,
+        )
+        topic_signals, tag_signals = [], []
+
     # render_report() is synchronous (Jinja2 rendering is fast, no I/O bottleneck).
     render_report(
-        results, output_dir=output_dir, hours_cutoff=hours_cutoff, overview=overview, diffs=diffs
+        results,
+        output_dir=output_dir,
+        hours_cutoff=hours_cutoff,
+        overview=overview,
+        diffs=diffs,
+        topic_signals=topic_signals,
+        tag_signals=tag_signals,
     )
 
     # Tag co-occurrence graph — written into the same output_dir as the HTML

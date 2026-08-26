@@ -35,6 +35,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
 from .models import ArticleSummary, BulletDiff, CrossTopicSynthesis, TokenUsage, TopicResult
+from .systems_signals import LaggedCorrelation
 
 # Resolved relative to this file (core/renderer.py -> daily/templates/), so
 # this works regardless of where the package is installed.
@@ -91,12 +92,39 @@ def _build_article_jsonld(articles: list[ArticleSummary]) -> str:
     )
 
 
+def _dedupe_bidirectional_lag_zero(
+    correlations: list[LaggedCorrelation],
+) -> list[LaggedCorrelation]:
+    """
+    At lag=0, (A, B) and (B, A) report the identical correlation --
+    systems_signals.py deliberately computes and returns both, since
+    direction only matters once lag > 0 (does A's value predict B's
+    later, not just move with it). Displaying both as separate rows would
+    just show the same finding twice, so this keeps one entry per
+    undirected lag=0 pair and leaves every lag > 0 entry untouched --
+    a display-only transform, not a correctness fix to the underlying
+    (already validated) analysis.
+    """
+    seen_lag_zero_pairs: set[frozenset[str]] = set()
+    deduped = []
+    for c in correlations:
+        if c.lag == 0:
+            key = frozenset({c.subject_a, c.subject_b})
+            if key in seen_lag_zero_pairs:
+                continue
+            seen_lag_zero_pairs.add(key)
+        deduped.append(c)
+    return deduped
+
+
 def render_report(
     results: list[TopicResult],
     output_dir: Path,
     hours_cutoff: int = 24,
     overview: CrossTopicSynthesis | None = None,
     diffs: dict[str, BulletDiff] | None = None,
+    topic_signals: list[LaggedCorrelation] | None = None,
+    tag_signals: list[LaggedCorrelation] | None = None,
 ) -> None:
     """
     Render all pipeline results to HTML files in output_dir.
@@ -104,6 +132,12 @@ def render_report(
     This is a pure rendering function: it takes data in, writes files out,
     and has no other side effects. It does not call the LLM, fetch feeds,
     or modify the results.
+
+    topic_signals/tag_signals are systems_signals.py's
+    topic_urgency_lagged_correlations()/tag_rate_lagged_correlations()
+    output (already FDR-corrected and filtered at call time -- everything
+    passed in here is treated as significant, there's no threshold logic
+    left to apply in the template).
 
     Output files:
       index.html              — main strategic report (one section per topic)
@@ -145,6 +179,8 @@ def render_report(
             updated=updated_str,
             hours_cutoff=hours_cutoff,
             total_tokens=total_usage.total_tokens,
+            topic_signals=_dedupe_bidirectional_lag_zero(topic_signals or []),
+            tag_signals=_dedupe_bidirectional_lag_zero(tag_signals or []),
         )
     )
 
