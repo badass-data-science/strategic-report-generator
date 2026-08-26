@@ -362,7 +362,9 @@ def check_emerging_tag_alerts(
         graph_data = build_graph_data(results)
         history = load_tag_rate_history(database_url)
         alerts = check_emerging_tags(graph_data, article_count, history, tag_z_score_threshold)
-        record_tags(database_url, run_id, graph_data)
+        failed_count = record_tags(database_url, run_id, graph_data)
+        if failed_count:
+            logger.warning(f"Tag graph: {failed_count} row(s) failed to insert")
         record_emerging_tag_alerts(database_url, run_id, alerts)
         record_bridge_tags(database_url, run_id, find_bridge_tags(graph_data))
 
@@ -412,7 +414,9 @@ async def summarize_community_tags(
             api_key=api_key,
         )
         community_summaries = await summarize_communities(results, display_data, client)
-        record_community_summaries(database_url, run_id, community_summaries)
+        failed_count = record_community_summaries(database_url, run_id, community_summaries)
+        if failed_count:
+            logger.warning(f"Community summaries: {failed_count} row(s) failed to insert")
         logger.info(
             f"Community summaries: {len(community_summaries)} of "
             f"{display_data['n_communities']} communities"

@@ -321,7 +321,13 @@ def run(
         tag_alerts = check_emerging_tags(
             graph_data, article_count, tag_rate_history, tag_z_score_threshold
         )
-        record_tags(database_url, run_id, graph_data)
+        failed_count = record_tags(database_url, run_id, graph_data)
+        if failed_count:
+            typer.echo(
+                f"[warn] Tag graph: {failed_count} row(s) failed to insert "
+                "(see logs for detail) — continuing with partial tag graph",
+                err=True,
+            )
         record_emerging_tag_alerts(database_url, run_id, tag_alerts)
         record_bridge_tags(database_url, run_id, find_bridge_tags(graph_data))
         if tag_alerts:
@@ -354,7 +360,13 @@ def run(
         community_summaries = asyncio.run(
             summarize_communities(results, display_data, community_client)
         )
-        record_community_summaries(database_url, run_id, community_summaries)
+        failed_count = record_community_summaries(database_url, run_id, community_summaries)
+        if failed_count:
+            typer.echo(
+                f"[warn] Community summaries: {failed_count} row(s) failed to insert "
+                "(see logs for detail) — continuing with partial data",
+                err=True,
+            )
         typer.echo(
             f"Community summaries: {len(community_summaries)} of "
             f"{display_data['n_communities']} communities"
