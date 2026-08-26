@@ -15,7 +15,9 @@ from strategic_reports.daily.core.systems_signals import (
     _benjamini_hochberg_qvalues,
     _containment_ratio,
     _drop_near_synonymous_pairs,
+    _drop_topically_clustered_pairs,
     _pearson_p_value,
+    _same_community_ratio,
     _tags_with_enough_activity,
     lagged_pearson,
 )
@@ -200,3 +202,75 @@ def test_drop_near_synonymous_pairs_boundary_is_exclusive() -> None:
     )
 
     assert kept == []
+
+
+def test_same_community_ratio_always_together() -> None:
+    tag_community_by_run = {
+        "run1": {"electric utility": 0, "power generation": 0},
+        "run2": {"electric utility": 3, "power generation": 3},
+        "run3": {"electric utility": 1, "power generation": 1},
+    }
+
+    ratio, n = _same_community_ratio("electric utility", "power generation", tag_community_by_run)
+
+    assert ratio == pytest.approx(1.0)
+    assert n == 3
+
+
+def test_same_community_ratio_never_together() -> None:
+    tag_community_by_run = {
+        "run1": {"energy": 0, "forex": 4},
+        "run2": {"energy": 1, "forex": 5},
+    }
+
+    ratio, n = _same_community_ratio("energy", "forex", tag_community_by_run)
+
+    assert ratio == pytest.approx(0.0)
+    assert n == 2
+
+
+def test_same_community_ratio_ignores_runs_missing_either_tag() -> None:
+    tag_community_by_run = {
+        "run1": {"a": 0, "b": 0},  # both present, same community
+        "run2": {"a": 0},  # b missing this run (e.g. pruned out) -- not counted
+    }
+
+    ratio, n = _same_community_ratio("a", "b", tag_community_by_run)
+
+    assert ratio == pytest.approx(1.0)
+    assert n == 1
+
+
+def test_same_community_ratio_no_shared_runs() -> None:
+    assert _same_community_ratio("a", "b", {}) == (0.0, 0)
+
+
+def test_drop_topically_clustered_pairs_excludes_high_overlap() -> None:
+    edge_rows = [("electric utility", "power generation"), ("energy", "forex")]
+    tag_community_by_run = {
+        "run1": {"electric utility": 0, "power generation": 0, "energy": 1, "forex": 4},
+        "run2": {"electric utility": 3, "power generation": 3, "energy": 1, "forex": 5},
+        "run3": {"electric utility": 1, "power generation": 1, "energy": 2, "forex": 6},
+    }
+
+    kept = _drop_topically_clustered_pairs(
+        edge_rows, tag_community_by_run, max_same_community_ratio=0.8, min_shared_runs=3
+    )
+
+    assert kept == [("energy", "forex")]
+
+
+def test_drop_topically_clustered_pairs_keeps_pairs_below_min_shared_runs() -> None:
+    # High overlap, but only 2 runs of evidence -- min_shared_runs=3 means
+    # "not enough evidence to call it a cluster," so the pair survives.
+    edge_rows = [("a", "b")]
+    tag_community_by_run = {
+        "run1": {"a": 0, "b": 0},
+        "run2": {"a": 1, "b": 1},
+    }
+
+    kept = _drop_topically_clustered_pairs(
+        edge_rows, tag_community_by_run, max_same_community_ratio=0.8, min_shared_runs=3
+    )
+
+    assert kept == [("a", "b")]

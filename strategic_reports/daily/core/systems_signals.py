@@ -72,6 +72,25 @@ _MIN_ACTIVE_RUNS_FOR_TAG_CORRELATION = 5
 # drag both tags along together), so a lag-based filter can't catch it.
 _MAX_CONTAINMENT_RATIO_FOR_TAG_CORRELATION = 0.8
 
+# Above this same-community ratio (fraction of runs, among runs where both
+# tags were assigned to some Louvain community that run, where they landed
+# in the SAME community), two tags are treated as the same broad topic
+# cluster and excluded from tag_rate_lagged_correlations -- e.g. "electric
+# utility"/"power generation" or "defense"/"military": not the same
+# entity (the containment ratio wouldn't catch these), but close enough on
+# the tag graph that a correlation between them isn't a surprising
+# cross-domain finding. Reuses community_summary_tags, which
+# tag_tracking.record_community_summaries already persists every run from
+# tag_graph.build_display_graph's Louvain clustering -- no new computation,
+# and no LLM call (that table's community_id/tag columns come from
+# networkx, not the LLM-written label/summary columns alongside them).
+_MAX_SAME_COMMUNITY_RATIO_FOR_TAG_CORRELATION = 0.8
+
+# Below this many runs where both tags were assigned a community at all,
+# there's not enough evidence to judge whether they're the same cluster --
+# same "skip rather than guess" reasoning as _MIN_RUNS_FOR_LAG.
+_MIN_SHARED_RUNS_FOR_COMMUNITY_FILTER = 3
+
 
 @dataclass
 class LaggedCorrelation:
@@ -379,6 +398,51 @@ def _drop_near_synonymous_pairs(
     ]
 
 
+def _same_community_ratio(
+    tag_a: str, tag_b: str, tag_community_by_run: dict[str, dict[str, int]]
+) -> tuple[float, int]:
+    """
+    (ratio, n) where n is the number of runs in which both tags were
+    assigned to some Louvain community, and ratio is the fraction of those
+    runs in which they landed in the SAME community. (0.0, 0) if the two
+    were never co-assigned a community at all.
+    """
+    shared = 0
+    same = 0
+    for communities in tag_community_by_run.values():
+        comm_a = communities.get(tag_a)
+        comm_b = communities.get(tag_b)
+        if comm_a is None or comm_b is None:
+            continue
+        shared += 1
+        if comm_a == comm_b:
+            same += 1
+    if shared == 0:
+        return 0.0, 0
+    return same / shared, shared
+
+
+def _drop_topically_clustered_pairs(
+    edge_rows: list[tuple[str, str]],
+    tag_community_by_run: dict[str, dict[str, int]],
+    max_same_community_ratio: float,
+    min_shared_runs: int,
+) -> list[tuple[str, str]]:
+    """
+    Remove pairs whose same-community ratio is at or above
+    max_same_community_ratio -- unless there are fewer than min_shared_runs
+    runs of evidence to judge that from, in which case the pair is kept
+    (not enough evidence to call it a cluster, so don't guess).
+    """
+    kept = []
+    for tag_a, tag_b in edge_rows:
+        ratio, shared = _same_community_ratio(tag_a, tag_b, tag_community_by_run)
+        if shared >= min_shared_runs and ratio >= max_same_community_ratio:
+            continue
+        kept.append((tag_a, tag_b))
+    return kept
+
+
 def tag_rate_lagged_correlations(
     database_url: str,
     max_lag: int = 3,
@@ -387,6 +451,7 @@ def tag_rate_lagged_correlations(
     fdr_q: float = 0.05,
     min_active_runs: int = _MIN_ACTIVE_RUNS_FOR_TAG_CORRELATION,
     max_containment_ratio: float = _MAX_CONTAINMENT_RATIO_FOR_TAG_CORRELATION,
+    max_same_community_ratio: float = _MAX_SAME_COMMUNITY_RATIO_FOR_TAG_CORRELATION,
 ) -> list[LaggedCorrelation]:
     """
     Lagged correlation over tag rates, restricted to tag pairs that have
@@ -395,9 +460,11 @@ def tag_rate_lagged_correlations(
     the right default here -- further restricted to tags active in at
     least min_active_runs runs, so a pair isn't reported purely because
     both tags are rare and happened to be nonzero together, and finally
-    with near-synonymous pairs (containment ratio >= max_containment_ratio,
-    summed across all history) dropped, since two co-referential tags
-    moving together isn't evidence of a feedback loop.
+    with both near-synonymous pairs (containment ratio >= max_containment_ratio)
+    and same-topic-cluster pairs (same-community ratio >= max_same_community_ratio)
+    dropped, since neither co-referential tags nor two tags from the same
+    Louvain community moving together is evidence of a cross-domain
+    feedback loop.
     """
     with get_connection(database_url) as conn:
         edge_rows = conn.execute(
@@ -413,9 +480,20 @@ def tag_rate_lagged_correlations(
         tag_totals = dict(
             conn.execute("SELECT tag, SUM(count) FROM tag_counts GROUP BY tag").fetchall()
         )
+        tag_community_by_run: dict[str, dict[str, int]] = {}
+        for run_id, tag, community_id in conn.execute(
+            "SELECT run_id, tag, community_id FROM community_summary_tags"
+        ).fetchall():
+            tag_community_by_run.setdefault(run_id, {})[tag] = community_id
 
     edge_rows = _drop_near_synonymous_pairs(
         edge_rows, co_occurrence_totals, tag_totals, max_containment_ratio
+    )
+    edge_rows = _drop_topically_clustered_pairs(
+        edge_rows,
+        tag_community_by_run,
+        max_same_community_ratio,
+        _MIN_SHARED_RUNS_FOR_COMMUNITY_FILTER,
     )
 
     candidate_tags = {t for a, b in edge_rows for t in (a, b)}
