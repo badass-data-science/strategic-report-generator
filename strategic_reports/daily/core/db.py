@@ -31,9 +31,13 @@ shape as before.
 import atexit
 from contextlib import AbstractContextManager
 from datetime import UTC, datetime
+from typing import Any
 
 import psycopg
+import structlog
 from psycopg_pool import ConnectionPool
+
+log = structlog.get_logger(__name__)
 
 _pools: dict[str, ConnectionPool] = {}
 
@@ -102,6 +106,55 @@ def ensure_database_reachable(database_url: str, connect_timeout: int = 5) -> No
     """
     with psycopg.connect(database_url, connect_timeout=connect_timeout) as conn:
         conn.execute("SELECT 1")
+
+
+def insert_rows_isolating_failures(
+    conn: psycopg.Connection, sql: str, rows: list[tuple[Any, ...]], run_id: str, table: str
+) -> int:
+    """
+    Insert `rows` via one batched executemany() inside a savepoint -- a
+    single round trip, the fast path, when nothing fails. If the batch
+    fails, retry each row individually inside its own savepoint so one bad
+    row can't silently discard the rest of `table` for this run --
+    get_connection()'s pooled connection rolls back its *entire*
+    transaction when any exception escapes the `with` block, so without
+    this, one bad row used to mean zero rows persisted for the whole run
+    (found and fixed first in article_archive.record_articles, after two
+    real runs ended up with fully populated tag_counts but zero rows in
+    articles/article_tags -- see article_archive_savepoint_fix in project
+    memory/CHANGELOG history). Batched first rather than looping
+    unconditionally, since a table like tag_edges can have tens of
+    thousands of rows in a single run and paying a per-row round trip
+    every time would be a real performance regression for the common case
+    where nothing fails.
+
+    Shared by every bulk insert against the tracking db (tag_tracking.py's
+    record_tags/record_community_summaries, urgency.py's append_run,
+    bullet_diff.py's append_bullet_run) — use this instead of a bare
+    executemany() in one shared transaction for any new one.
+
+    Returns the number of rows that failed to insert (0 = fully successful).
+    """
+    try:
+        with conn.transaction():
+            conn.cursor().executemany(sql, rows)
+        return 0
+    except Exception:
+        failed = 0
+        for row in rows:
+            try:
+                with conn.transaction():
+                    conn.execute(sql, row)
+            except Exception as exc:
+                failed += 1
+                log.warning(
+                    "bulk_insert_row_failed",
+                    run_id=run_id,
+                    table=table,
+                    row=row,
+                    error=repr(exc),
+                )
+        return failed
 
 
 def record_run(database_url: str, run_id: str, article_count: int) -> None:

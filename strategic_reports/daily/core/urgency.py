@@ -27,7 +27,7 @@ import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from .db import get_connection
+from .db import get_connection, insert_rows_isolating_failures
 from .models import TopicResult
 
 # Minimum number of historical runs required before the statistical baseline
@@ -77,24 +77,32 @@ def append_run(
     database_url: str,
     results: list[TopicResult],
     run_id: str,
-) -> None:
+) -> int:
     """
-    Insert the current run's urgency scores into the database.
+    Insert the current run's urgency scores into the database. Returns the
+    number of rows that failed to insert (0 = fully successful) — see
+    db.insert_rows_isolating_failures for why one bad row no longer risks
+    losing every topic's score for this run.
 
     Assumes db.record_run(database_url, run_id, ...) has already been called
     this run, so the run_id foreign key exists.
     """
     now = datetime.now(UTC).isoformat()
+    rows = [
+        (run_id, now, r.config.title, r.strategy.urgency_score)
+        for r in results
+        if r.strategy is not None
+    ]
     with get_connection(database_url) as conn:
-        conn.cursor().executemany(
+        failed = insert_rows_isolating_failures(
+            conn,
             "INSERT INTO urgency_scores (run_id, created_at, topic, score) VALUES (%s, %s, %s, %s)",
-            [
-                (run_id, now, r.config.title, r.strategy.urgency_score)
-                for r in results
-                if r.strategy is not None
-            ],
+            rows,
+            run_id,
+            "urgency_scores",
         )
         conn.commit()
+    return failed
 
 
 def check_alerts(

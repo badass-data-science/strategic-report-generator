@@ -87,6 +87,8 @@ from strategic_reports.daily.core import (
     remove_dead_feeds,
     run_pipeline,
     summarize_communities,
+    tag_rate_lagged_correlations,
+    topic_urgency_lagged_correlations,
     validate_topic_feeds,
     write_tag_graph,
 )
@@ -296,10 +298,17 @@ def run(
     # otherwise only exists in memory during this run. Never blocks
     # rendering on failure.
     try:
-        record_articles(database_url, run_id, results)
+        article_total = sum(len(r.articles) for r in results)
+        failed_count = record_articles(database_url, run_id, results)
+        if failed_count:
+            typer.echo(
+                f"[warn] Article archiving: {failed_count}/{article_total} article(s) failed "
+                "to archive (see logs for per-article detail) — continuing with partial archive",
+                err=True,
+            )
     except Exception as exc:
         typer.echo(
-            f"[warn] Article archiving failed: {exc} — continuing without archiving", err=True
+            f"[warn] Article archiving failed: {exc!r} — continuing without archiving", err=True
         )
 
     # Emerging-tag check: compare today's tag rates (tag count / articles
@@ -314,7 +323,13 @@ def run(
         tag_alerts = check_emerging_tags(
             graph_data, article_count, tag_rate_history, tag_z_score_threshold
         )
-        record_tags(database_url, run_id, graph_data)
+        failed_count = record_tags(database_url, run_id, graph_data)
+        if failed_count:
+            typer.echo(
+                f"[warn] Tag graph: {failed_count} row(s) failed to insert "
+                "(see logs for detail) — continuing with partial tag graph",
+                err=True,
+            )
         record_emerging_tag_alerts(database_url, run_id, tag_alerts)
         record_bridge_tags(database_url, run_id, find_bridge_tags(graph_data))
         if tag_alerts:
@@ -347,7 +362,13 @@ def run(
         community_summaries = asyncio.run(
             summarize_communities(results, display_data, community_client)
         )
-        record_community_summaries(database_url, run_id, community_summaries)
+        failed_count = record_community_summaries(database_url, run_id, community_summaries)
+        if failed_count:
+            typer.echo(
+                f"[warn] Community summaries: {failed_count} row(s) failed to insert "
+                "(see logs for detail) — continuing with partial data",
+                err=True,
+            )
         typer.echo(
             f"Community summaries: {len(community_summaries)} of "
             f"{display_data['n_communities']} communities"
@@ -395,7 +416,13 @@ def run(
     try:
         urgency_history = load_history(database_url)
         alerts = check_alerts(results, urgency_history, absolute_threshold, z_score_threshold)
-        append_run(database_url, results, run_id)
+        failed_count = append_run(database_url, results, run_id)
+        if failed_count:
+            typer.echo(
+                f"[warn] Urgency scores: {failed_count} row(s) failed to insert "
+                "(see logs for detail)",
+                err=True,
+            )
         if alerts:
             typer.echo(f"URGENCY ALERTS ({len(alerts)} topic(s)):")
             for urgency_alert in alerts:
@@ -413,7 +440,7 @@ def run(
         yesterday = load_bullet_history(database_url)
         if not yesterday:
             typer.echo("No bullet history yet — skipping diff on first run")
-            append_bullet_run(database_url, results, run_id)
+            failed_count = append_bullet_run(database_url, results, run_id)
         else:
             diff_client = LLMClient(
                 model=model,
@@ -424,16 +451,43 @@ def run(
                 api_key=ollama_api_key,
             )
             diffs = asyncio.run(diff_all_topics(results, yesterday, diff_client))
-            append_bullet_run(database_url, results, run_id)
+            failed_count = append_bullet_run(database_url, results, run_id)
+        if failed_count:
+            typer.echo(
+                f"[warn] Bullets: {failed_count} row(s) failed to insert (see logs for detail)",
+                err=True,
+            )
     except Exception as exc:
         typer.echo(
             f"[warn] Bullet diff failed: {exc} — report will render without diffs", err=True
         )
         diffs = {}
 
+    # Systems signals: candidate feedback-loop correlations across topic
+    # urgency and tag coverage rate history (see systems_signals.py). Runs
+    # last, right before rendering, since it reads this run's own
+    # urgency_scores/tag_counts/tag_edges/tag_topics/community_summary_tags/
+    # articles rows — all written by steps above. Never blocks rendering
+    # on failure.
+    try:
+        topic_signals = topic_urgency_lagged_correlations(database_url)
+        tag_signals = tag_rate_lagged_correlations(database_url)
+    except Exception as exc:
+        typer.echo(
+            f"[warn] Systems signals failed: {exc!r} — report will render without them",
+            err=True,
+        )
+        topic_signals, tag_signals = [], []
+
     # render_report() is synchronous (Jinja2 rendering is fast, no I/O bottleneck).
     render_report(
-        results, output_dir=output_dir, hours_cutoff=hours_cutoff, overview=overview, diffs=diffs
+        results,
+        output_dir=output_dir,
+        hours_cutoff=hours_cutoff,
+        overview=overview,
+        diffs=diffs,
+        topic_signals=topic_signals,
+        tag_signals=tag_signals,
     )
 
     # Tag co-occurrence graph — written into the same output_dir as the HTML

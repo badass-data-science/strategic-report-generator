@@ -25,6 +25,16 @@ against that accumulated structure directly. The HTML report is this
 pipeline's most visible output today; the graph and its growing archive are
 the parts meant to matter more over time.
 
+Beyond structure, the pipeline also looks for *dynamics*: lagged correlation
+across each run's accumulated history surfaces candidate feedback
+loops — pairs of topics or tags whose values move together now, or one run
+later — filtered through several layers (false-discovery correction,
+sparsity/containment/community/topic-volume/single-source checks) before
+anything is reported as a real signal rather than a coincidence. See
+[Systems Signals surfaces candidate feedback loops, filtered
+aggressively](#systems-signals-surfaces-candidate-feedback-loops-filtered-aggressively)
+below.
+
 > **Caveat emptor.** LLM-generated strategic analysis is a starting point, not
 > a substitute for human judgment. Apply your own reasoning and follow-up
 > research before acting on any recommendation.
@@ -62,15 +72,27 @@ Phase 4 — Historical Diffing  [concurrent per-topic LLM calls]
                                                         (new / continued / dropped)
   (skipped on first run; today's bullets inserted into --database-url after diff)
 
-Phase 5 — Rendering  [Jinja2 templates]
+Phase 5 — Systems Signals  [pure DB read, no LLM]
 
-  CrossTopicSynthesis ──► Strategic Overview section (top of index.html)
-  dict[topic, BulletDiff] ──► "Since yesterday" annotations per topic
+  --database-url (urgency_scores/tag_counts/tag_edges/tag_topics/
+    community_summary_tags/articles) ──► topic_urgency_lagged_correlations()
+                                      ──► tag_rate_lagged_correlations()
+                                          (FDR-corrected, five-filter chain —
+                                          see Design decisions)
+                                      ──► list[LaggedCorrelation] x2
+                                          (never persisted — recomputed fresh
+                                          every run)
+
+Phase 6 — Rendering  [Jinja2 templates]
+
+  CrossTopicSynthesis      ──► Strategic Overview section (top of index.html)
+  list[LaggedCorrelation] x2 ──► Systems Signals section (index.html)
+  dict[topic, BulletDiff]  ──► "Since yesterday" annotations per topic
   list[TopicResult]   ──► index.html  (per-topic sections)
                       ──► {topic}_summaries.html  (one per topic)
                       ──► tag_graph.html + tag_graph.json  (D3.js tag network)
 
-Phase 6 — Upload  [SCP + SSH]
+Phase 7 — Upload  [SCP + SSH]
 
   output_dir/ ──► remote staging dir ──► web root
 ```
@@ -151,6 +173,45 @@ failure is isolated (logged, omitted) and never blocks the others or the
 rest of the report. Persisted to `community_summaries`/
 `community_summary_tags` (see [Output](#output)), this is the retrieval
 material the `ask` command reads (see next section).
+
+### Systems Signals surfaces candidate feedback loops, filtered aggressively
+
+`topic_urgency_lagged_correlations()` and `tag_rate_lagged_correlations()`
+(`systems_signals.py`) look for lagged correlation across each run's
+accumulated history — does topic A's urgency score, or tag B's coverage
+rate, predict another topic's or tag's value some number of runs later?
+An uncorrected all-pairs scan is almost pure noise (on a 14-run archive it
+returned roughly 40 "significant" topic pairs and just under 10,000 tag
+pairs, from testing thousands of hypotheses in one pass), so every
+candidate goes through a Benjamini-Hochberg false-discovery-rate
+correction before it can be reported at all, on top of five
+structural/statistical filters specific to the tag-rate side:
+
+- a **sparsity floor** — a tag needs enough history in enough runs before
+  it's even eligible, since two rare tags can trivially "perfectly
+  correlate" just by both being nonzero in the same handful of runs;
+- a **containment-ratio** check for near-synonymous tags — two labels for
+  the same entity (e.g. a company and its own product line) rather than
+  two independently-moving things;
+- a **Louvain-community filter** for topically-adjacent-but-distinct
+  pairs, reusing the exact same community detection `tag_graph.py`
+  already computes rather than inventing a second clustering;
+- a **partial-correlation topic-volume control** for cross-topic
+  confounds — two tags riding the same broader news wave (a busy topic,
+  or a trend spanning several topics at once) without one actually
+  predicting the other;
+- a **source-dominance filter** for pairs that mostly co-occur because one
+  recurring source (e.g. a single daily digest) happens to mention both,
+  not because the two things move together.
+
+`lag` is counted in runs, not calendar days — the pipeline sometimes runs
+more than once in a day. Nothing here is persisted: both functions
+recompute fresh from `urgency_scores`/`tag_counts`/`tag_edges`/
+`tag_topics`/`community_summary_tags`/`articles` (see [Output](#output))
+on every call, and the result only ever reaches that run's `index.html`
+**Systems Signals** section — not the database, not a prior report, since
+`--output-dir` itself is wiped every run (see the warning in
+[Output](#output)).
 
 ### `ask` is graph-guided retrieval, not full GraphRAG
 
@@ -582,7 +643,7 @@ prefect deployment run 'daily-strategic-report/daily-strategic-report' \
 
 ### Flow structure
 
-The flow contains eleven tasks, each tracked independently in the Prefect UI:
+The flow contains twelve tasks, each tracked independently in the Prefect UI:
 
 ```
 daily_report_flow
@@ -604,6 +665,9 @@ daily_report_flow
   │                                        retries=2; fails gracefully to {}
   │                                        skipped (no diff) on first run
   │                                        inserts into --database-url (bullets table)
+  ├── compute-systems-signals     (sync)   lagged correlation over topic urgency + tag coverage
+  │                                        history (see Design decisions); fails gracefully to
+  │                                        ([], []); read-only, no inserts
   ├── render-html-report          (sync)   Jinja2 → HTML output files
   ├── build-tag-graph             (sync)   tag co-occurrence graph → tag_graph.json + tag_graph.html
   └── export-rdf                  (sync)   full-rebuild RDF (Turtle) export → knowledge_graph.ttl next to output_dir
@@ -660,7 +724,7 @@ ruff check .
 mypy
 ```
 
-216 tests across 16 files. No real API calls — the LLM client is fully mocked.
+293 tests across 17 files. No real API calls — the LLM client is fully mocked.
 DB-touching tests need a reachable PostgreSQL instance (`DATABASE_URL`) —
 run `docker compose up -d` first for local dev (see [Quick
 start](#quick-start)). A GitHub Actions workflow
@@ -673,20 +737,21 @@ in `--strict` mode across both `strategic_reports/` and `tests/`.
 ```
 tests/test_models.py      Pydantic validation and TokenUsage arithmetic
 tests/test_prompts.py     Prompt builder output shape and content
-tests/test_renderer.py    HTML rendering for all three result states + XSS
+tests/test_renderer.py    HTML rendering for all three result states + XSS; Systems Signals section (empty state, both-and-neither signal groups, lag=0 bidirectional dedup, XSS)
 tests/test_ingestion.py   RSS fetching with mocked feedparser
 tests/test_feed_validation.py  Feed health checks and REMOVED.json pruning/logging, with mocked feedparser
 tests/test_pipeline.py    Async orchestration with mocked LLMClient; summarize_communities() and answer_archive_question()/extract_query_tags() concurrency + failure isolation
-tests/test_urgency.py     Urgency alerting: absolute threshold, z-score, std==0 fallback, history persistence
-tests/test_bullet_diff.py Bullet-history storage: most-recent-run lookup, ordering, multi-topic
-tests/test_db.py          Tracking-db safety guard, schema creation, run registration
-tests/test_tag_tracking.py  Tag-graph db round-trip, rate-history normalization, emerging-tag z-score, bridge-tag/community-summary audit trails
+tests/test_urgency.py     Urgency alerting: absolute threshold, z-score, std==0 fallback, history persistence, per-row failure isolation (savepoints) for append_run
+tests/test_bullet_diff.py Bullet-history storage: most-recent-run lookup, ordering, multi-topic, per-row failure isolation (savepoints) for append_bullet_run
+tests/test_db.py          Tracking-db safety guard, schema creation, run registration, shared insert_rows_isolating_failures helper
+tests/test_tag_tracking.py  Tag-graph db round-trip, rate-history normalization, emerging-tag z-score, bridge-tag/community-summary audit trails, per-row failure isolation (savepoints) for record_tags/record_community_summaries
 tests/test_tag_graph.py    find_bridge_tags(), group_articles_by_community(): filtering, sorting, dedup, multi-community span
-tests/test_article_archive.py  Article-summary db round-trip, ordering, multi-topic, error/empty topics
+tests/test_article_archive.py  Article-summary db round-trip, ordering, multi-topic, error/empty topics, per-article failure isolation (savepoints)
 tests/test_archive_query.py  find_relevant_communities(): exact/substring matching, dedup, ordering, limit
 tests/test_tag_normalizer.py  Tag synonym normalization
 tests/test_overview_archive.py  Cross-topic overview bullet round-trip, ordering, multi-run
 tests/test_rdf_export.py  RDF ontology mapping (articles/tags/communities/bridge tags/urgency/bullets/overview), --since filtering, Turtle serialization
+tests/test_systems_signals.py  Lagged/partial-correlation math, Benjamini-Hochberg FDR correction, all five tag-rate filters (sparsity, containment, community, topic-volume, single-source) — pure-function tests against synthetic series, no DB
 ```
 
 ---
@@ -709,22 +774,23 @@ strategic_reports/
       tag_graph.py       Tag co-occurrence graph builder; full tag_graph.json + pruned/community tag_graph_display.json + tag_graph.html; find_bridge_tags(), group_articles_by_community()
       urgency.py         Urgency alert logic: absolute threshold + z-score baseline (PostgreSQL-backed)
       bullet_diff.py     Historical bullet diffing: load/append history, concurrent per-topic LLM diff (PostgreSQL-backed)
-      db.py              PostgreSQL tracking database: pooled connection helper, reachability check, run registration (schema lives in alembic/)
+      db.py              PostgreSQL tracking database: pooled connection helper, reachability check, run registration, shared insert_rows_isolating_failures helper (schema lives in alembic/)
       article_archive.py Persists each run's article summaries (source material), linked to run_id
       overview_archive.py  Persists each run's cross-topic synthesis overview bullets, linked to run_id
       archive_query.py   Graph-guided retrieval: find_relevant_communities() for the `ask` CLI command
       tag_tracking.py    Per-run tag-graph persistence (linked to run_id) + emerging-tag z-score alerting + community-summary persistence
+      systems_signals.py Lagged/partial correlation over topic urgency + tag coverage rate history; five-filter tag-rate chain + FDR correction — read-only, nothing persisted
       rdf_export.py      Builds an RDF (Turtle) export of the tracking database for the `export-rdf` CLI command
       tracing.py         Langfuse and Phoenix setup (opt-in)
     templates/
       base.html.j2       Shared layout and styles
-      index.html.j2      Main strategic report (Strategic Overview + per-topic sections)
+      index.html.j2      Main strategic report (Strategic Overview + Systems Signals + per-topic sections)
       topic.html.j2      Per-topic article summaries
     data/
       rss_feeds/         One JSON file per topic listing RSS feed URLs — packaged as wheel data
         REMOVED.json     Audit log of feeds removed by `validate-feeds --fix` or by hand
     flows/
-      daily_report.py    Prefect flow (see Scheduling with Prefect) — eleven tasks, including export-rdf as the last one
+      daily_report.py    Prefect flow (see Scheduling with Prefect) — twelve tasks, including export-rdf as the last one
     config/
       topic_order.py     Ordered list of topic slugs and display titles
     cli.py               typer CLI entrypoint
@@ -751,7 +817,7 @@ docker-compose.yml      Local-dev PostgreSQL for the test suite / manual runs
 
 The pipeline writes the following files to `--output-dir`:
 
-- **`index.html`** — the main report. Opens with a highlighted **Strategic Overview** section (3–4 cross-cutting bullets synthesized across all topics), followed by one section per topic with 3–5 strategic bullet points. On runs after the first, each topic also shows a **Since yesterday** annotation: new bullets highlighted in green, dropped bullets in muted strikethrough. Errors and empty topics are surfaced inline rather than hidden.
+- **`index.html`** — the main report. Opens with a highlighted **Strategic Overview** section (3–4 cross-cutting bullets synthesized across all topics), followed by a **Systems Signals** section (candidate feedback loops from lagged correlation — see [Design decisions](#systems-signals-surfaces-candidate-feedback-loops-filtered-aggressively) — grouped into Topic Urgency and Tag Coverage results, each with its correlation, lag, and q-value; shown even when empty, with a plain "no candidate feedback loops cleared significance today" message rather than disappearing), followed by one section per topic with 3–5 strategic bullet points. On runs after the first, each topic also shows a **Since yesterday** annotation: new bullets highlighted in green, dropped bullets in muted strikethrough. Errors and empty topics are surfaced inline rather than hidden.
 - **`{topic}_summaries.html`** — per-article summaries and tags for every article that fed into that topic's strategic synthesis. Each article is also marked up as a `schema:Article` JSON-LD block (`headline`/`url`/`datePublished`) — the same fields `export-rdf` maps onto `schema:Article` — for structured-data consumers (search engines, scrapers) that only have access to the HTML, not `--database-url`.
 - **`tag_graph.html`** — interactive D3.js force-directed graph of tag co-occurrences. Self-contained: graph data is inlined at build time so it opens directly from the filesystem (`file://`) without a web server. Node color = Louvain community cluster; node size = article count; edge thickness = co-occurrence count. Sliders allow further filtering by minimum co-occurrence and minimum article count. Hovering a node shows its community label (named after the highest-count tag in that cluster).
 - **`tag_graph_display.json`** — pruned and community-annotated graph consumed by `tag_graph.html`. Nodes with fewer than 3 article appearances and edges with fewer than 2 co-occurrences are dropped before Louvain community detection runs. Typically ~200 nodes and ~800 edges.
@@ -761,18 +827,21 @@ Cross-run history is kept separately, in the PostgreSQL database at
 `--database-url` (see [Configuration](#configuration)):
 
 - **`runs`** — one row per pipeline run: `run_id`, `created_at` timestamp, and `article_count` (total articles considered that run — the denominator for comparing tag weights across runs, since a raw tag count means something different on a 400-article day than a 50-article one).
-- **`articles`**, **`article_summary_bullets`**, **`article_tags`** — every article's title, link, publish date, summary bullets, and tags, linked to `run_id`. This is the source material every derived signal below (tags, bullets, urgency scores) is computed from — otherwise it exists only in memory during a run and is lost once `{topic}_summaries.html` (in the wiped `--output-dir`) is gone. Not currently read by `ask` (which reads `community_summaries` instead) — available for a future retrieval mode grounded in raw article text.
-- **`urgency_scores`** — one row per topic per run; used by the z-score baseline after 7 runs per topic.
-- **`bullets`** — one row per strategic bullet per topic per run; used by the bullet diff to identify what changed since the most recent prior run.
-- **`tag_counts`**, **`tag_topics`**, **`tag_edges`** — one run's tag graph (per-tag counts, per-tag topic membership, and tag-pair co-occurrence edges), linked to `run_id`. Together these let `tag_graph.json` be reconstructed for any past run directly from the database. `tag_counts` also backs the emerging-tag z-score alert: a tag's rate (count ÷ that run's `article_count`) is compared against its own historical rate once it has 7+ prior runs; tags with less history (including brand-new tags) are skipped rather than guessed at, since — unlike urgency scores — tag rates have no meaningful absolute cutoff to fall back on.
+- **`articles`**, **`article_summary_bullets`**, **`article_tags`** — every article's title, link, publish date, summary bullets, and tags, linked to `run_id`. This is the source material every derived signal below (tags, bullets, urgency scores) is computed from — otherwise it exists only in memory during a run and is lost once `{topic}_summaries.html` (in the wiped `--output-dir`) is gone. Each article's insert is isolated in its own savepoint (`article_archive.record_articles`), so one bad row only loses that article, not the whole run's archive. Not currently read by `ask` (which reads `community_summaries` instead) — read by Systems Signals' topic-volume control and single-source filter (see [Design decisions](#systems-signals-surfaces-candidate-feedback-loops-filtered-aggressively)), and available for a future retrieval mode grounded in raw article text.
+- **`urgency_scores`** — one row per topic per run; used by the z-score baseline after 7 runs per topic. Each row's insert (`urgency.append_run`) is isolated the same way as `articles`/`tag_counts` above.
+- **`bullets`** — one row per strategic bullet per topic per run; used by the bullet diff to identify what changed since the most recent prior run. Each row's insert (`bullet_diff.append_bullet_run`) is isolated the same way.
+- **`tag_counts`**, **`tag_topics`**, **`tag_edges`** — one run's tag graph (per-tag counts, per-tag topic membership, and tag-pair co-occurrence edges), linked to `run_id`. Together these let `tag_graph.json` be reconstructed for any past run directly from the database, and are what `systems_signals.tag_rate_lagged_correlations()` reads its rate series and candidate pairs from. `tag_counts` also backs the emerging-tag z-score alert: a tag's rate (count ÷ that run's `article_count`) is compared against its own historical rate once it has 7+ prior runs; tags with less history (including brand-new tags) are skipped rather than guessed at, since — unlike urgency scores — tag rates have no meaningful absolute cutoff to fall back on. Like `articles` above, each row's insert (`tag_tracking.record_tags`) is isolated — batched for speed, falling back to one-row-at-a-time savepoints only if the batch fails, since a single run can produce tens of thousands of `tag_edges` rows.
 - **`emerging_tag_alerts`** — an audit trail of the alerts that actually fired: `tag`, `count`, `rate`, `mean`, `std`, `z_score`, linked to `run_id`. Only fired alerts are stored here, not every tag's rate/z-score every run — those stay recomputable on demand from `tag_counts` + `runs.article_count`.
 - **`bridge_tags`**, **`bridge_tag_topics`** — an audit trail of the bridge tags (`tag_graph.find_bridge_tags()`) actually surfaced to the cross-topic synthesis prompt each run: `tag`, `count`, `rank`, and each tag's topic list, linked to `run_id`. Answers "which tags did we point the synthesis at on day N" directly, without recomputing from `results`.
-- **`community_summaries`**, **`community_summary_tags`** — an LLM-written paragraph per Louvain tag-community (`label`, `summary`, `article_count`, and each community's member tags), linked to `run_id`. Grounded in the articles whose tags belong to that community; replaces "labeled by top tag" with real substance.
+- **`community_summaries`**, **`community_summary_tags`** — an LLM-written paragraph per Louvain tag-community (`label`, `summary`, `article_count`, and each community's member tags), linked to `run_id`. Grounded in the articles whose tags belong to that community; replaces "labeled by top tag" with real substance. `community_summary_tags` is also what `systems_signals.tag_rate_lagged_correlations()`'s community filter reads for topical-adjacency checks (see [Design decisions](#systems-signals-surfaces-candidate-feedback-loops-filtered-aggressively)) — the Louvain clustering itself comes from `tag_graph.py`, not an LLM call, even though it's persisted alongside the LLM-written summary text.
 - **`cross_topic_overviews`** — one row per Strategic Overview bullet per run, linked to `run_id`. The cross-topic synthesis is rendered into `index.html` but was otherwise never persisted anywhere — this is what `export-rdf` (see [Exporting an RDF knowledge graph](#exporting-an-rdf-knowledge-graph)) reads to include it in the knowledge graph.
 
 Every row carries its own `created_at` timestamp in addition to `run_id`, and
 nothing is pruned — unlike the JSON files this replaced, which capped bullet
 history at the last 7 runs, the database keeps full history indefinitely.
+Systems Signals (see [Design decisions](#systems-signals-surfaces-candidate-feedback-loops-filtered-aggressively))
+reads across several of the tables above but doesn't add one of its own —
+its output is recomputed fresh on every run, not persisted.
 
 Weekend runs will produce thinner output — most news sources don't publish on weekends.
 

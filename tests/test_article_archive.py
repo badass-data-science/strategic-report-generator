@@ -131,3 +131,29 @@ class TestRecordAndLoadArticles:
 
         assert [a["title"] for a in load_articles(database_url, "run-0")] == ["Day 1"]
         assert [a["title"] for a in load_articles(database_url, "run-1")] == ["Day 2"]
+
+    def test_record_articles_returns_zero_on_full_success(self, database_url: str) -> None:
+        record_run(database_url, "run-0", article_count=1)
+        results = _make_results([_make_article("A", "https://example.com/a")])
+        assert record_articles(database_url, "run-0", results) == 0
+
+    def test_one_bad_article_does_not_lose_the_whole_run(self, database_url: str) -> None:
+        # A NUL byte is valid in a Python str (so ArticleSummary's plain
+        # `title: str` field accepts it) but Postgres text columns reject it
+        # outright -- a reliable, realistic way to make exactly one
+        # article's insert fail without mocking. Before the per-article
+        # savepoint fix, this exception would abort get_connection()'s
+        # whole transaction and silently lose every article in the run,
+        # not just the bad one -- see article_archive.py's docstring.
+        record_run(database_url, "run-0", article_count=3)
+        results = _make_results([
+            _make_article("Good 1", "https://example.com/1"),
+            _make_article("Bad \x00 title", "https://example.com/2"),
+            _make_article("Good 3", "https://example.com/3"),
+        ])
+
+        failed_count = record_articles(database_url, "run-0", results)
+
+        assert failed_count == 1
+        titles = {a["title"] for a in load_articles(database_url, "run-0")}
+        assert titles == {"Good 1", "Good 3"}

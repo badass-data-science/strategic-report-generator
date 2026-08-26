@@ -30,6 +30,53 @@
   .toc h2 { margin-top: 0; font-size: 1.1rem; color: #111; }
   .toc ul { margin: .4rem 0 0; }
   .toc ul ul { margin: .3rem 0 .3rem .2rem; }
+
+  .signals {
+    background: #eef8f6;
+    border-left: 4px solid #0f9488;
+    border-radius: 4px;
+    padding: 1rem 1.25rem 1.25rem;
+    margin: 1.5rem 0 2rem;
+  }
+  .signals h2 { margin-top: 0; font-size: 1.1rem; color: #0b6b60; }
+  .signals .lede { margin: .25rem 0 0; }
+  .signals-group + .signals-group { margin-top: 1.1rem; }
+  .signals-group-label {
+    font-weight: 600;
+    font-size: .78rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: #767676;
+    margin: 0 0 .5rem;
+  }
+  .signal-cards { display: flex; flex-direction: column; gap: .6rem; }
+  .signal-card {
+    background: #fff;
+    border: 1px solid #d7ece9;
+    border-radius: 5px;
+    padding: .7rem .85rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .signal-card .pair { font-size: .98rem; }
+  .signal-card .pair .arrow { color: #7a7a7a; padding: 0 .15rem; }
+  .signal-card .gloss { color: #555; font-size: .87rem; margin-top: .2rem; }
+  .signal-card .stats { color: #555; font-size: .82rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .signal-card .card-right { display: flex; flex-direction: column; align-items: flex-end; gap: .3rem; }
+  .signal-chip {
+    display: inline-block;
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .02em;
+    padding: .2rem .55rem;
+    border-radius: 99px;
+    white-space: nowrap;
+    background: #e6f4ea;
+    color: #1a7a3c;
+  }
 </style>
 {% endblock %}
 
@@ -41,13 +88,14 @@
   Apply judgement before acting on any recommendation. <strong>Caveat emptor!</strong></span>
 </p>
 
-{% if overview or results %}
+{% if overview or results or topic_signals or tag_signals %}
 <nav class="toc">
   <h2>Table of Contents</h2>
   <ul>
     {% if overview %}
     <li><a href="#strategic-overview">Strategic Overview</a></li>
     {% endif %}
+    <li><a href="#systems-signals">Systems Signals</a></li>
     {% if results %}
     <li>
       Topic-Specific Strategic Insights
@@ -72,6 +120,56 @@
   </ul>
 </div>
 {% endif %}
+
+{% macro signal_card(c) %}
+<div class="signal-card">
+  <div>
+    <div class="pair">
+      {{ c.subject_a }}
+      <span class="arrow">{{ "→" if c.lag > 0 else "↔" }}</span>
+      {{ c.subject_b }}
+    </div>
+    <div class="gloss">
+      {% if c.lag > 0 %}
+      {{ c.subject_a }} led {{ c.subject_b }} by {{ c.lag }} run{{ "s" if c.lag != 1 else "" }}.
+      {% else %}
+      Moved together the same run.
+      {% endif %}
+    </div>
+  </div>
+  <div class="card-right">
+    <span class="signal-chip">Significant · q = {{ "%.3f" | format(c.q_value) }}</span>
+    <span class="stats">r = {{ "%+.2f" | format(c.correlation) }} · lag {{ c.lag }} · n = {{ c.n }}</span>
+  </div>
+</div>
+{% endmacro %}
+
+<div class="signals" id="systems-signals">
+  <h2>Systems Signals</h2>
+  <p class="lede">Candidate feedback loops: pairs of topics or tags whose coverage has moved together across recent runs, tested at several lags so a leading indicator can surface, not just a same-day coincidence.</p>
+
+  {% if topic_signals or tag_signals %}
+  {% if topic_signals %}
+  <div class="signals-group">
+    <p class="signals-group-label">Topic Urgency</p>
+    <div class="signal-cards">
+      {% for c in topic_signals %}{{ signal_card(c) }}{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if tag_signals %}
+  <div class="signals-group">
+    <p class="signals-group-label">Tag Coverage</p>
+    <div class="signal-cards">
+      {% for c in tag_signals %}{{ signal_card(c) }}{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {% else %}
+  <p class="meta">No candidate feedback loops cleared significance today.</p>
+  {% endif %}
+</div>
 
 {% for result in results %}
 <section id="{{ result.config.slug | replace('feeds_', '') }}">

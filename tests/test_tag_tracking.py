@@ -94,6 +94,41 @@ class TestRecordAndRebuildGraphData:
     def test_rebuild_empty_for_unknown_run_id(self, database_url: str) -> None:
         assert rebuild_graph_data(database_url, "nonexistent-run") == {"nodes": [], "links": []}
 
+    def test_record_tags_returns_zero_on_full_success(self, database_url: str) -> None:
+        record_run(database_url, "run-0", article_count=1)
+        graph_data = {
+            "nodes": [{"id": "good_tag", "count": 1, "topics": ["Topic A"]}],
+            "links": [],
+        }
+        assert record_tags(database_url, "run-0", graph_data) == 0
+
+    def test_one_bad_tag_does_not_lose_the_whole_run(self, database_url: str) -> None:
+        # A NUL byte is valid in a Python str but Postgres text columns
+        # reject it outright -- a reliable way to force exactly one bad
+        # row per table without mocking (see article_archive_savepoint_fix
+        # for the article-archive counterpart of this bug/fix). The bad
+        # tag contributes one bad tag_counts row and one bad tag_topics
+        # row; the good nodes and the edge between them (no NUL bytes)
+        # should all survive via the per-row savepoint fallback.
+        record_run(database_url, "run-0", article_count=1)
+        graph_data = {
+            "nodes": [
+                {"id": "good_tag_1", "count": 5, "topics": ["Topic A"]},
+                {"id": "bad\x00tag", "count": 3, "topics": ["Topic A"]},
+                {"id": "good_tag_2", "count": 2, "topics": []},
+            ],
+            "links": [{"source": "good_tag_1", "target": "good_tag_2", "weight": 1}],
+        }
+
+        failed_count = record_tags(database_url, "run-0", graph_data)
+
+        assert failed_count == 2  # 1 tag_counts row + 1 tag_topics row
+        rebuilt = rebuild_graph_data(database_url, "run-0")
+        assert {n["id"] for n in rebuilt["nodes"]} == {"good_tag_1", "good_tag_2"}
+        assert rebuilt["links"] == [
+            {"source": "good_tag_1", "target": "good_tag_2", "weight": 1}
+        ]
+
 
 class TestLoadTagRateHistory:
     def test_empty_when_no_prior_runs(self, database_url: str) -> None:
@@ -415,3 +450,40 @@ class TestRecordCommunitySummaries:
                 row[0] for row in conn.execute("SELECT label FROM community_summaries").fetchall()
             }
         assert labels == {"policy", "biotech"}
+
+    def test_returns_zero_on_full_success(self, database_url: str) -> None:
+        record_run(database_url, "run-0", article_count=100)
+        community_summaries = {
+            0: {"label": "policy", "tags": ["policy"], "summary": "x", "article_count": 1},
+        }
+        assert record_community_summaries(database_url, "run-0", community_summaries) == 0
+
+    def test_one_bad_tag_does_not_lose_the_whole_run(self, database_url: str) -> None:
+        # Same NUL-byte trick as test_one_bad_tag_does_not_lose_the_whole_run
+        # in TestRecordAndRebuildGraphData: valid in a Python str, rejected
+        # by Postgres text columns -- forces exactly one bad
+        # community_summary_tags row without mocking.
+        record_run(database_url, "run-0", article_count=100)
+        community_summaries = {
+            0: {
+                "label": "policy",
+                "tags": ["good_tag", "bad\x00tag"],
+                "summary": "x",
+                "article_count": 1,
+            },
+            1: {"label": "biotech", "tags": ["another_good"], "summary": "y", "article_count": 2},
+        }
+
+        failed_count = record_community_summaries(database_url, "run-0", community_summaries)
+
+        assert failed_count == 1
+        with get_connection(database_url) as conn:
+            labels = {
+                row[0] for row in conn.execute("SELECT label FROM community_summaries").fetchall()
+            }
+            tags = {
+                row[0]
+                for row in conn.execute("SELECT tag FROM community_summary_tags").fetchall()
+            }
+        assert labels == {"policy", "biotech"}  # community_summaries itself untouched
+        assert tags == {"good_tag", "another_good"}

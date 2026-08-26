@@ -101,3 +101,31 @@ class TestLoadBulletHistory:
         record_run(database_url, "run-0", article_count=0)
         append_bullet_run(database_url, [result], run_id="run-0")
         assert load_bullet_history(database_url) == {}
+
+
+class TestAppendBulletRunFailureIsolation:
+    def test_returns_zero_on_full_success(self, database_url: str) -> None:
+        record_run(database_url, "run-0", article_count=0)
+        result = _make_result("AI", ["A.", "B.", "C."])
+        assert append_bullet_run(database_url, [result], run_id="run-0") == 0
+
+    def test_one_bad_bullet_does_not_lose_the_rest(self, database_url: str) -> None:
+        # A NUL byte is valid in a Python str but Postgres text columns
+        # reject it outright -- a reliable way to force exactly one bad
+        # row without mocking (see article_archive_savepoint_fix for the
+        # article-archive counterpart of this bug/fix). Before
+        # db.insert_rows_isolating_failures, this would have aborted the
+        # whole batch and lost every bullet for every topic in the run,
+        # not just the bad one.
+        record_run(database_url, "run-0", article_count=0)
+        results = [
+            _make_result("AI", ["Good bullet one.", "Bad \x00 bullet.", "Good bullet two."]),
+            _make_result("Defense", ["D1.", "D2.", "D3."]),
+        ]
+
+        failed_count = append_bullet_run(database_url, results, run_id="run-0")
+
+        assert failed_count == 1
+        yesterday = load_bullet_history(database_url)
+        assert yesterday["AI"] == ["Good bullet one.", "Good bullet two."]
+        assert yesterday["Defense"] == ["D1.", "D2.", "D3."]

@@ -24,7 +24,7 @@ from datetime import UTC, datetime
 
 import structlog
 
-from .db import get_connection
+from .db import get_connection, insert_rows_isolating_failures
 from .llm_client import LLMClient
 from .models import BulletDiff, TopicResult
 from .prompts import SYSTEM_DIFF, build_diff_prompt
@@ -61,9 +61,12 @@ def append_bullet_run(
     database_url: str,
     results: list[TopicResult],
     run_id: str,
-) -> None:
+) -> int:
     """
-    Insert today's strategic bullets into the database.
+    Insert today's strategic bullets into the database. Returns the number
+    of rows that failed to insert (0 = fully successful) — see
+    db.insert_rows_isolating_failures for why one bad row no longer risks
+    losing every bullet for this run.
 
     Assumes db.record_run(database_url, run_id, ...) has already been
     called this run, so the run_id foreign key exists.
@@ -76,12 +79,16 @@ def append_bullet_run(
         for i, bullet in enumerate(r.strategy.bullets)
     ]
     with get_connection(database_url) as conn:
-        conn.cursor().executemany(
+        failed = insert_rows_isolating_failures(
+            conn,
             "INSERT INTO bullets (run_id, created_at, topic, bullet_index, bullet_text) "
             "VALUES (%s, %s, %s, %s, %s)",
             rows,
+            run_id,
+            "bullets",
         )
         conn.commit()
+    return failed
 
 
 async def _diff_one_topic(

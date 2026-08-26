@@ -80,6 +80,11 @@ from strategic_reports.daily.core.overview_archive import record_overview
 from strategic_reports.daily.core.pipeline import summarize_communities, synthesize_cross_topic
 from strategic_reports.daily.core.rdf_export import export_rdf
 from strategic_reports.daily.core.renderer import render_report
+from strategic_reports.daily.core.systems_signals import (
+    LaggedCorrelation,
+    tag_rate_lagged_correlations,
+    topic_urgency_lagged_correlations,
+)
 from strategic_reports.daily.core.tag_graph import (
     build_display_graph,
     build_graph_data,
@@ -216,11 +221,19 @@ def render_html_report(
     hours_cutoff: int,
     overview: CrossTopicSynthesis | None = None,
     diffs: dict[str, BulletDiff] | None = None,
+    topic_signals: list[LaggedCorrelation] | None = None,
+    tag_signals: list[LaggedCorrelation] | None = None,
 ) -> None:
     """Render TopicResults into the HTML report using Jinja2 templates."""
     logger = get_run_logger()
     render_report(
-        results, output_dir=output_dir, hours_cutoff=hours_cutoff, overview=overview, diffs=diffs
+        results,
+        output_dir=output_dir,
+        hours_cutoff=hours_cutoff,
+        overview=overview,
+        diffs=diffs,
+        topic_signals=topic_signals,
+        tag_signals=tag_signals,
     )
     logger.info(f"Report written to {output_dir / 'index.html'}")
 
@@ -286,11 +299,17 @@ def archive_articles(results: list[TopicResult], run_id: str, database_url: str)
     """Persist this run's article summaries into the tracking database."""
     logger = get_run_logger()
     try:
-        record_articles(database_url, run_id, results)
         article_total = sum(len(r.articles) for r in results)
-        logger.info(f"Archived {article_total} article summaries")
+        failed_count = record_articles(database_url, run_id, results)
+        if failed_count:
+            logger.warning(
+                f"Archived {article_total - failed_count}/{article_total} article summaries "
+                f"({failed_count} failed — see per-article warnings above)"
+            )
+        else:
+            logger.info(f"Archived {article_total} article summaries")
     except Exception as exc:
-        logger.warning(f"Article archiving failed: {exc} — continuing without archiving")
+        logger.warning(f"Article archiving failed: {exc!r} — continuing without archiving")
 
 
 # ---------------------------------------------------------------------------
@@ -316,7 +335,9 @@ def check_urgency_alerts(
     try:
         history = load_history(database_url)
         alerts = check_alerts(results, history, absolute_threshold, z_score_threshold)
-        append_run(database_url, results, run_id)
+        failed_count = append_run(database_url, results, run_id)
+        if failed_count:
+            logger.warning(f"Urgency scores: {failed_count} row(s) failed to insert")
 
         if alerts:
             logger.warning(f"URGENCY ALERTS ({len(alerts)} topic(s)):")
@@ -356,7 +377,9 @@ def check_emerging_tag_alerts(
         graph_data = build_graph_data(results)
         history = load_tag_rate_history(database_url)
         alerts = check_emerging_tags(graph_data, article_count, history, tag_z_score_threshold)
-        record_tags(database_url, run_id, graph_data)
+        failed_count = record_tags(database_url, run_id, graph_data)
+        if failed_count:
+            logger.warning(f"Tag graph: {failed_count} row(s) failed to insert")
         record_emerging_tag_alerts(database_url, run_id, alerts)
         record_bridge_tags(database_url, run_id, find_bridge_tags(graph_data))
 
@@ -406,7 +429,9 @@ async def summarize_community_tags(
             api_key=api_key,
         )
         community_summaries = await summarize_communities(results, display_data, client)
-        record_community_summaries(database_url, run_id, community_summaries)
+        failed_count = record_community_summaries(database_url, run_id, community_summaries)
+        if failed_count:
+            logger.warning(f"Community summaries: {failed_count} row(s) failed to insert")
         logger.info(
             f"Community summaries: {len(community_summaries)} of "
             f"{display_data['n_communities']} communities"
@@ -443,7 +468,9 @@ async def run_bullet_diff(
         yesterday = load_bullet_history(database_url)
         if not yesterday:
             logger.info("No bullet history yet — skipping diff on first run")
-            append_bullet_run(database_url, results, run_id)
+            failed_count = append_bullet_run(database_url, results, run_id)
+            if failed_count:
+                logger.warning(f"Bullets: {failed_count} row(s) failed to insert")
             return {}
 
         mode = _INSTRUCTOR_MODES.get(instructor_mode_str.upper(), instructor.Mode.TOOLS)
@@ -456,7 +483,9 @@ async def run_bullet_diff(
             api_key=api_key,
         )
         diffs = await diff_all_topics(results, yesterday, client)
-        append_bullet_run(database_url, results, run_id)
+        failed_count = append_bullet_run(database_url, results, run_id)
+        if failed_count:
+            logger.warning(f"Bullets: {failed_count} row(s) failed to insert")
 
         new_count = sum(len(d.new) for d in diffs.values())
         dropped_count = sum(len(d.dropped) for d in diffs.values())
@@ -468,6 +497,38 @@ async def run_bullet_diff(
     except Exception as exc:
         logger.warning(f"Bullet diff failed: {exc} — report will render without diffs")
         return {}
+
+
+# ---------------------------------------------------------------------------
+# Task 12: Compute systems signals
+# ---------------------------------------------------------------------------
+# Candidate feedback-loop correlations across topic urgency and tag
+# coverage rate history (see core/systems_signals.py). Reads this run's
+# own urgency_scores/tag_counts/tag_edges/tag_topics/community_summary_tags/
+# articles rows, all written by earlier tasks -- must run after all of
+# them and before render-html-report, hence the definition placement
+# here even though it isn't numbered 3 (render-html-report, defined
+# earlier, is likewise called last in the flow body below -- task numbers
+# here track definition order, not call order).
+# Fails gracefully: a failure here logs a warning but does not block
+# rendering, same pattern as every other optional stage in this file.
+
+@task(name="compute-systems-signals")
+def compute_systems_signals(
+    database_url: str,
+) -> tuple[list[LaggedCorrelation], list[LaggedCorrelation]]:
+    """Candidate feedback-loop correlations across topic urgency and tag coverage rate history."""
+    logger = get_run_logger()
+    try:
+        topic_signals = topic_urgency_lagged_correlations(database_url)
+        tag_signals = tag_rate_lagged_correlations(database_url)
+        logger.info(
+            f"Systems signals: {len(topic_signals)} topic-level, {len(tag_signals)} tag-level"
+        )
+        return topic_signals, tag_signals
+    except Exception as exc:
+        logger.warning(f"Systems signals failed: {exc!r} — report will render without them")
+        return [], []
 
 
 # ---------------------------------------------------------------------------
@@ -643,7 +704,11 @@ async def daily_report_flow(
         api_key=ollama_api_key,
     )
 
-    render_html_report(results, output_dir, hours_cutoff, overview, diffs)
+    topic_signals, tag_signals = compute_systems_signals(database_url)
+
+    render_html_report(
+        results, output_dir, hours_cutoff, overview, diffs, topic_signals, tag_signals
+    )
     build_tag_graph(results, output_dir)
     export_rdf_task(database_url, output_dir)
 

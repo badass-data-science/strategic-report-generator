@@ -88,6 +88,11 @@ from .prompts import (
 from .rdf_export import build_graph as build_rdf_graph
 from .rdf_export import export_rdf
 from .renderer import render_report
+from .systems_signals import (
+    LaggedCorrelation,
+    tag_rate_lagged_correlations,
+    topic_urgency_lagged_correlations,
+)
 from .tag_graph import (
     build_display_graph,
     build_graph_data,
@@ -163,6 +168,9 @@ __all__ = [
     "record_community_summaries",
     "record_emerging_tag_alerts",
     "record_tags",
+    "LaggedCorrelation",
+    "topic_urgency_lagged_correlations",
+    "tag_rate_lagged_correlations",
     # Prompt components
     "SYSTEM_SUMMARIZER",
     "SYSTEM_STRATEGIST",

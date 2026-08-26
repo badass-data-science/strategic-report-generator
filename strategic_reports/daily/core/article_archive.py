@@ -18,14 +18,32 @@ to ground answers in raw article text rather than community summaries.
 from datetime import UTC, datetime
 from typing import Any
 
+import structlog
+
 from .db import get_connection
 from .models import TopicResult
 
+log = structlog.get_logger(__name__)
 
-def record_articles(database_url: str, run_id: str, results: list[TopicResult]) -> None:
+
+def record_articles(database_url: str, run_id: str, results: list[TopicResult]) -> int:
     """
     Insert this run's article summaries (title, link, publish_date, summary
-    bullets, tags) into the database, linked to run_id.
+    bullets, tags) into the database, linked to run_id. Returns the number
+    of articles that failed to archive (0 = fully successful).
+
+    Each article is inserted inside its own savepoint (conn.transaction()).
+    Previously, one article's insert failing aborted the *whole* run's
+    archive with no trace beyond a one-line stderr warning at the call
+    site: get_connection()'s pooled connection rolls back its entire
+    transaction when any exception escapes the `with` block, so a single
+    bad article meant zero articles archived that run even though
+    tag_counts/tag_edges/tag_topics (a separate call, from the same
+    results) archived fine. That's exactly what the 2026-08-26
+    systems-thinking-prototype session found: two runs with fully
+    populated tag tables but completely empty articles/article_tags.
+    Per-article savepoints mean one bad article only loses that article,
+    logged individually (see below) instead of silently losing the run.
 
     Iterates result.articles directly (empty for error/empty topics, so no
     separate strategy-success check is needed — same pattern as
@@ -33,33 +51,55 @@ def record_articles(database_url: str, run_id: str, results: list[TopicResult]) 
     ...) has already been called this run, so the run_id foreign key exists.
     """
     now = datetime.now(UTC).isoformat()
+    failed = 0
     with get_connection(database_url) as conn:
         for result in results:
             topic_title = result.config.title
             for article in result.articles:
-                cursor = conn.execute(
-                    "INSERT INTO articles (run_id, created_at, topic, title, link, publish_date) "
-                    "VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
-                    (run_id, now, topic_title, article.title, article.link, article.publish_date),
-                )
-                row = cursor.fetchone()
-                assert row is not None
-                article_id = row[0]
-                conn.cursor().executemany(
-                    "INSERT INTO article_summary_bullets "
-                    "(article_id, run_id, created_at, bullet_index, bullet_text) "
-                    "VALUES (%s, %s, %s, %s, %s)",
-                    [
-                        (article_id, run_id, now, i, bullet)
-                        for i, bullet in enumerate(article.summary)
-                    ],
-                )
-                conn.cursor().executemany(
-                    "INSERT INTO article_tags (article_id, run_id, created_at, tag) "
-                    "VALUES (%s, %s, %s, %s)",
-                    [(article_id, run_id, now, tag) for tag in article.tags],
-                )
+                try:
+                    with conn.transaction():
+                        cursor = conn.execute(
+                            "INSERT INTO articles "
+                            "(run_id, created_at, topic, title, link, publish_date) "
+                            "VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+                            (
+                                run_id,
+                                now,
+                                topic_title,
+                                article.title,
+                                article.link,
+                                article.publish_date,
+                            ),
+                        )
+                        row = cursor.fetchone()
+                        assert row is not None
+                        article_id = row[0]
+                        conn.cursor().executemany(
+                            "INSERT INTO article_summary_bullets "
+                            "(article_id, run_id, created_at, bullet_index, bullet_text) "
+                            "VALUES (%s, %s, %s, %s, %s)",
+                            [
+                                (article_id, run_id, now, i, bullet)
+                                for i, bullet in enumerate(article.summary)
+                            ],
+                        )
+                        conn.cursor().executemany(
+                            "INSERT INTO article_tags (article_id, run_id, created_at, tag) "
+                            "VALUES (%s, %s, %s, %s)",
+                            [(article_id, run_id, now, tag) for tag in article.tags],
+                        )
+                except Exception as exc:
+                    failed += 1
+                    log.warning(
+                        "article_archive_failed",
+                        run_id=run_id,
+                        topic=topic_title,
+                        article_title=article.title,
+                        article_link=article.link,
+                        error=repr(exc),
+                    )
         conn.commit()
+    return failed
 
 
 def load_articles(database_url: str, run_id: str) -> list[dict[str, Any]]:
