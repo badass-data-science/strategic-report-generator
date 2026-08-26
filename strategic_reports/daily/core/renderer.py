@@ -34,6 +34,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
+from .db_status import DbStatusReport
 from .models import ArticleSummary, BulletDiff, CrossTopicSynthesis, TokenUsage, TopicResult
 from .systems_signals import LaggedCorrelation
 
@@ -203,3 +204,27 @@ def render_report(
                 article_jsonld=_build_article_jsonld(result.articles),
             )
         )
+
+
+def render_db_status(report: DbStatusReport, output_path: Path) -> None:
+    """
+    Render a `db status` report to a single standalone HTML file at
+    output_path.
+
+    Unlike render_report(), this writes one file, not a directory, and
+    doesn't wipe/recreate anything: `db status` is an on-demand diagnostic
+    (see db_status.py), not a directory of output regenerated every run.
+    Creates output_path's parent directories if needed -- the same
+    mkdir(parents=True, exist_ok=True) rdf_export.export_rdf() already
+    does for its --output path, since Path.write_text() doesn't create
+    missing parent directories on its own.
+    """
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    now = datetime.now().astimezone()
+    tmpl = _env().get_template("db_status.html.j2")
+    output_path.write_text(
+        tmpl.render(
+            report=report,
+            generated_at=now.strftime("%Y-%m-%d %H:%M:%S %Z"),
+        )
+    )

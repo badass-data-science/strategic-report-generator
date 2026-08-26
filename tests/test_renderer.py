@@ -52,6 +52,7 @@ import json
 from pathlib import Path
 
 import pytest
+from strategic_reports.daily.core.db_status import DbStatusReport, RunGap, RunHealth
 from strategic_reports.daily.core.models import (
     ArticleSummary,
     StrategicInsight,
@@ -59,7 +60,11 @@ from strategic_reports.daily.core.models import (
     TopicConfig,
     TopicResult,
 )
-from strategic_reports.daily.core.renderer import _dedupe_bidirectional_lag_zero, render_report
+from strategic_reports.daily.core.renderer import (
+    _dedupe_bidirectional_lag_zero,
+    render_db_status,
+    render_report,
+)
 from strategic_reports.daily.core.systems_signals import LaggedCorrelation
 
 
@@ -455,5 +460,126 @@ class TestSystemsSignalsSection:
             tag_signals=[_correlation("<script>alert(1)</script>", "market")],
         )
         html = (tmp_path / "index.html").read_text()
+        assert "<script>alert(1)</script>" not in html
+        assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+
+
+class TestRenderDbStatus:
+    """
+    render_db_status() is a pure function over a DbStatusReport -- no
+    database needed, unlike db_status.py's own tests (load_db_status).
+    """
+
+    def test_writes_html_file_with_summary_fields(self, tmp_path: Path) -> None:
+        report = DbStatusReport(
+            total_runs=3,
+            first_run_at="2026-08-01T00:00:00+00:00",
+            last_run_at="2026-08-26T00:00:00+00:00",
+            stale=False,
+            stale_after_hours=36.0,
+            gaps=[],
+            runs=[
+                RunHealth(
+                    run_id="run-3",
+                    created_at="2026-08-26T00:00:00+00:00",
+                    article_count=10,
+                    table_rows={"articles": 10},
+                    flags=[],
+                ),
+            ],
+        )
+        output_path = tmp_path / "status.html"
+
+        render_db_status(report, output_path)
+
+        html = output_path.read_text()
+        assert "Total runs" in html
+        assert ">3<" in html
+        assert "run-3" in html
+
+    def test_creates_missing_parent_directories(self, tmp_path: Path) -> None:
+        report = DbStatusReport(
+            total_runs=0,
+            first_run_at=None,
+            last_run_at=None,
+            stale=False,
+            stale_after_hours=36.0,
+            gaps=[],
+            runs=[],
+        )
+        output_path = tmp_path / "nested" / "dir" / "status.html"
+
+        render_db_status(report, output_path)
+
+        assert output_path.exists()
+
+    def test_flags_a_run_with_anomalies(self, tmp_path: Path) -> None:
+        report = DbStatusReport(
+            total_runs=1,
+            first_run_at="2026-08-26T00:00:00+00:00",
+            last_run_at="2026-08-26T00:00:00+00:00",
+            stale=False,
+            stale_after_hours=36.0,
+            gaps=[],
+            runs=[
+                RunHealth(
+                    run_id="run-1",
+                    created_at="2026-08-26T00:00:00+00:00",
+                    article_count=5,
+                    table_rows={"articles": 0},
+                    flags=["empty_articles"],
+                ),
+            ],
+        )
+        output_path = tmp_path / "status.html"
+
+        render_db_status(report, output_path)
+
+        html = output_path.read_text()
+        assert "empty_articles" in html
+        assert 'class="flagged"' in html
+
+    def test_shows_stale_warning_and_gaps(self, tmp_path: Path) -> None:
+        report = DbStatusReport(
+            total_runs=2,
+            first_run_at="2026-08-01T00:00:00+00:00",
+            last_run_at="2026-08-01T00:00:00+00:00",
+            stale=True,
+            stale_after_hours=36.0,
+            gaps=[RunGap(after_run_id="run-1", before_run_id="run-2", hours=48.0)],
+            runs=[],
+        )
+        output_path = tmp_path / "status.html"
+
+        render_db_status(report, output_path)
+
+        html = output_path.read_text()
+        assert "pipeline may be stalled" in html
+        assert "48.0h between run-1 and run-2" in html
+
+    def test_xss_escaping_in_run_id(self, tmp_path: Path) -> None:
+        """run_id is a generated_run_id UUID-shaped string, but treat it as untrusted anyway."""
+        report = DbStatusReport(
+            total_runs=1,
+            first_run_at="2026-08-26T00:00:00+00:00",
+            last_run_at="2026-08-26T00:00:00+00:00",
+            stale=False,
+            stale_after_hours=36.0,
+            gaps=[],
+            runs=[
+                RunHealth(
+                    run_id="<script>alert(1)</script>",
+                    created_at="2026-08-26T00:00:00+00:00",
+                    article_count=1,
+                    table_rows={},
+                    flags=[],
+                ),
+            ],
+        )
+        output_path = tmp_path / "status.html"
+
+        render_db_status(report, output_path)
+
+        html = output_path.read_text()
         assert "<script>alert(1)</script>" not in html
         assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html

@@ -4,6 +4,27 @@ All notable changes to this project are documented here. Entries are
 grouped by date rather than a semantic version number, since this project
 doesn't tag releases.
 
+## 2026-08-26
+
+### Added
+- New `strategic-reports db status` CLI command (`db_status.py`):
+  read-only operational health report on the tracking database itself,
+  separate from the daily HTML report. Flags missed-schedule runs (gaps
+  between consecutive `runs` rows, or no run within `--stale-after-hours`)
+  and, for the most recent `--recent-runs` runs, any derived table
+  (`articles`, `tag_counts`, `urgency_scores`, `bullets`,
+  `community_summaries`, `cross_topic_overviews`) that's empty despite a
+  nonzero `article_count` — the read-side check for the exact
+  silent-partial-persistence bug `insert_rows_isolating_failures` (`db.py`)
+  now guards against at write time (one bad row previously aborting an
+  entire table's insert for a run, with no trace beyond a one-line stderr
+  warning). Plain text by default; `--json` emits the same report as JSON
+  on stdout for monitoring/alerting integration, and `--html <path>`
+  additionally renders it as a standalone page (`db_status.html.j2`, via
+  new `renderer.render_db_status()`) — the two combine, with the HTML
+  confirmation line going to stderr so `--json`'s stdout stays valid JSON
+  on its own.
+
 ## 2026-08-13
 
 ### Changed

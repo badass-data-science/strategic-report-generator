@@ -38,6 +38,20 @@ below), the same envvar= pattern used by --model/LLM_MODEL below.
     malformed XML, or zero parseable entries) — see feed_validation.py.
     Without --fix, only reports; safe to re-run periodically.
 
+`db status` key options:
+    --database-url          PostgreSQL tracking database to inspect (required;
+                            env DATABASE_URL)
+    --recent-runs           How many recent runs to check for empty derived
+                            tables (default: 20)
+    --stale-after-hours     Gap/staleness threshold in hours (default: 36)
+    --json                  Emit JSON on stdout instead of plain text, for
+                            monitoring/alerting integration
+    --html                  Also render a standalone HTML version to this path
+    Reports on the pipeline itself, not the news: run cadence and whether
+    each recent run actually persisted what its article_count implies it
+    should have — see db_status.py. Read-only; a separate operational
+    report from the daily HTML output, checked on demand.
+
 SEPARATION OF CONCERNS
 -----------------------
 This layer only reads config, prints status, and bridges sync (CLI) to
@@ -71,10 +85,12 @@ from strategic_reports.daily.core import (
     check_alerts,
     check_emerging_tags,
     configure_logging,
+    db_status_as_dict,
     diff_all_topics,
     ensure_database_reachable,
     find_bridge_tags,
     load_bullet_history,
+    load_db_status,
     load_history,
     load_tag_rate_history,
     record_articles,
@@ -85,6 +101,7 @@ from strategic_reports.daily.core import (
     record_run,
     record_tags,
     remove_dead_feeds,
+    render_db_status,
     run_pipeline,
     summarize_communities,
     tag_rate_lagged_correlations,
@@ -92,6 +109,7 @@ from strategic_reports.daily.core import (
     validate_topic_feeds,
     write_tag_graph,
 )
+from strategic_reports.daily.core.db_status import DbStatusReport
 from strategic_reports.daily.core.models import BulletDiff, TopicConfig
 from strategic_reports.daily.core.pipeline import synthesize_cross_topic
 from strategic_reports.daily.core.rdf_export import export_rdf
@@ -691,6 +709,100 @@ def db_upgrade_command(
     # file we already located, so this works from any cwd.
     config.set_main_option("script_location", str(_ALEMBIC_INI.parent / "alembic"))
     command.upgrade(config, revision)
+
+
+def _echo_db_status_text(report: DbStatusReport) -> None:
+    if report.total_runs == 0:
+        typer.echo("No runs recorded yet.")
+        return
+
+    typer.echo(f"Total runs: {report.total_runs}")
+    typer.echo(f"First run:  {report.first_run_at}")
+    typer.echo(f"Last run:   {report.last_run_at}")
+    if report.stale:
+        typer.echo(
+            f"  [!] No run in over {report.stale_after_hours:g}h — pipeline may be stalled.",
+            err=True,
+        )
+
+    if report.gaps:
+        typer.echo("")
+        typer.echo(f"Gaps over {report.stale_after_hours:g}h between consecutive runs:")
+        for gap in report.gaps:
+            typer.echo(f"  [!] {gap.hours:.1f}h between {gap.after_run_id} and {gap.before_run_id}")
+
+    typer.echo("")
+    typer.echo(f"Most recent {len(report.runs)} run(s):")
+    for run in report.runs:
+        marker = "  [!] " if run.flags else "      "
+        typer.echo(f"{marker}{run.created_at}  {run.run_id}  articles={run.article_count}")
+        if run.flags:
+            typer.echo(f"        flags: {', '.join(run.flags)}")
+
+    if not report.gaps and not report.stale and not any(r.flags for r in report.runs):
+        typer.echo("")
+        typer.echo("No anomalies detected.")
+
+
+@db_app.command(name="status")
+def db_status_command(
+    database_url: str = typer.Option(
+        ...,
+        envvar="DATABASE_URL",
+        help="PostgreSQL tracking database URL to inspect (required). "
+             "Also read from DATABASE_URL env var (or a .env file).",
+    ),
+    recent_runs: int = typer.Option(
+        20,
+        help="How many of the most recent runs to check for empty derived tables "
+             "(articles, tag_counts, urgency_scores, bullets, community_summaries, "
+             "cross_topic_overviews). Gap/staleness detection always scans every run.",
+    ),
+    stale_after_hours: float = typer.Option(
+        36.0,
+        help="Flag the database as stale, and flag any gap between two consecutive "
+             "runs this wide, as missed-schedule warnings.",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Emit the report as JSON on stdout instead of the plain-text summary — "
+             "for monitoring/alerting integration. Suppresses the plain-text output; "
+             "combine with --html to also write the HTML version.",
+    ),
+    html: Path | None = typer.Option(
+        None,
+        help="Also render this report as a standalone HTML file at this path.",
+    ),
+) -> None:
+    """
+    Report the operational health of the tracking database itself — run
+    cadence and whether each recent run actually persisted what its
+    article_count implies it should have.
+
+    This reports on the pipeline, not the news: a separate, on-demand
+    diagnostic (see db_status.py), not part of the daily HTML report.
+    """
+    try:
+        ensure_database_reachable(database_url)
+    except Exception as e:
+        typer.echo(f"--database-url is not reachable: {e}", err=True)
+        raise typer.Exit(code=1)
+
+    report = load_db_status(
+        database_url, recent_runs=recent_runs, stale_after_hours=stale_after_hours
+    )
+
+    if html is not None:
+        render_db_status(report, html)
+        # stderr, not stdout: with --json, stdout must stay valid JSON for
+        # a monitoring parser; this confirmation would otherwise corrupt it.
+        typer.echo(f"HTML status report written to {html}", err=True)
+
+    if json_output:
+        typer.echo(json.dumps(db_status_as_dict(report), indent=2))
+    else:
+        _echo_db_status_text(report)
 
 
 @app.command(name="validate-feeds")

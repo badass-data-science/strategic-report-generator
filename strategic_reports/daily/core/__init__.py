@@ -54,6 +54,7 @@ from .archive_query import find_relevant_communities
 from .article_archive import load_articles, record_articles
 from .bullet_diff import append_bullet_run, diff_all_topics, load_bullet_history
 from .db import ensure_database_reachable, get_connection, record_run
+from .db_status import DbStatusReport, RunGap, RunHealth, db_status_as_dict, load_db_status
 from .feed_validation import FeedCheckResult, remove_dead_feeds, validate_topic_feeds
 from .ingestion import fetch_topic_articles
 from .llm_client import LLMClient
@@ -87,7 +88,7 @@ from .prompts import (
 )
 from .rdf_export import build_graph as build_rdf_graph
 from .rdf_export import export_rdf
-from .renderer import render_report
+from .renderer import render_db_status, render_report
 from .systems_signals import (
     LaggedCorrelation,
     tag_rate_lagged_correlations,
@@ -148,6 +149,12 @@ __all__ = [
     "get_connection",
     "ensure_database_reachable",
     "record_run",
+    "DbStatusReport",
+    "RunGap",
+    "RunHealth",
+    "load_db_status",
+    "db_status_as_dict",
+    "render_db_status",
     "load_articles",
     "record_articles",
     "record_overview",
