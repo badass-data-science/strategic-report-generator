@@ -61,6 +61,17 @@ _MIN_RUNS_FOR_LAG = 8
 # "signal" is really just "these two rare tags appeared in the same run."
 _MIN_ACTIVE_RUNS_FOR_TAG_CORRELATION = 5
 
+# Above this containment ratio (co-occurrence weight / the rarer tag's
+# total appearances, summed across all history), two tags are treated as
+# co-referential -- effectively two labels for the same entity/event (e.g.
+# "qualcomm"/"wireless technology") -- and excluded from
+# tag_rate_lagged_correlations entirely. Their rate series moving together
+# isn't evidence of a feedback loop, it's the same signal counted twice;
+# unlike _MIN_ACTIVE_RUNS_FOR_TAG_CORRELATION this isn't a sparsity
+# artifact and shows up at nonzero lags too (autocorrelated "hot" topics
+# drag both tags along together), so a lag-based filter can't catch it.
+_MAX_CONTAINMENT_RATIO_FOR_TAG_CORRELATION = 0.8
+
 
 @dataclass
 class LaggedCorrelation:
@@ -336,6 +347,38 @@ def _tags_with_enough_activity(
     }
 
 
+def _containment_ratio(co_occurrence: int, count_a: int, count_b: int) -> float:
+    """
+    Fraction of the rarer tag's total appearances that also included the
+    other tag. 1.0 means the two are effectively inseparable (always seen
+    together); low values mean they occasionally co-occur but mostly vary
+    independently.
+    """
+    denominator = min(count_a, count_b)
+    if denominator == 0:
+        return 0.0
+    return co_occurrence / denominator
+
+
+def _drop_near_synonymous_pairs(
+    edge_rows: list[tuple[str, str]],
+    co_occurrence_totals: dict[tuple[str, str], int],
+    tag_totals: dict[str, int],
+    max_containment_ratio: float,
+) -> list[tuple[str, str]]:
+    """Remove pairs whose containment ratio is at or above max_containment_ratio."""
+    return [
+        (tag_a, tag_b)
+        for tag_a, tag_b in edge_rows
+        if _containment_ratio(
+            co_occurrence_totals.get((tag_a, tag_b), 0),
+            tag_totals.get(tag_a, 0),
+            tag_totals.get(tag_b, 0),
+        )
+        < max_containment_ratio
+    ]
+
+
 def tag_rate_lagged_correlations(
     database_url: str,
     max_lag: int = 3,
@@ -343,20 +386,37 @@ def tag_rate_lagged_correlations(
     min_edge_weight: int = 2,
     fdr_q: float = 0.05,
     min_active_runs: int = _MIN_ACTIVE_RUNS_FOR_TAG_CORRELATION,
+    max_containment_ratio: float = _MAX_CONTAINMENT_RATIO_FOR_TAG_CORRELATION,
 ) -> list[LaggedCorrelation]:
     """
     Lagged correlation over tag rates, restricted to tag pairs that have
     co-occurred at least once with weight >= min_edge_weight in tag_edges
     -- see module docstring for why an all-pairs scan over ~7k tags isn't
-    the right default here -- and further restricted to tags active in at
+    the right default here -- further restricted to tags active in at
     least min_active_runs runs, so a pair isn't reported purely because
-    both tags are rare and happened to be nonzero together.
+    both tags are rare and happened to be nonzero together, and finally
+    with near-synonymous pairs (containment ratio >= max_containment_ratio,
+    summed across all history) dropped, since two co-referential tags
+    moving together isn't evidence of a feedback loop.
     """
     with get_connection(database_url) as conn:
         edge_rows = conn.execute(
             "SELECT DISTINCT tag_a, tag_b FROM tag_edges WHERE weight >= %s",
             (min_edge_weight,),
         ).fetchall()
+        co_occurrence_totals = {
+            (tag_a, tag_b): total
+            for tag_a, tag_b, total in conn.execute(
+                "SELECT tag_a, tag_b, SUM(weight) FROM tag_edges GROUP BY tag_a, tag_b"
+            ).fetchall()
+        }
+        tag_totals = dict(
+            conn.execute("SELECT tag, SUM(count) FROM tag_counts GROUP BY tag").fetchall()
+        )
+
+    edge_rows = _drop_near_synonymous_pairs(
+        edge_rows, co_occurrence_totals, tag_totals, max_containment_ratio
+    )
 
     candidate_tags = {t for a, b in edge_rows for t in (a, b)}
     _, series = load_tag_rate_series(database_url, tags=candidate_tags)

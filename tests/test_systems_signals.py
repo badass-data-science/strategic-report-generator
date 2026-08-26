@@ -13,6 +13,8 @@ history exists.
 import pytest
 from strategic_reports.daily.core.systems_signals import (
     _benjamini_hochberg_qvalues,
+    _containment_ratio,
+    _drop_near_synonymous_pairs,
     _pearson_p_value,
     _tags_with_enough_activity,
     lagged_pearson,
@@ -151,3 +153,50 @@ def test_tags_with_enough_activity_boundary_is_inclusive() -> None:
 
     assert _tags_with_enough_activity(series, min_active_runs=5) == {"exactly_five"}
     assert _tags_with_enough_activity(series, min_active_runs=6) == set()
+
+
+def test_containment_ratio_always_together() -> None:
+    # "ugg" and "deckers outdoor" appear on exactly the same 10 articles.
+    assert _containment_ratio(co_occurrence=10, count_a=10, count_b=10) == pytest.approx(1.0)
+
+
+def test_containment_ratio_uses_the_rarer_tag_as_denominator() -> None:
+    # tag_a co-occurs with tag_b every single time tag_a shows up, even
+    # though tag_b (the more common tag) mostly appears without tag_a.
+    assert _containment_ratio(co_occurrence=5, count_a=5, count_b=500) == pytest.approx(1.0)
+
+
+def test_containment_ratio_rarely_together() -> None:
+    assert _containment_ratio(co_occurrence=2, count_a=100, count_b=100) == pytest.approx(0.02)
+
+
+def test_containment_ratio_zero_denominator() -> None:
+    assert _containment_ratio(co_occurrence=0, count_a=0, count_b=0) == 0.0
+
+
+def test_drop_near_synonymous_pairs_excludes_high_containment() -> None:
+    edge_rows = [("qualcomm", "wireless technology"), ("energy", "forex")]
+    co_occurrence_totals = {
+        ("qualcomm", "wireless technology"): 20,
+        ("energy", "forex"): 3,
+    }
+    tag_totals = {"qualcomm": 20, "wireless technology": 25, "energy": 50, "forex": 60}
+
+    kept = _drop_near_synonymous_pairs(
+        edge_rows, co_occurrence_totals, tag_totals, max_containment_ratio=0.8
+    )
+
+    assert kept == [("energy", "forex")]
+
+
+def test_drop_near_synonymous_pairs_boundary_is_exclusive() -> None:
+    # containment ratio hits the threshold exactly -- ">=" excludes it, not "<".
+    edge_rows = [("a", "b")]
+    co_occurrence_totals = {("a", "b"): 8}
+    tag_totals = {"a": 10, "b": 10}
+
+    kept = _drop_near_synonymous_pairs(
+        edge_rows, co_occurrence_totals, tag_totals, max_containment_ratio=0.8
+    )
+
+    assert kept == []
