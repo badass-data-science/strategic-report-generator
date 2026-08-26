@@ -14,6 +14,7 @@ import pytest
 from strategic_reports.daily.core.systems_signals import (
     _benjamini_hochberg_qvalues,
     _pearson_p_value,
+    _tags_with_enough_activity,
     lagged_pearson,
 )
 
@@ -131,3 +132,22 @@ def test_benjamini_hochberg_qvalues_never_below_the_raw_p_value() -> None:
 
 def test_benjamini_hochberg_qvalues_empty_input() -> None:
     assert _benjamini_hochberg_qvalues([]) == []
+
+
+def test_tags_with_enough_activity_excludes_rare_tags() -> None:
+    series = {
+        "rare_a": [0.0] * 12 + [0.1, 0.2],  # nonzero in only 2 runs
+        "rare_b": [0.0] * 13 + [0.3],  # nonzero in only 1 run
+        "common": [0.1] * 14,  # nonzero in every run
+    }
+
+    active = _tags_with_enough_activity(series, min_active_runs=5)
+
+    assert active == {"common"}
+
+
+def test_tags_with_enough_activity_boundary_is_inclusive() -> None:
+    series = {"exactly_five": [0.1] * 5 + [0.0] * 9}
+
+    assert _tags_with_enough_activity(series, min_active_runs=5) == {"exactly_five"}
+    assert _tags_with_enough_activity(series, min_active_runs=6) == set()

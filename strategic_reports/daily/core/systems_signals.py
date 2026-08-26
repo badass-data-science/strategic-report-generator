@@ -52,6 +52,15 @@ from .db import get_connection
 # between two already-shortened series.
 _MIN_RUNS_FOR_LAG = 8
 
+# Minimum number of runs a tag must be nonzero in before it's eligible for
+# tag_rate_lagged_correlations at all -- separate from _MIN_RUNS_FOR_LAG.
+# Two tags that are each only ever nonzero in the same one or two runs
+# (e.g. co-referenced entities like "ugg"/"deckers outdoor") trivially hit
+# r=1.0 with a real, non-spurious p-value -- FDR correction doesn't catch
+# this since it isn't a false positive, it's a sparsity artifact: the
+# "signal" is really just "these two rare tags appeared in the same run."
+_MIN_ACTIVE_RUNS_FOR_TAG_CORRELATION = 5
+
 
 @dataclass
 class LaggedCorrelation:
@@ -311,18 +320,37 @@ def topic_urgency_lagged_correlations(
     return _significant_correlations(candidates, r_threshold, fdr_q)
 
 
+def _tags_with_enough_activity(
+    series: dict[str, list[float]], min_active_runs: int
+) -> set[str]:
+    """
+    Tags nonzero in at least `min_active_runs` runs -- see
+    _MIN_ACTIVE_RUNS_FOR_TAG_CORRELATION for why this matters: below this
+    floor, a "correlation" is often just two rare tags both being nonzero
+    in the same handful of runs, not a real relationship.
+    """
+    return {
+        tag
+        for tag, rates in series.items()
+        if sum(1 for rate in rates if rate > 0.0) >= min_active_runs
+    }
+
+
 def tag_rate_lagged_correlations(
     database_url: str,
     max_lag: int = 3,
     r_threshold: float = 0.7,
     min_edge_weight: int = 2,
     fdr_q: float = 0.05,
+    min_active_runs: int = _MIN_ACTIVE_RUNS_FOR_TAG_CORRELATION,
 ) -> list[LaggedCorrelation]:
     """
     Lagged correlation over tag rates, restricted to tag pairs that have
     co-occurred at least once with weight >= min_edge_weight in tag_edges
     -- see module docstring for why an all-pairs scan over ~7k tags isn't
-    the right default here.
+    the right default here -- and further restricted to tags active in at
+    least min_active_runs runs, so a pair isn't reported purely because
+    both tags are rare and happened to be nonzero together.
     """
     with get_connection(database_url) as conn:
         edge_rows = conn.execute(
@@ -332,10 +360,11 @@ def tag_rate_lagged_correlations(
 
     candidate_tags = {t for a, b in edge_rows for t in (a, b)}
     _, series = load_tag_rate_series(database_url, tags=candidate_tags)
+    active_tags = _tags_with_enough_activity(series, min_active_runs)
 
     candidates: list[tuple[str, str, int, float, int]] = []
     for tag_a, tag_b in edge_rows:
-        if tag_a not in series or tag_b not in series:
+        if tag_a not in active_tags or tag_b not in active_tags:
             continue
         for lag in range(max_lag + 1):
             for a, b in ((tag_a, tag_b), (tag_b, tag_a)):
