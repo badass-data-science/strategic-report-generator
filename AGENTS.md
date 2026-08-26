@@ -115,7 +115,7 @@ ruff check .
 mypy
 ```
 
-- 286 tests across `tests/test_*.py`, no real network or LLM calls. Unlike
+- 293 tests across `tests/test_*.py`, no real network or LLM calls. Unlike
   before the PostgreSQL migration, DB-touching tests now need a reachable
   Postgres instance (`DATABASE_URL` env var) — see `docker-compose.yml` for
   local dev; CI provides one as a service container. CI
@@ -152,7 +152,7 @@ strategic_reports/
       tag_graph.py        Tag co-occurrence graph + Louvain community detection + find_bridge_tags() + group_articles_by_community()
       urgency.py          Urgency alerting: absolute threshold + z-score (PostgreSQL-backed)
       bullet_diff.py      Historical diffing vs. yesterday's bullets (PostgreSQL-backed)
-      db.py               PostgreSQL tracking db: pooled connection helper, reachability check, run registration (schema lives in alembic/, not here)
+      db.py               PostgreSQL tracking db: pooled connection helper, reachability check, run registration, shared insert_rows_isolating_failures helper (schema lives in alembic/, not here)
       article_archive.py  Persists each run's article summaries (source material), linked to run_id
       overview_archive.py Persists each run's cross-topic synthesis overview bullets, linked to run_id
       archive_query.py    Graph-guided retrieval: find_relevant_communities() — pure SQL, no LLM calls
@@ -234,18 +234,23 @@ LICENSE                 MIT
   populated `tag_counts` but zero rows in `articles`/`article_tags`, found
   by manually cross-referencing systems-signals output against real
   articles). `article_archive.record_articles` wraps each article's insert
-  in its own `conn.transaction()` savepoint. `tag_tracking.record_tags`/
-  `record_community_summaries` do the same via a shared helper,
-  `_insert_rows_isolating_failures`, but batch first (a single
-  `executemany()` inside one savepoint) and only fall back to a per-row
-  savepoint loop if the batch as a whole fails — a table like `tag_edges`
-  can have tens of thousands of rows in one run, so an unconditional
-  per-row loop the way `record_articles` uses would be a real performance
-  regression for the common case where nothing fails. All three functions
-  now return a failed-row count instead of `None`; both `cli.py` and
-  `flows/daily_report.py` log a partial-failure warning when it's nonzero.
-  If you add another bulk insert against the tracking db, use this same
-  pattern rather than a bare `executemany()` in one shared transaction.
+  in its own `conn.transaction()` savepoint. Every other bulk insert
+  against the tracking db (`tag_tracking.record_tags`/
+  `record_community_summaries`, `urgency.append_run`,
+  `bullet_diff.append_bullet_run`) goes through a shared helper,
+  `db.insert_rows_isolating_failures` (originally private to
+  `tag_tracking.py`, promoted to `db.py` once a third and fourth caller
+  needed it), which batches first (a single `executemany()` inside one
+  savepoint) and only falls back to a per-row savepoint loop if the batch
+  as a whole fails — a table like `tag_edges` can have tens of thousands
+  of rows in one run, so an unconditional per-row loop the way
+  `record_articles` uses would be a real performance regression for the
+  common case where nothing fails. All five functions now return a
+  failed-row count instead of `None`; `cli.py` and `flows/daily_report.py`
+  log a partial-failure warning at each call site when it's nonzero. If
+  you add another bulk insert against the tracking db, use
+  `db.insert_rows_isolating_failures` rather than a bare `executemany()`
+  in one shared transaction.
 - **Community summaries are LLM-grounded in that community's articles, not
   in the label alone.** `pipeline.summarize_communities()` calls
   `tag_graph.group_articles_by_community()` to gather the article summaries

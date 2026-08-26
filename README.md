@@ -724,7 +724,7 @@ ruff check .
 mypy
 ```
 
-286 tests across 17 files. No real API calls — the LLM client is fully mocked.
+293 tests across 17 files. No real API calls — the LLM client is fully mocked.
 DB-touching tests need a reachable PostgreSQL instance (`DATABASE_URL`) —
 run `docker compose up -d` first for local dev (see [Quick
 start](#quick-start)). A GitHub Actions workflow
@@ -741,9 +741,9 @@ tests/test_renderer.py    HTML rendering for all three result states + XSS; Syst
 tests/test_ingestion.py   RSS fetching with mocked feedparser
 tests/test_feed_validation.py  Feed health checks and REMOVED.json pruning/logging, with mocked feedparser
 tests/test_pipeline.py    Async orchestration with mocked LLMClient; summarize_communities() and answer_archive_question()/extract_query_tags() concurrency + failure isolation
-tests/test_urgency.py     Urgency alerting: absolute threshold, z-score, std==0 fallback, history persistence
-tests/test_bullet_diff.py Bullet-history storage: most-recent-run lookup, ordering, multi-topic
-tests/test_db.py          Tracking-db safety guard, schema creation, run registration
+tests/test_urgency.py     Urgency alerting: absolute threshold, z-score, std==0 fallback, history persistence, per-row failure isolation (savepoints) for append_run
+tests/test_bullet_diff.py Bullet-history storage: most-recent-run lookup, ordering, multi-topic, per-row failure isolation (savepoints) for append_bullet_run
+tests/test_db.py          Tracking-db safety guard, schema creation, run registration, shared insert_rows_isolating_failures helper
 tests/test_tag_tracking.py  Tag-graph db round-trip, rate-history normalization, emerging-tag z-score, bridge-tag/community-summary audit trails, per-row failure isolation (savepoints) for record_tags/record_community_summaries
 tests/test_tag_graph.py    find_bridge_tags(), group_articles_by_community(): filtering, sorting, dedup, multi-community span
 tests/test_article_archive.py  Article-summary db round-trip, ordering, multi-topic, error/empty topics, per-article failure isolation (savepoints)
@@ -774,7 +774,7 @@ strategic_reports/
       tag_graph.py       Tag co-occurrence graph builder; full tag_graph.json + pruned/community tag_graph_display.json + tag_graph.html; find_bridge_tags(), group_articles_by_community()
       urgency.py         Urgency alert logic: absolute threshold + z-score baseline (PostgreSQL-backed)
       bullet_diff.py     Historical bullet diffing: load/append history, concurrent per-topic LLM diff (PostgreSQL-backed)
-      db.py              PostgreSQL tracking database: pooled connection helper, reachability check, run registration (schema lives in alembic/)
+      db.py              PostgreSQL tracking database: pooled connection helper, reachability check, run registration, shared insert_rows_isolating_failures helper (schema lives in alembic/)
       article_archive.py Persists each run's article summaries (source material), linked to run_id
       overview_archive.py  Persists each run's cross-topic synthesis overview bullets, linked to run_id
       archive_query.py   Graph-guided retrieval: find_relevant_communities() for the `ask` CLI command
@@ -828,8 +828,8 @@ Cross-run history is kept separately, in the PostgreSQL database at
 
 - **`runs`** — one row per pipeline run: `run_id`, `created_at` timestamp, and `article_count` (total articles considered that run — the denominator for comparing tag weights across runs, since a raw tag count means something different on a 400-article day than a 50-article one).
 - **`articles`**, **`article_summary_bullets`**, **`article_tags`** — every article's title, link, publish date, summary bullets, and tags, linked to `run_id`. This is the source material every derived signal below (tags, bullets, urgency scores) is computed from — otherwise it exists only in memory during a run and is lost once `{topic}_summaries.html` (in the wiped `--output-dir`) is gone. Each article's insert is isolated in its own savepoint (`article_archive.record_articles`), so one bad row only loses that article, not the whole run's archive. Not currently read by `ask` (which reads `community_summaries` instead) — read by Systems Signals' topic-volume control and single-source filter (see [Design decisions](#systems-signals-surfaces-candidate-feedback-loops-filtered-aggressively)), and available for a future retrieval mode grounded in raw article text.
-- **`urgency_scores`** — one row per topic per run; used by the z-score baseline after 7 runs per topic.
-- **`bullets`** — one row per strategic bullet per topic per run; used by the bullet diff to identify what changed since the most recent prior run.
+- **`urgency_scores`** — one row per topic per run; used by the z-score baseline after 7 runs per topic. Each row's insert (`urgency.append_run`) is isolated the same way as `articles`/`tag_counts` above.
+- **`bullets`** — one row per strategic bullet per topic per run; used by the bullet diff to identify what changed since the most recent prior run. Each row's insert (`bullet_diff.append_bullet_run`) is isolated the same way.
 - **`tag_counts`**, **`tag_topics`**, **`tag_edges`** — one run's tag graph (per-tag counts, per-tag topic membership, and tag-pair co-occurrence edges), linked to `run_id`. Together these let `tag_graph.json` be reconstructed for any past run directly from the database, and are what `systems_signals.tag_rate_lagged_correlations()` reads its rate series and candidate pairs from. `tag_counts` also backs the emerging-tag z-score alert: a tag's rate (count ÷ that run's `article_count`) is compared against its own historical rate once it has 7+ prior runs; tags with less history (including brand-new tags) are skipped rather than guessed at, since — unlike urgency scores — tag rates have no meaningful absolute cutoff to fall back on. Like `articles` above, each row's insert (`tag_tracking.record_tags`) is isolated — batched for speed, falling back to one-row-at-a-time savepoints only if the batch fails, since a single run can produce tens of thousands of `tag_edges` rows.
 - **`emerging_tag_alerts`** — an audit trail of the alerts that actually fired: `tag`, `count`, `rate`, `mean`, `std`, `z_score`, linked to `run_id`. Only fired alerts are stored here, not every tag's rate/z-score every run — those stay recomputable on demand from `tag_counts` + `runs.article_count`.
 - **`bridge_tags`**, **`bridge_tag_topics`** — an audit trail of the bridge tags (`tag_graph.find_bridge_tags()`) actually surfaced to the cross-topic synthesis prompt each run: `tag`, `count`, `rank`, and each tag's topic list, linked to `run_id`. Answers "which tags did we point the synthesis at on day N" directly, without recomputing from `results`.
