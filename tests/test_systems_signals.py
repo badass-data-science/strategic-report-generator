@@ -11,7 +11,11 @@ history exists.
 """
 
 import pytest
-from strategic_reports.daily.core.systems_signals import lagged_pearson
+from strategic_reports.daily.core.systems_signals import (
+    _benjamini_hochberg_qvalues,
+    _pearson_p_value,
+    lagged_pearson,
+)
 
 _N = 10  # >= _MIN_RUNS_FOR_LAG (8), so these exercise the real computation
 
@@ -79,3 +83,51 @@ def test_lagged_pearson_skips_gaps_from_none_entries() -> None:
     r, n = out
     assert n == _N - 1  # the one None pair dropped, not coerced to 0
     assert r == 1.0
+
+
+def test_pearson_p_value_is_one_for_zero_correlation() -> None:
+    # t = 0 regardless of n, so the two-tailed p-value is exactly 1.
+    assert _pearson_p_value(0.0, 20) == pytest.approx(1.0)
+
+
+def test_pearson_p_value_is_zero_for_perfect_correlation() -> None:
+    assert _pearson_p_value(1.0, 20) == pytest.approx(0.0)
+    assert _pearson_p_value(-1.0, 20) == pytest.approx(0.0)
+
+
+def test_pearson_p_value_symmetric_in_sign_of_r() -> None:
+    assert _pearson_p_value(0.6, 15) == pytest.approx(_pearson_p_value(-0.6, 15))
+
+
+def test_pearson_p_value_decreases_as_r_grows_for_fixed_n() -> None:
+    p_small = _pearson_p_value(0.3, 15)
+    p_large = _pearson_p_value(0.8, 15)
+    assert p_large < p_small
+
+
+def test_pearson_p_value_matches_textbook_critical_value() -> None:
+    # Standard two-tailed r-critical-value table: df=10 (n=12), alpha=.05 -> r ~= 0.576.
+    assert _pearson_p_value(0.576, 12) == pytest.approx(0.05, abs=0.01)
+
+
+def test_benjamini_hochberg_qvalues_matches_hand_worked_example() -> None:
+    p_values = [0.005, 0.011, 0.02, 0.04, 0.13, 0.26, 0.35, 0.5, 0.7, 0.9]
+
+    q_values = _benjamini_hochberg_qvalues(p_values)
+
+    expected = [0.05, 0.055, 0.0667, 0.1, 0.26, 0.4333, 0.5, 0.625, 0.7778, 0.9]
+    for actual, want in zip(q_values, expected, strict=True):
+        assert actual == pytest.approx(want, abs=1e-3)
+
+
+def test_benjamini_hochberg_qvalues_never_below_the_raw_p_value() -> None:
+    p_values = [0.001, 0.2, 0.03, 0.9, 0.5]
+
+    q_values = _benjamini_hochberg_qvalues(p_values)
+
+    for p, q in zip(p_values, q_values, strict=True):
+        assert q >= p
+
+
+def test_benjamini_hochberg_qvalues_empty_input() -> None:
+    assert _benjamini_hochberg_qvalues([]) == []
