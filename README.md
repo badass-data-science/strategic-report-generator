@@ -76,6 +76,9 @@ Phase 5 — Systems Signals  [pure DB read, no LLM]
 
   --database-url (urgency_scores/tag_counts/tag_edges/tag_topics/
     community_summary_tags/articles) ──► topic_urgency_lagged_correlations()
+                                          (FDR-corrected, archive-gap
+                                          handling + leave-one-out trend
+                                          control — see Design decisions)
                                       ──► tag_rate_lagged_correlations()
                                           (FDR-corrected, five-filter chain —
                                           see Design decisions)
@@ -212,6 +215,27 @@ on every call, and the result only ever reaches that run's `index.html`
 **Systems Signals** section — not the database, not a prior report, since
 `--output-dir` itself is wiped every run (see the warning in
 [Output](#output)).
+
+`topic_urgency_lagged_correlations()` has no tag-graph structure to lean
+on (topics are a small, fixed vocabulary, not ~7k free-form tags), so none
+of the five tag-rate filters above apply to it — but it isn't bare
+either, after a real false positive found the hard way. The one candidate
+this function ever reported on the live archive, Energy correlated with
+Forex at lag zero (r≈0.92), turned out to be an artifact of two things:
+two runs whose article archive had silently failed (`load_topic_urgency_series`
+now treats a run missing entirely from `articles` as a gap for every
+topic, the same `_runs_missing_from` check `load_tag_rate_series` uses,
+not a false low score), and — even with those two runs excluded — both
+topics independently correlating almost as strongly with the day's mean
+urgency across every *other* tracked topic as they did with each other, a
+topic-level version of the same "riding a shared trend" confound the
+tag-rate partial-correlation control exists to catch. `topic_urgency_lagged_correlations`
+now runs the same kind of partial correlation
+(`_topic_urgency_control_series`: each topic's leave-one-out mean urgency
+across every other topic, that run) before reporting anything. Both
+fixes together dropped the Energy/Forex candidate out of contention
+entirely — it no longer appears even in the raw, uncorrected candidate
+list.
 
 ### `ask` is graph-guided retrieval, not full GraphRAG
 
@@ -751,7 +775,7 @@ tests/test_archive_query.py  find_relevant_communities(): exact/substring matchi
 tests/test_tag_normalizer.py  Tag synonym normalization
 tests/test_overview_archive.py  Cross-topic overview bullet round-trip, ordering, multi-run
 tests/test_rdf_export.py  RDF ontology mapping (articles/tags/communities/bridge tags/urgency/bullets/overview), --since filtering, Turtle serialization
-tests/test_systems_signals.py  Lagged/partial-correlation math, Benjamini-Hochberg FDR correction, all five tag-rate filters (sparsity, containment, community, topic-volume, single-source) — pure-function tests against synthetic series, no DB
+tests/test_systems_signals.py  Lagged/partial-correlation math, Benjamini-Hochberg FDR correction, all five tag-rate filters (sparsity, containment, community, topic-volume, single-source), topic-urgency leave-one-out trend control, article-archive-gap handling for both series — pure-function tests against synthetic series, no DB
 ```
 
 ---
@@ -827,7 +851,7 @@ Cross-run history is kept separately, in the PostgreSQL database at
 `--database-url` (see [Configuration](#configuration)):
 
 - **`runs`** — one row per pipeline run: `run_id`, `created_at` timestamp, and `article_count` (total articles considered that run — the denominator for comparing tag weights across runs, since a raw tag count means something different on a 400-article day than a 50-article one).
-- **`articles`**, **`article_summary_bullets`**, **`article_tags`** — every article's title, link, publish date, summary bullets, and tags, linked to `run_id`. This is the source material every derived signal below (tags, bullets, urgency scores) is computed from — otherwise it exists only in memory during a run and is lost once `{topic}_summaries.html` (in the wiped `--output-dir`) is gone. Each article's insert is isolated in its own savepoint (`article_archive.record_articles`), so one bad row only loses that article, not the whole run's archive. Not currently read by `ask` (which reads `community_summaries` instead) — read by Systems Signals' topic-volume control and single-source filter (see [Design decisions](#systems-signals-surfaces-candidate-feedback-loops-filtered-aggressively)), and available for a future retrieval mode grounded in raw article text.
+- **`articles`**, **`article_summary_bullets`**, **`article_tags`** — every article's title, link, publish date, summary bullets, and tags, linked to `run_id`. This is the source material every derived signal below (tags, bullets, urgency scores) is computed from — otherwise it exists only in memory during a run and is lost once `{topic}_summaries.html` (in the wiped `--output-dir`) is gone. Each article's insert is isolated in its own savepoint (`article_archive.record_articles`), so one bad row only loses that article, not the whole run's archive. Not currently read by `ask` (which reads `community_summaries` instead) — read by Systems Signals' topic-volume control, single-source filter, and (via a distinct-`run_id` presence check) both series' article-archive-gap handling (see [Design decisions](#systems-signals-surfaces-candidate-feedback-loops-filtered-aggressively)), and available for a future retrieval mode grounded in raw article text.
 - **`urgency_scores`** — one row per topic per run; used by the z-score baseline after 7 runs per topic. Each row's insert (`urgency.append_run`) is isolated the same way as `articles`/`tag_counts` above.
 - **`bullets`** — one row per strategic bullet per topic per run; used by the bullet diff to identify what changed since the most recent prior run. Each row's insert (`bullet_diff.append_bullet_run`) is isolated the same way.
 - **`tag_counts`**, **`tag_topics`**, **`tag_edges`** — one run's tag graph (per-tag counts, per-tag topic membership, and tag-pair co-occurrence edges), linked to `run_id`. Together these let `tag_graph.json` be reconstructed for any past run directly from the database, and are what `systems_signals.tag_rate_lagged_correlations()` reads its rate series and candidate pairs from. `tag_counts` also backs the emerging-tag z-score alert: a tag's rate (count ÷ that run's `article_count`) is compared against its own historical rate once it has 7+ prior runs; tags with less history (including brand-new tags) are skipped rather than guessed at, since — unlike urgency scores — tag rates have no meaningful absolute cutoff to fall back on. Like `articles` above, each row's insert (`tag_tracking.record_tags`) is isolated — batched for speed, falling back to one-row-at-a-time savepoints only if the batch fails, since a single run can produce tens of thousands of `tag_edges` rows.

@@ -181,12 +181,29 @@ def load_topic_urgency_series(
     run has no urgency_scores row for that topic (e.g. the topic errored
     out that run) -- left as a gap, not coerced to 0.0, since 0.0 is itself
     a meaningful low-urgency score, not a "missing" sentinel.
+
+    A run whose article archive failed entirely (nonzero runs.article_count
+    but zero rows in `articles`) also gets None for every topic that run --
+    see _runs_missing_from. Confirmed to have actually happened
+    pre-article_archive_savepoint_fix: two 2026-08-24 runs had real urgency
+    scores computed but an empty article archive, and their spuriously low,
+    correlated scores were what drove the Energy<->Forex r=0.92 false
+    positive investigated the same session as that fix -- see
+    energy_forex_correlation_artifact memory.
     """
     run_order = load_run_order(database_url)
     run_index = {run_id: i for i, run_id in enumerate(run_order)}
 
     with get_connection(database_url) as conn:
         rows = conn.execute("SELECT run_id, topic, score FROM urgency_scores").fetchall()
+        article_counts: dict[str, int] = dict(
+            conn.execute("SELECT run_id, article_count FROM runs").fetchall()
+        )
+        runs_with_article_data = {
+            row[0] for row in conn.execute("SELECT DISTINCT run_id FROM articles").fetchall()
+        }
+
+    runs_with_missing_article_data = _runs_missing_from(article_counts, runs_with_article_data)
 
     series: dict[str, list[float | None]] = {}
     for run_id, topic, score in rows:
@@ -194,6 +211,13 @@ def load_topic_urgency_series(
         if idx is None:
             continue
         series.setdefault(topic, [None] * len(run_order))[idx] = score
+
+    for run_id in runs_with_missing_article_data:
+        idx = run_index.get(run_id)
+        if idx is None:
+            continue
+        for scores in series.values():
+            scores[idx] = None
 
     return run_order, series
 
@@ -500,6 +524,39 @@ def _significant_correlations(
     return sorted(results, key=lambda c: -abs(c.correlation))
 
 
+def _topic_urgency_control_series(
+    topic: str, series: dict[str, list[float | None]], run_order: Sequence[str]
+) -> list[float | None]:
+    """
+    Per-run leave-one-out mean urgency across every OTHER topic -- a
+    stand-in for "how newsy was this day overall," the topic-urgency
+    analogue of tag_rate_lagged_correlations' weighted topic-volume
+    control (_weighted_topic_volume). Controlling this out before
+    correlating two topics catches e.g. two topics both tracking a shared
+    busy-news-day trend rather than one driving the other -- confirmed
+    necessary, not theoretical: Energy<->Forex (r=0.79 at lag=0) survived
+    on the live DB even after the article-archive-gap fix, and both
+    topics separately correlated with this control almost as strongly as
+    with each other (see energy_forex_correlation_artifact memory).
+
+    None where fewer than 2 other topics have a real score that run --
+    not enough to estimate a day-level trend from.
+    """
+    # See lagged_pearson for why this is an explicit loop with a local
+    # variable (v), not a comprehension re-indexing series[t][i] twice --
+    # mypy can't narrow the second re-evaluation to float.
+    other_topics = [t for t in series if t != topic]
+    control: list[float | None] = []
+    for i in range(len(run_order)):
+        values: list[float] = []
+        for t in other_topics:
+            v = series[t][i]
+            if v is not None:
+                values.append(v)
+        control.append(sum(values) / len(values) if len(values) >= 2 else None)
+    return control
+
+
 def topic_urgency_lagged_correlations(
     database_url: str, max_lag: int = 3, r_threshold: float = 0.6, fdr_q: float = 0.05
 ) -> list[LaggedCorrelation]:
@@ -507,18 +564,28 @@ def topic_urgency_lagged_correlations(
     All-pairs lagged correlation over topic urgency scores. Directional:
     (A, B, lag) and (B, A, lag) are both computed, since a feedback loop
     (A drives B) is not the same claim as its reverse (B drives A).
+
+    A *partial* correlation (lagged_partial_pearson), controlling out each
+    side's own leave-one-out mean urgency across every other topic that
+    run (_topic_urgency_control_series) -- see that function for why.
     """
-    _, series = load_topic_urgency_series(database_url)
+    run_order, series = load_topic_urgency_series(database_url)
+
+    def control_series(topic: str) -> list[float | None]:
+        return _topic_urgency_control_series(topic, series, run_order)
+
     candidates: list[tuple[str, str, int, float, int]] = []
     for topic_a, topic_b in combinations(series, 2):
         for lag in range(max_lag + 1):
             for a, b in ((topic_a, topic_b), (topic_b, topic_a)):
-                out = lagged_pearson(series[a], series[b], lag)
+                out = lagged_partial_pearson(
+                    series[a], series[b], control_series(a), control_series(b), lag
+                )
                 if out is None:
                     continue
                 r, n = out
                 candidates.append((a, b, lag, r, n))
-    return _significant_correlations(candidates, r_threshold, fdr_q)
+    return _significant_correlations(candidates, r_threshold, fdr_q, controls=2)
 
 
 def _tags_with_enough_activity(

@@ -26,6 +26,7 @@ from strategic_reports.daily.core.systems_signals import (
     _runs_missing_from,
     _same_community_ratio,
     _tags_with_enough_activity,
+    _topic_urgency_control_series,
     _topic_volume_series,
     _topic_weights,
     _weighted_topic_volume,
@@ -446,6 +447,46 @@ def test_weighted_topic_volume_full_gap_when_all_weighted_topics_are_none() -> N
     series = _weighted_topic_volume("tagA", topic_weights, topic_volume, run_order)
 
     assert series == [pytest.approx(7.0), None]
+
+
+def test_topic_urgency_control_series_excludes_the_topic_itself() -> None:
+    run_order = ["r1", "r2"]
+    series: dict[str, list[float | None]] = {
+        "Energy": [0.5, 0.6],
+        "Forex": [0.7, 0.8],
+        "Defense": [0.3, 0.9],
+    }
+
+    control = _topic_urgency_control_series("Energy", series, run_order)
+
+    # r1: mean(Forex=0.7, Defense=0.3) = 0.5;  r2: mean(0.8, 0.9) = 0.85
+    assert control == pytest.approx([0.5, 0.85])
+
+
+def test_topic_urgency_control_series_ignores_none_entries() -> None:
+    run_order = ["r1"]
+    series: dict[str, list[float | None]] = {
+        "Energy": [0.5],
+        "Forex": [0.7],
+        "Geopolitics": [0.9],
+        "Defense": [None],
+    }
+
+    control = _topic_urgency_control_series("Energy", series, run_order)
+
+    # Defense is None that run -- mean(Forex=0.7, Geopolitics=0.9) = 0.8
+    assert control == [pytest.approx(0.8)]
+
+
+def test_topic_urgency_control_series_none_when_fewer_than_two_other_topics_known() -> None:
+    run_order = ["r1"]
+    series: dict[str, list[float | None]] = {
+        "Energy": [0.5],
+        "Forex": [None],
+        "Defense": [None],
+    }
+
+    assert _topic_urgency_control_series("Energy", series, run_order) == [None]
 
 
 def test_topic_volume_series_aligns_to_run_order_and_ignores_unknown_runs() -> None:
