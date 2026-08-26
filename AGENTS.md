@@ -294,8 +294,25 @@ LICENSE                 MIT
   oversight, made explicitly when asked. An uncorrected all-pairs scan is
   almost pure noise (a 14-run archive produced ~40 "significant" topic
   pairs and ~9,700 tag pairs before any correction), so both functions run
-  a Benjamini-Hochberg FDR correction across every test in a single scan,
-  and `tag_rate_lagged_correlations` additionally runs five structural/
+  a Benjamini-Hochberg FDR correction across every test in a single scan.
+  `topic_urgency_lagged_correlations` also has two safeguards of its own
+  now, added after its one live result (Energy correlated with Forex,
+  r≈0.92) turned out to be a false positive on inspection: (1)
+  `load_topic_urgency_series` treats a run entirely missing from
+  `articles` as a gap for every topic (`_runs_missing_from`, same check
+  `load_tag_rate_series` uses) instead of trusting a real-but-tainted
+  urgency score computed from a run whose article archive silently
+  failed to persist; (2) it's now a *partial* correlation
+  (`lagged_partial_pearson`), controlling each topic out by
+  `_topic_urgency_control_series` — its own leave-one-out mean urgency
+  across every other tracked topic that run — since even past fix (1),
+  Energy and Forex both independently correlated with that shared-trend
+  control almost as strongly as with each other. Neither safeguard existed
+  when Energy/Forex first shipped as a result; don't assume a future
+  topic-urgency candidate has been checked for anything beyond these two
+  before trusting it further.
+
+  `tag_rate_lagged_correlations` additionally runs five structural/
   statistical filters before a candidate is even correlated or reported: a
   sparsity floor (`_MIN_ACTIVE_RUNS_FOR_TAG_CORRELATION`), a containment-
   ratio check for near-synonymous tags (`_drop_near_synonymous_pairs`), a
