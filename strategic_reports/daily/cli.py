@@ -416,7 +416,13 @@ def run(
     try:
         urgency_history = load_history(database_url)
         alerts = check_alerts(results, urgency_history, absolute_threshold, z_score_threshold)
-        append_run(database_url, results, run_id)
+        failed_count = append_run(database_url, results, run_id)
+        if failed_count:
+            typer.echo(
+                f"[warn] Urgency scores: {failed_count} row(s) failed to insert "
+                "(see logs for detail)",
+                err=True,
+            )
         if alerts:
             typer.echo(f"URGENCY ALERTS ({len(alerts)} topic(s)):")
             for urgency_alert in alerts:
@@ -434,7 +440,7 @@ def run(
         yesterday = load_bullet_history(database_url)
         if not yesterday:
             typer.echo("No bullet history yet — skipping diff on first run")
-            append_bullet_run(database_url, results, run_id)
+            failed_count = append_bullet_run(database_url, results, run_id)
         else:
             diff_client = LLMClient(
                 model=model,
@@ -445,7 +451,12 @@ def run(
                 api_key=ollama_api_key,
             )
             diffs = asyncio.run(diff_all_topics(results, yesterday, diff_client))
-            append_bullet_run(database_url, results, run_id)
+            failed_count = append_bullet_run(database_url, results, run_id)
+        if failed_count:
+            typer.echo(
+                f"[warn] Bullets: {failed_count} row(s) failed to insert (see logs for detail)",
+                err=True,
+            )
     except Exception as exc:
         typer.echo(
             f"[warn] Bullet diff failed: {exc} — report will render without diffs", err=True

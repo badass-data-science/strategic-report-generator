@@ -274,6 +274,33 @@ class TestHistoryPersistence:
         assert len(new_history["AI"]) == 8
 
 
+class TestAppendRunFailureIsolation:
+    def test_returns_zero_on_full_success(self, database_url: str) -> None:
+        record_run(database_url, "run-0", article_count=0)
+        assert append_run(database_url, [_make_result("AI", 0.5)], run_id="run-0") == 0
+
+    def test_one_bad_topic_does_not_lose_the_whole_run(self, database_url: str) -> None:
+        # A NUL byte is valid in a Python str but Postgres text columns
+        # reject it outright -- a reliable way to force exactly one bad
+        # row without mocking (see article_archive_savepoint_fix for the
+        # article-archive counterpart of this bug/fix). Before
+        # db.insert_rows_isolating_failures, this would have aborted the
+        # whole batch and lost every topic's score for the run, not just
+        # the bad one.
+        record_run(database_url, "run-0", article_count=0)
+        results = [
+            _make_result("Good Topic 1", 0.4),
+            _make_result("Bad \x00 Topic", 0.9),
+            _make_result("Good Topic 2", 0.6),
+        ]
+
+        failed_count = append_run(database_url, results, run_id="run-0")
+
+        assert failed_count == 1
+        history = load_history(database_url)
+        assert set(history) == {"Good Topic 1", "Good Topic 2"}
+
+
 # ---------------------------------------------------------------------------
 # UrgencyAlert.summary() formatting
 # ---------------------------------------------------------------------------

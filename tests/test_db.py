@@ -4,7 +4,16 @@ reachability fail-fast check, and run registration.
 """
 
 import pytest
-from strategic_reports.daily.core.db import ensure_database_reachable, get_connection, record_run
+from strategic_reports.daily.core.db import (
+    ensure_database_reachable,
+    get_connection,
+    insert_rows_isolating_failures,
+    record_run,
+)
+
+_INSERT_URGENCY_SCORE = (
+    "INSERT INTO urgency_scores (run_id, created_at, topic, score) VALUES (%s, %s, %s, %s)"
+)
 
 
 class TestEnsureDatabaseReachable:
@@ -62,3 +71,65 @@ class TestRecordRun:
                 "SELECT article_count FROM runs WHERE run_id = %s", ("run-1",)
             ).fetchall()
         assert rows == [(10,)]
+
+
+class TestInsertRowsIsolatingFailures:
+    """
+    Shared savepoint-isolation helper used by record_articles, record_tags,
+    record_community_summaries, urgency.append_run, and
+    bullet_diff.append_bullet_run. Exercised here directly against
+    urgency_scores (any tracking-db table with the right shape would do).
+    """
+
+    def test_returns_zero_and_inserts_all_rows_on_success(self, database_url: str) -> None:
+        record_run(database_url, "run-0", article_count=0)
+        rows = [
+            ("run-0", "2026-01-01T00:00:00", "AI", 0.1),
+            ("run-0", "2026-01-01T00:00:00", "Defense", 0.2),
+        ]
+        with get_connection(database_url) as conn:
+            failed = insert_rows_isolating_failures(
+                conn, _INSERT_URGENCY_SCORE, rows, "run-0", "urgency_scores"
+            )
+            conn.commit()
+
+        assert failed == 0
+        with get_connection(database_url) as conn:
+            count = conn.execute(
+                "SELECT count(*) FROM urgency_scores WHERE run_id = %s", ("run-0",)
+            ).fetchone()
+        assert count == (2,)
+
+    def test_one_bad_row_does_not_lose_the_others(self, database_url: str) -> None:
+        # A NUL byte is valid in a Python str but Postgres text columns
+        # reject it outright -- forces exactly one bad row without mocking.
+        record_run(database_url, "run-0", article_count=0)
+        rows = [
+            ("run-0", "2026-01-01T00:00:00", "Good A", 0.1),
+            ("run-0", "2026-01-01T00:00:00", "Bad \x00 Topic", 0.5),
+            ("run-0", "2026-01-01T00:00:00", "Good B", 0.2),
+        ]
+        with get_connection(database_url) as conn:
+            failed = insert_rows_isolating_failures(
+                conn, _INSERT_URGENCY_SCORE, rows, "run-0", "urgency_scores"
+            )
+            conn.commit()
+
+        assert failed == 1
+        with get_connection(database_url) as conn:
+            topics = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT topic FROM urgency_scores WHERE run_id = %s", ("run-0",)
+                ).fetchall()
+            }
+        assert topics == {"Good A", "Good B"}
+
+    def test_empty_rows_is_a_noop(self, database_url: str) -> None:
+        record_run(database_url, "run-0", article_count=0)
+        with get_connection(database_url) as conn:
+            failed = insert_rows_isolating_failures(
+                conn, _INSERT_URGENCY_SCORE, [], "run-0", "urgency_scores"
+            )
+            conn.commit()
+        assert failed == 0

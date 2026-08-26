@@ -335,7 +335,9 @@ def check_urgency_alerts(
     try:
         history = load_history(database_url)
         alerts = check_alerts(results, history, absolute_threshold, z_score_threshold)
-        append_run(database_url, results, run_id)
+        failed_count = append_run(database_url, results, run_id)
+        if failed_count:
+            logger.warning(f"Urgency scores: {failed_count} row(s) failed to insert")
 
         if alerts:
             logger.warning(f"URGENCY ALERTS ({len(alerts)} topic(s)):")
@@ -466,7 +468,9 @@ async def run_bullet_diff(
         yesterday = load_bullet_history(database_url)
         if not yesterday:
             logger.info("No bullet history yet — skipping diff on first run")
-            append_bullet_run(database_url, results, run_id)
+            failed_count = append_bullet_run(database_url, results, run_id)
+            if failed_count:
+                logger.warning(f"Bullets: {failed_count} row(s) failed to insert")
             return {}
 
         mode = _INSTRUCTOR_MODES.get(instructor_mode_str.upper(), instructor.Mode.TOOLS)
@@ -479,7 +483,9 @@ async def run_bullet_diff(
             api_key=api_key,
         )
         diffs = await diff_all_topics(results, yesterday, client)
-        append_bullet_run(database_url, results, run_id)
+        failed_count = append_bullet_run(database_url, results, run_id)
+        if failed_count:
+            logger.warning(f"Bullets: {failed_count} row(s) failed to insert")
 
         new_count = sum(len(d.new) for d in diffs.values())
         dropped_count = sum(len(d.dropped) for d in diffs.values())

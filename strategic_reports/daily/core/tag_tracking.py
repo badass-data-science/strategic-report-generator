@@ -45,54 +45,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-import psycopg
-import structlog
-
-from .db import get_connection
-
-log = structlog.get_logger(__name__)
+from .db import get_connection, insert_rows_isolating_failures
 
 # Minimum number of historical runs required before a tag can be flagged.
 # Matches urgency.py's _MIN_HISTORY_RUNS for consistency.
 _MIN_HISTORY_RUNS = 7
-
-
-def _insert_rows_isolating_failures(
-    conn: psycopg.Connection, sql: str, rows: list[tuple[Any, ...]], run_id: str, table: str
-) -> int:
-    """
-    Insert `rows` via one batched executemany() inside a savepoint --
-    a single round trip, the fast path, when nothing fails. If the batch
-    fails, retry each row individually inside its own savepoint so one bad
-    row can't silently discard the rest of the table for this run --
-    same principle as article_archive.record_articles's per-article
-    savepoints (see article_archive_savepoint_fix), but batched first
-    since a table like tag_edges can have tens of thousands of rows per
-    run, and looping row-by-row unconditionally would be a real
-    performance regression for the common case where nothing fails.
-
-    Returns the number of rows that failed to insert (0 = fully successful).
-    """
-    try:
-        with conn.transaction():
-            conn.cursor().executemany(sql, rows)
-        return 0
-    except Exception:
-        failed = 0
-        for row in rows:
-            try:
-                with conn.transaction():
-                    conn.execute(sql, row)
-            except Exception as exc:
-                failed += 1
-                log.warning(
-                    "tag_tracking_insert_failed",
-                    run_id=run_id,
-                    table=table,
-                    row=row,
-                    error=repr(exc),
-                )
-        return failed
 
 
 @dataclass
@@ -119,7 +76,7 @@ def record_tags(database_url: str, run_id: str, graph_data: dict[str, Any]) -> i
     same object you're about to write to tag_graph.json so the database and
     the JSON file always agree. Returns the number of rows across all
     three tables that failed to insert (0 = fully successful) — see
-    _insert_rows_isolating_failures for why one bad row no longer loses
+    insert_rows_isolating_failures for why one bad row no longer loses
     every row in its table for this run.
 
     Assumes db.record_run(database_url, run_id, ...) has already been
@@ -131,21 +88,21 @@ def record_tags(database_url: str, run_id: str, graph_data: dict[str, Any]) -> i
 
     with get_connection(database_url) as conn:
         failed = 0
-        failed += _insert_rows_isolating_failures(
+        failed += insert_rows_isolating_failures(
             conn,
             "INSERT INTO tag_counts (run_id, created_at, tag, count) VALUES (%s, %s, %s, %s)",
             [(run_id, now, n["id"], n["count"]) for n in nodes],
             run_id,
             "tag_counts",
         )
-        failed += _insert_rows_isolating_failures(
+        failed += insert_rows_isolating_failures(
             conn,
             "INSERT INTO tag_topics (run_id, created_at, tag, topic) VALUES (%s, %s, %s, %s)",
             [(run_id, now, n["id"], topic) for n in nodes for topic in n["topics"]],
             run_id,
             "tag_topics",
         )
-        failed += _insert_rows_isolating_failures(
+        failed += insert_rows_isolating_failures(
             conn,
             "INSERT INTO tag_edges (run_id, created_at, tag_a, tag_b, weight) "
             "VALUES (%s, %s, %s, %s, %s)",
@@ -343,7 +300,7 @@ def record_community_summaries(
     "tags", "summary", "article_count"}}), linked to run_id. Returns the
     number of rows across both tables that failed to insert (0 = fully
     successful, including the community_summaries-is-empty no-op case) --
-    see _insert_rows_isolating_failures.
+    see insert_rows_isolating_failures.
 
     Self-contained: stores each community's own member tags rather than
     reconstructing them from tag_counts, since Louvain community
@@ -358,7 +315,7 @@ def record_community_summaries(
     now = datetime.now(UTC).isoformat()
     with get_connection(database_url) as conn:
         failed = 0
-        failed += _insert_rows_isolating_failures(
+        failed += insert_rows_isolating_failures(
             conn,
             "INSERT INTO community_summaries "
             "(run_id, created_at, community_id, label, summary, article_count) "
@@ -370,7 +327,7 @@ def record_community_summaries(
             run_id,
             "community_summaries",
         )
-        failed += _insert_rows_isolating_failures(
+        failed += insert_rows_isolating_failures(
             conn,
             "INSERT INTO community_summary_tags (run_id, created_at, community_id, tag) "
             "VALUES (%s, %s, %s, %s)",
