@@ -36,6 +36,14 @@ functions below therefore run a Benjamini-Hochberg false-discovery-rate
 correction (`fdr_q`) across every test performed in a single scan, and
 only report a pair that clears BOTH the effect-size floor (r_threshold)
 and FDR-adjusted significance -- see `_significant_correlations`.
+
+tag_rate_lagged_correlations additionally reuses two tables beyond the
+three above -- `articles` (run_id, topic, ...) and `tag_topics`
+(run_id, tag, topic), both already populated every run -- to control out
+each tag's own topic-level article volume before correlating (see
+`lagged_partial_pearson`), catching a confound none of the pairwise
+filters do: two tags from the same busy topic riding that topic's news
+volume together, not one driving the other.
 """
 
 import math
@@ -179,6 +187,24 @@ def load_tag_rate_series(
     return run_order, series
 
 
+def _pearson(xs: list[float], ys: list[float]) -> tuple[float, int] | None:
+    """Plain Pearson r over two already-aligned, gap-free equal-length lists."""
+    n = len(xs)
+    if n < _MIN_RUNS_FOR_LAG:
+        return None
+
+    mean_x = sum(xs) / n
+    mean_y = sum(ys) / n
+    cov = sum((a - mean_x) * (b - mean_y) for a, b in zip(xs, ys, strict=True)) / n
+    var_x = sum((a - mean_x) ** 2 for a in xs) / n
+    var_y = sum((b - mean_y) ** 2 for b in ys) / n
+    if var_x == 0 or var_y == 0:
+        return None
+
+    r = cov / (var_x**0.5 * var_y**0.5)
+    return r, n
+
+
 def lagged_pearson(
     x: Sequence[float | None], y: Sequence[float | None], lag: int
 ) -> tuple[float, int] | None:
@@ -195,22 +221,72 @@ def lagged_pearson(
         for t in range(len(x) - lag)
         if x[t] is not None and y[t + lag] is not None
     ]
-    n = len(pairs)
-    if n < _MIN_RUNS_FOR_LAG:
+    if len(pairs) < _MIN_RUNS_FOR_LAG:
         return None
 
-    xs = [p[0] for p in pairs if p[0] is not None]
-    ys = [p[1] for p in pairs if p[1] is not None]
-    mean_x = sum(xs) / n
-    mean_y = sum(ys) / n
-    cov = sum((a - mean_x) * (b - mean_y) for a, b in zip(xs, ys, strict=True)) / n
-    var_x = sum((a - mean_x) ** 2 for a in xs) / n
-    var_y = sum((b - mean_y) ** 2 for b in ys) / n
-    if var_x == 0 or var_y == 0:
+    xs = [p[0] for p in pairs]
+    ys = [p[1] for p in pairs]
+    return _pearson(xs, ys)
+
+
+def _ols_residuals(z: Sequence[float], w: Sequence[float]) -> list[float]:
+    """
+    Residuals of w after regressing out a linear effect of z (simple OLS,
+    same-length paired series). If z has zero variance it carries no
+    information to control for, so w is returned unchanged rather than
+    dividing by zero.
+    """
+    n = len(z)
+    mean_z = sum(z) / n
+    mean_w = sum(w) / n
+    var_z = sum((v - mean_z) ** 2 for v in z)
+    if var_z == 0:
+        return list(w)
+    cov_zw = sum((z[i] - mean_z) * (w[i] - mean_w) for i in range(n))
+    slope = cov_zw / var_z
+    intercept = mean_w - slope * mean_z
+    return [w[i] - (intercept + slope * z[i]) for i in range(n)]
+
+
+def lagged_partial_pearson(
+    x: Sequence[float | None],
+    y: Sequence[float | None],
+    zx: Sequence[float],
+    zy: Sequence[float],
+    lag: int,
+) -> tuple[float, int] | None:
+    """
+    Partial correlation between x[t] and y[t + lag], controlling for each
+    side's own same-run confound series -- zx[t] alongside x[t], zy[t+lag]
+    alongside y[t+lag] -- before correlating. Two separate controls (not
+    one shared control, since a confound like topic-article-volume takes a
+    different value at run t than at run t+lag) via two independent OLS
+    residualizations, so treat this as removing 2 degrees of freedom
+    relative to plain lagged_pearson (see _pearson_p_value's `controls`).
+
+    Built for tag_rate_lagged_correlations' topic-volume control: two tags
+    from the same busy topic (e.g. Defense) can ride that topic's article
+    volume together at lag>0 without one predicting the other -- see
+    module docstring.
+    """
+    if lag < 0:
+        raise ValueError("lag must be >= 0")
+
+    pairs = [
+        (x[t], y[t + lag], zx[t], zy[t + lag])
+        for t in range(len(x) - lag)
+        if x[t] is not None and y[t + lag] is not None
+    ]
+    if len(pairs) < _MIN_RUNS_FOR_LAG:
         return None
 
-    r = cov / (var_x**0.5 * var_y**0.5)
-    return r, n
+    xs = [p[0] for p in pairs]
+    ys = [p[1] for p in pairs]
+    zxs = [p[2] for p in pairs]
+    zys = [p[3] for p in pairs]
+    x_resid = _ols_residuals(zxs, xs)
+    y_resid = _ols_residuals(zys, ys)
+    return _pearson(x_resid, y_resid)
 
 
 def _log_beta(a: float, b: float) -> float:
@@ -266,15 +342,20 @@ def _regularized_incomplete_beta(x: float, a: float, b: float) -> float:
     return 1.0 - front * _betacf(b, a, 1.0 - x) / b
 
 
-def _pearson_p_value(r: float, n: int) -> float:
+def _pearson_p_value(r: float, n: int, controls: int = 0) -> float:
     """
     Two-tailed p-value for a Pearson r over n samples -- the same test
-    scipy.stats.pearsonr reports, via the standard t = r*sqrt((n-2)/(1-r^2))
+    scipy.stats.pearsonr reports, via the standard t = r*sqrt((df)/(1-r^2))
     transform and the incomplete-beta form of the t-distribution's CDF,
     since this project has no hard scipy/numpy dependency to reach for.
+
+    `controls` is the number of variables already regressed out before r
+    was computed (0 for plain lagged_pearson; 2 for lagged_partial_pearson,
+    which runs two independent OLS residualizations) -- each one costs a
+    degree of freedom, same as in a partial-correlation significance test.
     """
     r = max(-1.0, min(1.0, r))
-    df = n - 2
+    df = n - 2 - controls
     if df <= 0:
         return 1.0
     if abs(r) >= 1.0:
@@ -311,6 +392,7 @@ def _significant_correlations(
     candidates: list[tuple[str, str, int, float, int]],
     r_threshold: float,
     fdr_q: float,
+    controls: int = 0,
 ) -> list[LaggedCorrelation]:
     """
     Apply BH FDR correction across every (subject_a, subject_b, lag, r, n)
@@ -318,8 +400,10 @@ def _significant_correlations(
     effect-size floor (r_threshold) and FDR-adjusted significance (fdr_q)
     -- see module docstring for why the effect-size filter alone isn't
     enough once a scan runs hundreds/thousands of simultaneous tests.
+    Pass `controls` (see _pearson_p_value) when every r in this batch came
+    from a partial correlation, not plain lagged_pearson.
     """
-    p_values = [_pearson_p_value(r, n) for _, _, _, r, n in candidates]
+    p_values = [_pearson_p_value(r, n, controls) for _, _, _, r, n in candidates]
     q_values = _benjamini_hochberg_qvalues(p_values)
     results = [
         LaggedCorrelation(a, b, lag, round(r, 3), n, round(p, 4), round(q, 4))
@@ -443,6 +527,40 @@ def _drop_topically_clustered_pairs(
     return kept
 
 
+def _primary_topics(tag_topic_rows: list[tuple[str, str, int]]) -> dict[str, str]:
+    """
+    Each tag's most common topic (mode across all runs) from tag_topics --
+    a tag occasionally spans multiple topics in a single run, but the
+    topic-volume control needs one stable topic per tag, not a per-run
+    choice. `tag_topic_rows` is (tag, topic, count) from
+    "SELECT tag, topic, COUNT(*) FROM tag_topics GROUP BY tag, topic".
+    """
+    best: dict[str, tuple[str, int]] = {}
+    for tag, topic, count in tag_topic_rows:
+        current = best.get(tag)
+        if current is None or count > current[1]:
+            best[tag] = (topic, count)
+    return {tag: topic for tag, (topic, _) in best.items()}
+
+
+def _topic_volume_series(
+    run_order: list[str], topic_article_counts: list[tuple[str, str, int]]
+) -> dict[str, list[float]]:
+    """
+    {topic: [article count that run, aligned to run_order]} from
+    "SELECT run_id, topic, COUNT(*) FROM articles GROUP BY run_id, topic"
+    -- the raw signal a shared-topic "busy week" confound would show up in.
+    """
+    run_index = {run_id: i for i, run_id in enumerate(run_order)}
+    series: dict[str, list[float]] = {}
+    for run_id, topic, count in topic_article_counts:
+        idx = run_index.get(run_id)
+        if idx is None:
+            continue
+        series.setdefault(topic, [0.0] * len(run_order))[idx] = float(count)
+    return series
+
+
 def tag_rate_lagged_correlations(
     database_url: str,
     max_lag: int = 3,
@@ -459,12 +577,26 @@ def tag_rate_lagged_correlations(
     -- see module docstring for why an all-pairs scan over ~7k tags isn't
     the right default here -- further restricted to tags active in at
     least min_active_runs runs, so a pair isn't reported purely because
-    both tags are rare and happened to be nonzero together, and finally
-    with both near-synonymous pairs (containment ratio >= max_containment_ratio)
-    and same-topic-cluster pairs (same-community ratio >= max_same_community_ratio)
+    both tags are rare and happened to be nonzero together, and with both
+    near-synonymous pairs (containment ratio >= max_containment_ratio) and
+    same-topic-cluster pairs (same-community ratio >= max_same_community_ratio)
     dropped, since neither co-referential tags nor two tags from the same
     Louvain community moving together is evidence of a cross-domain
     feedback loop.
+
+    The correlation itself is a *partial* correlation (lagged_partial_pearson),
+    controlling out each side's own primary-topic article volume that run --
+    two tags from the same busy topic (e.g. Defense) can otherwise ride that
+    topic's news-volume wave together (one run's Defense coverage is heavy,
+    so every Defense tag's rate rises together) without one predicting the
+    other. That pattern survives the containment-ratio and same-community
+    filters above since those look at tag-to-tag co-occurrence, not shared
+    topic volume, and it isn't a sparsity or multiple-comparisons artifact
+    either -- confirmed by pulling the actual articles behind an
+    "interceptor -> north korea" result in the 2026-08-26
+    systems-thinking-prototype session: both tags' articles were simply
+    part of an unusually busy Defense-topic week, with no article-level
+    thread connecting the two.
     """
     with get_connection(database_url) as conn:
         edge_rows = conn.execute(
@@ -485,6 +617,9 @@ def tag_rate_lagged_correlations(
             "SELECT run_id, tag, community_id FROM community_summary_tags"
         ).fetchall():
             tag_community_by_run.setdefault(run_id, {})[tag] = community_id
+        topic_article_counts = conn.execute(
+            "SELECT run_id, topic, COUNT(*) FROM articles GROUP BY run_id, topic"
+        ).fetchall()
 
     edge_rows = _drop_near_synonymous_pairs(
         edge_rows, co_occurrence_totals, tag_totals, max_containment_ratio
@@ -497,8 +632,22 @@ def tag_rate_lagged_correlations(
     )
 
     candidate_tags = {t for a, b in edge_rows for t in (a, b)}
-    _, series = load_tag_rate_series(database_url, tags=candidate_tags)
+    run_order, series = load_tag_rate_series(database_url, tags=candidate_tags)
     active_tags = _tags_with_enough_activity(series, min_active_runs)
+
+    with get_connection(database_url) as conn:
+        tag_topic_rows = conn.execute(
+            "SELECT tag, topic, COUNT(*) FROM tag_topics WHERE tag = ANY(%s) "
+            "GROUP BY tag, topic",
+            (list(candidate_tags),),
+        ).fetchall()
+    primary_topic = _primary_topics(tag_topic_rows)
+    topic_volume = _topic_volume_series(run_order, topic_article_counts)
+    no_control = [0.0] * len(run_order)
+
+    def control_series(tag: str) -> list[float]:
+        topic = primary_topic.get(tag)
+        return topic_volume.get(topic, no_control) if topic else no_control
 
     candidates: list[tuple[str, str, int, float, int]] = []
     for tag_a, tag_b in edge_rows:
@@ -506,9 +655,11 @@ def tag_rate_lagged_correlations(
             continue
         for lag in range(max_lag + 1):
             for a, b in ((tag_a, tag_b), (tag_b, tag_a)):
-                out = lagged_pearson(series[a], series[b], lag)
+                out = lagged_partial_pearson(
+                    series[a], series[b], control_series(a), control_series(b), lag
+                )
                 if out is None:
                     continue
                 r, n = out
                 candidates.append((a, b, lag, r, n))
-    return _significant_correlations(candidates, r_threshold, fdr_q)
+    return _significant_correlations(candidates, r_threshold, fdr_q, controls=2)

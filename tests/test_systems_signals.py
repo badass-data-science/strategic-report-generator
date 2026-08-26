@@ -16,9 +16,13 @@ from strategic_reports.daily.core.systems_signals import (
     _containment_ratio,
     _drop_near_synonymous_pairs,
     _drop_topically_clustered_pairs,
+    _ols_residuals,
     _pearson_p_value,
+    _primary_topics,
     _same_community_ratio,
     _tags_with_enough_activity,
+    _topic_volume_series,
+    lagged_partial_pearson,
     lagged_pearson,
 )
 
@@ -274,3 +278,71 @@ def test_drop_topically_clustered_pairs_keeps_pairs_below_min_shared_runs() -> N
     )
 
     assert kept == [("a", "b")]
+
+
+def test_ols_residuals_perfect_linear_relationship() -> None:
+    z = [1.0, 2.0, 3.0, 4.0]
+    w = [2.0, 4.0, 6.0, 8.0]  # w = 2z exactly
+
+    residuals = _ols_residuals(z, w)
+
+    for r in residuals:
+        assert r == pytest.approx(0.0, abs=1e-9)
+
+
+def test_ols_residuals_zero_variance_control_returns_w_unchanged() -> None:
+    z = [5.0, 5.0, 5.0, 5.0]
+    w = [1.0, 2.0, 3.0, 4.0]
+
+    assert _ols_residuals(z, w) == w
+
+
+def test_lagged_partial_pearson_strips_a_shared_confound() -> None:
+    # Z is a step confound (0 for the first half, 10 for the second) that
+    # drives X and Y together; noise_x/noise_y are hand-constructed to be
+    # exactly orthogonal (sum of elementwise products = 0) and mean-zero
+    # within each Z level, so OLS recovers them as residuals exactly.
+    z = [0.0, 0.0, 0.0, 0.0, 10.0, 10.0, 10.0, 10.0]
+    noise_x = [1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0]
+    noise_y = [1.0, 1.0, -1.0, -1.0, -1.0, -1.0, 1.0, 1.0]
+    x = [z[i] + noise_x[i] for i in range(8)]
+    y = [z[i] + noise_y[i] for i in range(8)]
+
+    raw = lagged_pearson(x, y, lag=0)
+    partial = lagged_partial_pearson(x, y, z, z, lag=0)
+
+    assert raw is not None and partial is not None
+    raw_r, _ = raw
+    partial_r, partial_n = partial
+    assert raw_r > 0.9  # dominated by the shared confound
+    assert partial_r == pytest.approx(0.0, abs=1e-9)  # confound removed
+    assert partial_n == 8
+
+
+def test_lagged_partial_pearson_below_min_history_returns_none() -> None:
+    x = [1.0, 2.0, 3.0]
+    y = [1.0, 2.0, 3.0]
+    z = [1.0, 2.0, 3.0]
+
+    assert lagged_partial_pearson(x, y, z, z, lag=0) is None
+
+
+def test_primary_topics_picks_the_mode() -> None:
+    rows = [("tagA", "Defense", 5), ("tagA", "Economics", 2), ("tagB", "Forex", 3)]
+
+    assert _primary_topics(rows) == {"tagA": "Defense", "tagB": "Forex"}
+
+
+def test_primary_topics_tie_breaks_to_first_seen() -> None:
+    rows = [("tagC", "A", 3), ("tagC", "B", 3)]
+
+    assert _primary_topics(rows) == {"tagC": "A"}
+
+
+def test_topic_volume_series_aligns_to_run_order_and_ignores_unknown_runs() -> None:
+    run_order = ["r1", "r2"]
+    rows = [("r1", "Defense", 10), ("r2", "Defense", 5), ("r1", "Economics", 3), ("r99", "Defense", 999)]
+
+    series = _topic_volume_series(run_order, rows)
+
+    assert series == {"Defense": [10.0, 5.0], "Economics": [3.0, 0.0]}
