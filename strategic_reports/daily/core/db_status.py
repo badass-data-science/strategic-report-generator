@@ -21,8 +21,9 @@ reader, checked on demand or from a separate monitoring cron — not
 regenerated as a side effect of every daily run.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
+from typing import Any
 
 import psycopg
 
@@ -168,3 +169,15 @@ def load_db_status(
         gaps=gaps,
         runs=runs,
     )
+
+
+def db_status_as_dict(report: DbStatusReport) -> dict[str, Any]:
+    """
+    Convert a DbStatusReport to a plain, JSON-serializable dict — every
+    field is already a str/int/float/bool/list/dict/None, so this is a
+    direct dataclasses.asdict() with no reshaping. Named/exported
+    separately (rather than calling asdict() inline at each call site) so
+    the `db status --json` CLI output and any other consumer serialize the
+    report identically.
+    """
+    return asdict(report)

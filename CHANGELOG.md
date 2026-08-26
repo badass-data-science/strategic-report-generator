@@ -18,7 +18,12 @@ doesn't tag releases.
   silent-partial-persistence bug `insert_rows_isolating_failures` (`db.py`)
   now guards against at write time (one bad row previously aborting an
   entire table's insert for a run, with no trace beyond a one-line stderr
-  warning).
+  warning). Plain text by default; `--json` emits the same report as JSON
+  on stdout for monitoring/alerting integration, and `--html <path>`
+  additionally renders it as a standalone page (`db_status.html.j2`, via
+  new `renderer.render_db_status()`) — the two combine, with the HTML
+  confirmation line going to stderr so `--json`'s stdout stays valid JSON
+  on its own.
 
 ## 2026-08-13
 

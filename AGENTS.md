@@ -82,13 +82,31 @@ file rather than overwriting it, so re-running `--fix` periodically
 accumulates history. It has no Prefect equivalent, and that's intentional,
 same as `ask`.
 
-**CLI invocation shape**: `cli.py` now has five commands (`run`, `ask`,
-`export-rdf`, `validate-feeds`, `db upgrade`), so naming one explicitly is required
-(`... cli.py run --output-dir ...`) — typer's single-command auto-invoke
-shorthand (bare `... cli.py --output-dir ...`) only applies when there's
-exactly one command, and no longer applies here. If you ever reduce back
-to one command, that shorthand returns; don't assume it's available with
-two or more.
+A fifth command, `python -m strategic_reports.daily.cli db status`, is yet
+another on-demand exception, but reports on the *pipeline* rather than the
+*news*: run cadence (gaps between `runs` rows, staleness past
+`--stale-after-hours`) and, for the most recent `--recent-runs` runs,
+whether any derived table (`articles`, `tag_counts`, `urgency_scores`,
+`bullets`, `community_summaries`, `cross_topic_overviews`) is empty
+despite a nonzero `article_count` — the read-side check for the exact
+silent-partial-persistence bug `insert_rows_isolating_failures` (`db.py`)
+guards against at write time. See `db_status.py` (query/flag logic,
+read-only, no new persistence) and `renderer.render_db_status()` (the
+`--html` output). Plain text on stdout by default; `--json` swaps that for
+the same report as JSON (for monitoring/alerting, not for humans) and
+suppresses the plain text; `--html <path>` additionally writes a
+standalone page and, if combined with `--json`, prints its confirmation to
+stderr instead of stdout so a monitoring parser's stdin stays clean JSON.
+Like `validate-feeds`, it has no Prefect equivalent — it's a diagnostic you
+run, not a pipeline step.
+
+**CLI invocation shape**: `cli.py` now has six commands (`run`, `ask`,
+`export-rdf`, `validate-feeds`, `db upgrade`, `db status`), so naming one
+explicitly is required (`... cli.py run --output-dir ...`) — typer's
+single-command auto-invoke shorthand (bare `... cli.py --output-dir ...`)
+only applies when there's exactly one command, and no longer applies here.
+If you ever reduce back to one command, that shorthand returns; don't
+assume it's available with two or more.
 
 ## Setup
 
@@ -147,12 +165,13 @@ strategic_reports/
       feed_validation.py  Async RSS feed health checks + REMOVED.json pruning/logging for `validate-feeds`
       prompts.py          System messages + user-message builders
       pipeline.py         Two-phase async orchestrator + cross-topic synthesis (grounded by bridge tags) + summarize_communities() + answer_archive_question()/extract_query_tags()
-      renderer.py         Jinja2 HTML rendering
+      renderer.py         Jinja2 HTML rendering; render_db_status() for `db status --html`
       tag_normalizer.py   Tag synonym map, normalize_tags() (Pydantic validator)
       tag_graph.py        Tag co-occurrence graph + Louvain community detection + find_bridge_tags() + group_articles_by_community()
       urgency.py          Urgency alerting: absolute threshold + z-score (PostgreSQL-backed)
       bullet_diff.py      Historical diffing vs. yesterday's bullets (PostgreSQL-backed)
       db.py               PostgreSQL tracking db: pooled connection helper, reachability check, run registration, shared insert_rows_isolating_failures helper (schema lives in alembic/, not here)
+      db_status.py        Read-only run cadence + per-run persistence health check + db_status_as_dict() for `db status`
       article_archive.py  Persists each run's article summaries (source material), linked to run_id
       overview_archive.py Persists each run's cross-topic synthesis overview bullets, linked to run_id
       archive_query.py    Graph-guided retrieval: find_relevant_communities() — pure SQL, no LLM calls
@@ -160,11 +179,11 @@ strategic_reports/
       systems_signals.py  Lagged/partial correlation over topic urgency + tag coverage rate history; FDR correction + five-filter tag-rate chain; read-only, nothing persisted
       rdf_export.py        Builds an RDF/Turtle export of the tracking db (SKOS/PROV-O/schema.org + a custom stratrep: namespace) for `export-rdf`
       tracing.py          Langfuse / Phoenix instrumentation (opt-in)
-    templates/            Jinja2 templates (base, index, topic)
+    templates/            Jinja2 templates (base, index, topic, db_status)
     data/rss_feeds/       One JSON file per topic listing feed URLs — packaged as wheel data
       REMOVED.json        Audit log of feeds removed by `validate-feeds --fix` or by hand
     flows/daily_report.py Prefect flow (12 tasks, incl. export-rdf as the last one) for scheduled runs — no `ask` equivalent, deliberately (see above)
-    cli.py                typer CLI entrypoint — five commands: run, ask, export-rdf, validate-feeds, db upgrade
+    cli.py                typer CLI entrypoint — six commands: run, ask, export-rdf, validate-feeds, db upgrade, db status
     paths.py              default_data_dir() — resolves bundled rss_feeds/ via importlib.resources
     config/topic_order.py Ordered topic slugs + display titles
 alembic/                Tracking-db schema migrations (Postgres) — versions/0001_initial_schema.py is the whole schema, hand-written, no autogeneration (no SQLAlchemy models in this codebase)

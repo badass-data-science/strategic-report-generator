@@ -3,10 +3,12 @@ Tests for strategic_reports.daily.core.db_status: tracking-database run
 cadence and per-run persistence health.
 """
 
+import json
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from strategic_reports.daily.core.db import get_connection
-from strategic_reports.daily.core.db_status import load_db_status
+from strategic_reports.daily.core.db_status import db_status_as_dict, load_db_status
 
 
 def _insert_run(database_url: str, run_id: str, created_at: datetime, article_count: int) -> None:
@@ -21,42 +23,42 @@ def _insert_run(database_url: str, run_id: str, created_at: datetime, article_co
 def _insert_rows(database_url: str, table: str, run_id: str, count: int) -> None:
     """Insert `count` minimal rows into one of the tracked tables for run_id."""
     now = datetime.now(UTC).isoformat()
-    inserts = {
+    inserts: dict[str, tuple[str, tuple[Any, ...]]] = {
         "articles": (
             "INSERT INTO articles (run_id, created_at, topic, title, link, publish_date) "
             "VALUES (%s, %s, 'Topic', 'Title', 'https://example.com', %s)",
-            lambda: (run_id, now, now),
+            (run_id, now, now),
         ),
         "tag_counts": (
             "INSERT INTO tag_counts (run_id, created_at, tag, count) VALUES (%s, %s, 'tag', 1)",
-            lambda: (run_id, now),
+            (run_id, now),
         ),
         "urgency_scores": (
             "INSERT INTO urgency_scores (run_id, created_at, topic, score) "
             "VALUES (%s, %s, 'Topic', 0.5)",
-            lambda: (run_id, now),
+            (run_id, now),
         ),
         "bullets": (
             "INSERT INTO bullets (run_id, created_at, topic, bullet_index, bullet_text) "
             "VALUES (%s, %s, 'Topic', 0, 'Bullet')",
-            lambda: (run_id, now),
+            (run_id, now),
         ),
         "community_summaries": (
             "INSERT INTO community_summaries "
             "(run_id, created_at, community_id, label, summary, article_count) "
             "VALUES (%s, %s, 0, 'Label', 'Summary', 1)",
-            lambda: (run_id, now),
+            (run_id, now),
         ),
         "cross_topic_overviews": (
             "INSERT INTO cross_topic_overviews (run_id, created_at, bullet_index, bullet_text) "
             "VALUES (%s, %s, 0, 'Bullet')",
-            lambda: (run_id, now),
+            (run_id, now),
         ),
     }
     sql, params = inserts[table]
     with get_connection(database_url) as conn:
         for _ in range(count):
-            conn.execute(sql, params())
+            conn.execute(sql, params)
         conn.commit()
 
 
@@ -184,3 +186,30 @@ class TestLoadDbStatusRecentRunsLimit:
         assert len(report.runs) == 2
         # Most recent first.
         assert [r.run_id for r in report.runs] == ["run-4", "run-3"]
+
+
+class TestDbStatusAsDict:
+    def test_round_trips_through_json(self, database_url: str) -> None:
+        _insert_run(database_url, "run-1", datetime.now(UTC), article_count=5)
+        report = load_db_status(database_url)
+
+        payload = json.loads(json.dumps(db_status_as_dict(report)))
+
+        assert payload["total_runs"] == 1
+        assert payload["runs"][0]["run_id"] == "run-1"
+        assert "empty_articles" in payload["runs"][0]["flags"]
+
+    def test_empty_report_serializes_with_null_timestamps(self, database_url: str) -> None:
+        report = load_db_status(database_url)
+
+        payload = json.loads(json.dumps(db_status_as_dict(report)))
+
+        assert payload == {
+            "total_runs": 0,
+            "first_run_at": None,
+            "last_run_at": None,
+            "stale": False,
+            "stale_after_hours": 36.0,
+            "gaps": [],
+            "runs": [],
+        }

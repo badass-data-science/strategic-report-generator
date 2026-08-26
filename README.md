@@ -599,6 +599,27 @@ tables each run's data lands in (`articles`, `tag_counts`,
 | `--database-url` | `DATABASE_URL` | *(required)* | PostgreSQL tracking database URL to inspect |
 | `--recent-runs` | — | `20` | How many of the most recent runs to check for empty derived tables. Gap/staleness detection always scans every run, regardless of this limit. |
 | `--stale-after-hours` | — | `36.0` | Threshold, in hours, for both the missed-schedule check and the gap-between-runs check |
+| `--json` | — | `False` | Emit the report as JSON on stdout instead of the plain-text summary, for monitoring/alerting integration |
+| `--html` | — | — | Also render a standalone HTML version of the report to this file path |
+
+By default this prints a plain-text summary meant to be read directly.
+Pass `--json` for a monitoring/alerting integration that parses stdout —
+it suppresses the plain-text output, so stdout is valid JSON on its own:
+
+```bash
+python -m strategic_reports.daily.cli db status --json
+```
+
+Pass `--html` to also write a standalone HTML page — useful for archiving a
+snapshot or linking from a dashboard, separate from stdout:
+
+```bash
+python -m strategic_reports.daily.cli db status --html /path/to/db-status.html
+```
+
+`--json` and `--html` combine freely: with both set, the HTML file is
+written and its confirmation line goes to stderr (not stdout), so stdout
+still parses as clean JSON.
 
 Read-only against `--database-url`; never touches `--output-dir`.
 
@@ -800,7 +821,7 @@ in `--strict` mode across both `strategic_reports/` and `tests/`.
 ```
 tests/test_models.py      Pydantic validation and TokenUsage arithmetic
 tests/test_prompts.py     Prompt builder output shape and content
-tests/test_renderer.py    HTML rendering for all three result states + XSS; Systems Signals section (empty state, both-and-neither signal groups, lag=0 bidirectional dedup, XSS)
+tests/test_renderer.py    HTML rendering for all three result states + XSS; Systems Signals section (empty state, both-and-neither signal groups, lag=0 bidirectional dedup, XSS); render_db_status() output + XSS
 tests/test_ingestion.py   RSS fetching with mocked feedparser
 tests/test_feed_validation.py  Feed health checks and REMOVED.json pruning/logging, with mocked feedparser
 tests/test_pipeline.py    Async orchestration with mocked LLMClient; summarize_communities() and answer_archive_question()/extract_query_tags() concurrency + failure isolation
@@ -833,13 +854,13 @@ strategic_reports/
       feed_validation.py Async RSS feed health checks + REMOVED.json pruning/logging for the `validate-feeds` CLI command
       prompts.py         System messages and user-message builder functions
       pipeline.py        Two-phase async orchestrator + cross-topic synthesis + summarize_communities() + answer_archive_question()
-      renderer.py        Jinja2 HTML rendering
+      renderer.py        Jinja2 HTML rendering; render_db_status() for the `db status --html` CLI flag
       tag_normalizer.py  Tag synonym map and normalize_tags(); applied via Pydantic validator
       tag_graph.py       Tag co-occurrence graph builder; full tag_graph.json + pruned/community tag_graph_display.json + tag_graph.html; find_bridge_tags(), group_articles_by_community()
       urgency.py         Urgency alert logic: absolute threshold + z-score baseline (PostgreSQL-backed)
       bullet_diff.py     Historical bullet diffing: load/append history, concurrent per-topic LLM diff (PostgreSQL-backed)
       db.py              PostgreSQL tracking database: pooled connection helper, reachability check, run registration, shared insert_rows_isolating_failures helper (schema lives in alembic/)
-      db_status.py       Read-only run cadence + per-run persistence health check for the `db status` CLI command
+      db_status.py       Read-only run cadence + per-run persistence health check for the `db status` CLI command; db_status_as_dict() for its --json output
       article_archive.py Persists each run's article summaries (source material), linked to run_id
       overview_archive.py  Persists each run's cross-topic synthesis overview bullets, linked to run_id
       archive_query.py   Graph-guided retrieval: find_relevant_communities() for the `ask` CLI command
@@ -851,6 +872,7 @@ strategic_reports/
       base.html.j2       Shared layout and styles
       index.html.j2      Main strategic report (Strategic Overview + Systems Signals + per-topic sections)
       topic.html.j2      Per-topic article summaries
+      db_status.html.j2  Standalone page for the `db status --html` CLI flag
     data/
       rss_feeds/         One JSON file per topic listing RSS feed URLs — packaged as wheel data
         REMOVED.json     Audit log of feeds removed by `validate-feeds --fix` or by hand

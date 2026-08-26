@@ -1,0 +1,78 @@
+{% extends "base.html.j2" %}
+
+{% block head %}
+<title>Tracking DB Status — {{ generated_at }}</title>
+<style>
+  .status-summary {
+    background: #f9f9f9;
+    border: 1px solid #e8e8e8;
+    border-radius: 4px;
+    padding: 1rem 1.25rem;
+    margin: 1.5rem 0 2rem;
+  }
+  .status-summary dl { display: grid; grid-template-columns: auto 1fr; gap: .2rem 1rem; margin: 0; }
+  .status-summary dt { color: #555; }
+  .status-summary dd { margin: 0; }
+  table.runs { width: 100%; border-collapse: collapse; margin-top: .5rem; }
+  table.runs th, table.runs td {
+    text-align: left; padding: .4rem .6rem; border-bottom: 1px solid #eee; font-size: .9rem;
+  }
+  table.runs tr.flagged { background: #fff3cd; }
+  .flag-list { color: #b00; font-size: .8rem; }
+  .ok { color: #1a7a3c; }
+</style>
+{% endblock %}
+
+{% block body %}
+<h1>Tracking Database Status</h1>
+<p class="meta">Generated {{ generated_at }}</p>
+
+<div class="status-summary">
+  <dl>
+    <dt>Total runs</dt><dd>{{ report.total_runs }}</dd>
+    <dt>First run</dt><dd>{{ report.first_run_at or "—" }}</dd>
+    <dt>Last run</dt><dd>{{ report.last_run_at or "—" }}</dd>
+    <dt>Stale threshold</dt><dd>{{ report.stale_after_hours }}h</dd>
+  </dl>
+  {% if report.stale %}
+  <p class="warn">⚠ No run in over {{ report.stale_after_hours }}h — pipeline may be stalled.</p>
+  {% endif %}
+</div>
+
+{% if report.gaps %}
+<h2>Schedule gaps</h2>
+<p class="meta">Consecutive runs more than {{ report.stale_after_hours }}h apart.</p>
+<ul>
+  {% for gap in report.gaps %}
+  <li class="warn">{{ "%.1f"|format(gap.hours) }}h between {{ gap.after_run_id }} and {{ gap.before_run_id }}</li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+<h2>Recent runs</h2>
+{% if report.runs %}
+<table class="runs">
+  <thead>
+    <tr><th>Run</th><th>Created</th><th>Articles</th><th>Flags</th></tr>
+  </thead>
+  <tbody>
+    {% for run in report.runs %}
+    <tr class="{{ 'flagged' if run.flags else '' }}">
+      <td>{{ run.run_id }}</td>
+      <td>{{ run.created_at }}</td>
+      <td>{{ run.article_count }}</td>
+      <td>
+        {% if run.flags %}
+        <span class="flag-list">{{ run.flags | join(', ') }}</span>
+        {% else %}
+        <span class="ok">ok</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="meta">No runs recorded yet.</p>
+{% endif %}
+{% endblock %}
