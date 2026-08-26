@@ -524,6 +524,39 @@ def _significant_correlations(
     return sorted(results, key=lambda c: -abs(c.correlation))
 
 
+def _topic_urgency_control_series(
+    topic: str, series: dict[str, list[float | None]], run_order: Sequence[str]
+) -> list[float | None]:
+    """
+    Per-run leave-one-out mean urgency across every OTHER topic -- a
+    stand-in for "how newsy was this day overall," the topic-urgency
+    analogue of tag_rate_lagged_correlations' weighted topic-volume
+    control (_weighted_topic_volume). Controlling this out before
+    correlating two topics catches e.g. two topics both tracking a shared
+    busy-news-day trend rather than one driving the other -- confirmed
+    necessary, not theoretical: Energy<->Forex (r=0.79 at lag=0) survived
+    on the live DB even after the article-archive-gap fix, and both
+    topics separately correlated with this control almost as strongly as
+    with each other (see energy_forex_correlation_artifact memory).
+
+    None where fewer than 2 other topics have a real score that run --
+    not enough to estimate a day-level trend from.
+    """
+    # See lagged_pearson for why this is an explicit loop with a local
+    # variable (v), not a comprehension re-indexing series[t][i] twice --
+    # mypy can't narrow the second re-evaluation to float.
+    other_topics = [t for t in series if t != topic]
+    control: list[float | None] = []
+    for i in range(len(run_order)):
+        values: list[float] = []
+        for t in other_topics:
+            v = series[t][i]
+            if v is not None:
+                values.append(v)
+        control.append(sum(values) / len(values) if len(values) >= 2 else None)
+    return control
+
+
 def topic_urgency_lagged_correlations(
     database_url: str, max_lag: int = 3, r_threshold: float = 0.6, fdr_q: float = 0.05
 ) -> list[LaggedCorrelation]:
@@ -531,18 +564,28 @@ def topic_urgency_lagged_correlations(
     All-pairs lagged correlation over topic urgency scores. Directional:
     (A, B, lag) and (B, A, lag) are both computed, since a feedback loop
     (A drives B) is not the same claim as its reverse (B drives A).
+
+    A *partial* correlation (lagged_partial_pearson), controlling out each
+    side's own leave-one-out mean urgency across every other topic that
+    run (_topic_urgency_control_series) -- see that function for why.
     """
-    _, series = load_topic_urgency_series(database_url)
+    run_order, series = load_topic_urgency_series(database_url)
+
+    def control_series(topic: str) -> list[float | None]:
+        return _topic_urgency_control_series(topic, series, run_order)
+
     candidates: list[tuple[str, str, int, float, int]] = []
     for topic_a, topic_b in combinations(series, 2):
         for lag in range(max_lag + 1):
             for a, b in ((topic_a, topic_b), (topic_b, topic_a)):
-                out = lagged_pearson(series[a], series[b], lag)
+                out = lagged_partial_pearson(
+                    series[a], series[b], control_series(a), control_series(b), lag
+                )
                 if out is None:
                     continue
                 r, n = out
                 candidates.append((a, b, lag, r, n))
-    return _significant_correlations(candidates, r_threshold, fdr_q)
+    return _significant_correlations(candidates, r_threshold, fdr_q, controls=2)
 
 
 def _tags_with_enough_activity(
