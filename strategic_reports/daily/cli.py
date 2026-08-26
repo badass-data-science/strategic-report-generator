@@ -38,6 +38,17 @@ below), the same envvar= pattern used by --model/LLM_MODEL below.
     malformed XML, or zero parseable entries) — see feed_validation.py.
     Without --fix, only reports; safe to re-run periodically.
 
+`db status` key options:
+    --database-url          PostgreSQL tracking database to inspect (required;
+                            env DATABASE_URL)
+    --recent-runs           How many recent runs to check for empty derived
+                            tables (default: 20)
+    --stale-after-hours     Gap/staleness threshold in hours (default: 36)
+    Reports on the pipeline itself, not the news: run cadence and whether
+    each recent run actually persisted what its article_count implies it
+    should have — see db_status.py. Read-only; a separate operational
+    report from the daily HTML output, checked on demand.
+
 SEPARATION OF CONCERNS
 -----------------------
 This layer only reads config, prints status, and bridges sync (CLI) to
@@ -75,6 +86,7 @@ from strategic_reports.daily.core import (
     ensure_database_reachable,
     find_bridge_tags,
     load_bullet_history,
+    load_db_status,
     load_history,
     load_tag_rate_history,
     record_articles,
@@ -691,6 +703,76 @@ def db_upgrade_command(
     # file we already located, so this works from any cwd.
     config.set_main_option("script_location", str(_ALEMBIC_INI.parent / "alembic"))
     command.upgrade(config, revision)
+
+
+@db_app.command(name="status")
+def db_status_command(
+    database_url: str = typer.Option(
+        ...,
+        envvar="DATABASE_URL",
+        help="PostgreSQL tracking database URL to inspect (required). "
+             "Also read from DATABASE_URL env var (or a .env file).",
+    ),
+    recent_runs: int = typer.Option(
+        20,
+        help="How many of the most recent runs to check for empty derived tables "
+             "(articles, tag_counts, urgency_scores, bullets, community_summaries, "
+             "cross_topic_overviews). Gap/staleness detection always scans every run.",
+    ),
+    stale_after_hours: float = typer.Option(
+        36.0,
+        help="Flag the database as stale, and flag any gap between two consecutive "
+             "runs this wide, as missed-schedule warnings.",
+    ),
+) -> None:
+    """
+    Report the operational health of the tracking database itself — run
+    cadence and whether each recent run actually persisted what its
+    article_count implies it should have.
+
+    This reports on the pipeline, not the news: a separate, on-demand
+    diagnostic (see db_status.py), not part of the daily HTML report.
+    """
+    try:
+        ensure_database_reachable(database_url)
+    except Exception as e:
+        typer.echo(f"--database-url is not reachable: {e}", err=True)
+        raise typer.Exit(code=1)
+
+    report = load_db_status(
+        database_url, recent_runs=recent_runs, stale_after_hours=stale_after_hours
+    )
+
+    if report.total_runs == 0:
+        typer.echo("No runs recorded yet.")
+        return
+
+    typer.echo(f"Total runs: {report.total_runs}")
+    typer.echo(f"First run:  {report.first_run_at}")
+    typer.echo(f"Last run:   {report.last_run_at}")
+    if report.stale:
+        typer.echo(
+            f"  [!] No run in over {report.stale_after_hours:g}h — pipeline may be stalled.",
+            err=True,
+        )
+
+    if report.gaps:
+        typer.echo("")
+        typer.echo(f"Gaps over {report.stale_after_hours:g}h between consecutive runs:")
+        for gap in report.gaps:
+            typer.echo(f"  [!] {gap.hours:.1f}h between {gap.after_run_id} and {gap.before_run_id}")
+
+    typer.echo("")
+    typer.echo(f"Most recent {len(report.runs)} run(s):")
+    for run in report.runs:
+        marker = "  [!] " if run.flags else "      "
+        typer.echo(f"{marker}{run.created_at}  {run.run_id}  articles={run.article_count}")
+        if run.flags:
+            typer.echo(f"        flags: {', '.join(run.flags)}")
+
+    if not report.gaps and not report.stale and not any(r.flags for r in report.runs):
+        typer.echo("")
+        typer.echo("No anomalies detected.")
 
 
 @app.command(name="validate-feeds")

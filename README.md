@@ -354,10 +354,11 @@ it automatically via `python-dotenv`.
 
 Run, specifying where the report gets written (required — the tracking
 database connection comes from `--database-url`/`DATABASE_URL` above). The
-CLI has five commands (`run`, `ask`, `export-rdf`, `validate-feeds`, and
-`db upgrade` — see [Asking questions about the archive](#asking-questions-about-the-archive),
-[Exporting an RDF knowledge graph](#exporting-an-rdf-knowledge-graph), and
-[Validating RSS feeds](#validating-rss-feeds)), so naming one explicitly is
+CLI has six commands (`run`, `ask`, `export-rdf`, `validate-feeds`,
+`db upgrade`, and `db status` — see [Asking questions about the archive](#asking-questions-about-the-archive),
+[Exporting an RDF knowledge graph](#exporting-an-rdf-knowledge-graph),
+[Validating RSS feeds](#validating-rss-feeds), and [Checking database
+health](#checking-database-health)), so naming one explicitly is
 required:
 
 ```bash
@@ -565,6 +566,44 @@ for why.
 
 ---
 
+## Checking database health
+
+`python -m strategic_reports.daily.cli db status` reports on the
+*pipeline*, not the news: whether runs are happening on schedule, and
+whether each recent run actually persisted what its `article_count`
+implies it should have. It's a separate, on-demand diagnostic — not a
+section of the daily HTML report, and not run as a side effect of `run` or
+the Prefect flow.
+
+```bash
+python -m strategic_reports.daily.cli db status
+```
+
+It flags two independent failure modes against the `runs` table and the
+tables each run's data lands in (`articles`, `tag_counts`,
+`urgency_scores`, `bullets`, `community_summaries`,
+`cross_topic_overviews`):
+
+- **Missed schedule** — no run recorded within `--stale-after-hours`, or a
+  gap that wide between two consecutive runs.
+- **Silent partial persistence** — a run's `article_count` says articles
+  were considered, but one of the tables above has zero rows for that
+  `run_id`. This is exactly the shape of the bug
+  `insert_rows_isolating_failures` (see `db.py`) now guards against at
+  write time — one bad row aborting an entire table's insert for a run
+  without raising anywhere visible. `db status` is the read-side check
+  that it (or something like it) isn't happening again.
+
+| Flag | Env var | Default | Description |
+|------|---------|---------|-------------|
+| `--database-url` | `DATABASE_URL` | *(required)* | PostgreSQL tracking database URL to inspect |
+| `--recent-runs` | — | `20` | How many of the most recent runs to check for empty derived tables. Gap/staleness detection always scans every run, regardless of this limit. |
+| `--stale-after-hours` | — | `36.0` | Threshold, in hours, for both the missed-schedule check and the gap-between-runs check |
+
+Read-only against `--database-url`; never touches `--output-dir`.
+
+---
+
 ## Scheduling with Prefect
 
 The pipeline ships with a [Prefect](https://www.prefect.io) flow that runs automatically at **16:00 America/Los_Angeles, Monday through Friday** (no weekend runs). It uses a local Prefect server — no cloud account required.
@@ -768,6 +807,7 @@ tests/test_pipeline.py    Async orchestration with mocked LLMClient; summarize_c
 tests/test_urgency.py     Urgency alerting: absolute threshold, z-score, std==0 fallback, history persistence, per-row failure isolation (savepoints) for append_run
 tests/test_bullet_diff.py Bullet-history storage: most-recent-run lookup, ordering, multi-topic, per-row failure isolation (savepoints) for append_bullet_run
 tests/test_db.py          Tracking-db safety guard, schema creation, run registration, shared insert_rows_isolating_failures helper
+tests/test_db_status.py   Run cadence (gaps, staleness) and per-run persistence health flags for the `db status` CLI command, incl. the empty-archive-bug scenario
 tests/test_tag_tracking.py  Tag-graph db round-trip, rate-history normalization, emerging-tag z-score, bridge-tag/community-summary audit trails, per-row failure isolation (savepoints) for record_tags/record_community_summaries
 tests/test_tag_graph.py    find_bridge_tags(), group_articles_by_community(): filtering, sorting, dedup, multi-community span
 tests/test_article_archive.py  Article-summary db round-trip, ordering, multi-topic, error/empty topics, per-article failure isolation (savepoints)
@@ -799,6 +839,7 @@ strategic_reports/
       urgency.py         Urgency alert logic: absolute threshold + z-score baseline (PostgreSQL-backed)
       bullet_diff.py     Historical bullet diffing: load/append history, concurrent per-topic LLM diff (PostgreSQL-backed)
       db.py              PostgreSQL tracking database: pooled connection helper, reachability check, run registration, shared insert_rows_isolating_failures helper (schema lives in alembic/)
+      db_status.py       Read-only run cadence + per-run persistence health check for the `db status` CLI command
       article_archive.py Persists each run's article summaries (source material), linked to run_id
       overview_archive.py  Persists each run's cross-topic synthesis overview bullets, linked to run_id
       archive_query.py   Graph-guided retrieval: find_relevant_communities() for the `ask` CLI command
