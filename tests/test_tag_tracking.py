@@ -481,6 +481,9 @@ class TestRecordCommunitySummaries:
             labels = {
                 row[0] for row in conn.execute("SELECT label FROM community_summaries").fetchall()
             }
-            tags = {row[0] for row in conn.execute("SELECT tag FROM community_summary_tags").fetchall()}
+            tags = {
+                row[0]
+                for row in conn.execute("SELECT tag FROM community_summary_tags").fetchall()
+            }
         assert labels == {"policy", "biotech"}  # community_summaries itself untouched
         assert tags == {"good_tag", "another_good"}

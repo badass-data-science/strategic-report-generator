@@ -10,12 +10,14 @@ arithmetic itself is validated here instead, independent of how much real
 history exists.
 """
 
+from typing import cast
+
 import pytest
 from strategic_reports.daily.core.systems_signals import (
     _benjamini_hochberg_qvalues,
     _containment_ratio,
-    _dominant_source_ratio,
     _domain,
+    _dominant_source_ratio,
     _drop_near_synonymous_pairs,
     _drop_single_source_pairs,
     _drop_topically_clustered_pairs,
@@ -148,11 +150,16 @@ def test_benjamini_hochberg_qvalues_empty_input() -> None:
 
 
 def test_tags_with_enough_activity_excludes_rare_tags() -> None:
-    series = {
-        "rare_a": [0.0] * 12 + [0.1, 0.2],  # nonzero in only 2 runs
-        "rare_b": [0.0] * 13 + [0.3],  # nonzero in only 1 run
-        "common": [0.1] * 14,  # nonzero in every run
-    }
+    # `cast` compensates for a known mypy limitation (list is invariant,
+    # and `[0.0] * 12 + [0.1, 0.2]` infers as list[float] via __add__
+    # before a list[float | None] annotation/context can apply to it --
+    # plain `*` alone is fine, `+` isn't). These are valid
+    # list[float | None] values at runtime; mypy just can't infer that
+    # through concatenation on its own.
+    rare_a = cast("list[float | None]", [0.0] * 12 + [0.1, 0.2])  # nonzero in only 2 runs
+    rare_b = cast("list[float | None]", [0.0] * 13 + [0.3])  # nonzero in only 1 run
+    common: list[float | None] = [0.1] * 14  # nonzero in every run
+    series = {"rare_a": rare_a, "rare_b": rare_b, "common": common}
 
     active = _tags_with_enough_activity(series, min_active_runs=5)
 
@@ -160,7 +167,8 @@ def test_tags_with_enough_activity_excludes_rare_tags() -> None:
 
 
 def test_tags_with_enough_activity_boundary_is_inclusive() -> None:
-    series = {"exactly_five": [0.1] * 5 + [0.0] * 9}
+    exactly_five = cast("list[float | None]", [0.1] * 5 + [0.0] * 9)
+    series = {"exactly_five": exactly_five}
 
     assert _tags_with_enough_activity(series, min_active_runs=5) == {"exactly_five"}
     assert _tags_with_enough_activity(series, min_active_runs=6) == set()
@@ -384,7 +392,7 @@ def test_topic_weights_sums_duplicate_rows_for_the_same_tag_and_topic() -> None:
 def test_weighted_topic_volume_blends_by_weight() -> None:
     run_order = ["r1", "r2"]
     topic_weights = {"tagA": {"Defense": 0.75, "Economics": 0.25}}
-    topic_volume = {
+    topic_volume: dict[str, list[float | None]] = {
         "Defense": [10.0, 20.0],
         "Economics": [4.0, 8.0],
     }
@@ -400,7 +408,7 @@ def test_weighted_topic_volume_reduces_to_single_topic_case() -> None:
     # like the old _primary_topics-based control did.
     run_order = ["r1", "r2"]
     topic_weights = {"tagA": {"Defense": 1.0}}
-    topic_volume = {"Defense": [10.0, 5.0]}
+    topic_volume: dict[str, list[float | None]] = {"Defense": [10.0, 5.0]}
 
     assert _weighted_topic_volume("tagA", topic_weights, topic_volume, run_order) == [10.0, 5.0]
 
@@ -416,7 +424,7 @@ def test_weighted_topic_volume_gap_only_when_every_weighted_topic_is_none() -> N
     topic_weights = {"tagA": {"Defense": 0.5, "Economics": 0.5}}
     # r2: Defense missing (archive failure) but Economics known -- still
     # computable from what's known, not a full gap.
-    topic_volume = {
+    topic_volume: dict[str, list[float | None]] = {
         "Defense": [10.0, None],
         "Economics": [4.0, 8.0],
     }
@@ -442,7 +450,12 @@ def test_weighted_topic_volume_full_gap_when_all_weighted_topics_are_none() -> N
 
 def test_topic_volume_series_aligns_to_run_order_and_ignores_unknown_runs() -> None:
     run_order = ["r1", "r2"]
-    rows = [("r1", "Defense", 10), ("r2", "Defense", 5), ("r1", "Economics", 3), ("r99", "Defense", 999)]
+    rows = [
+        ("r1", "Defense", 10),
+        ("r2", "Defense", 5),
+        ("r1", "Economics", 3),
+        ("r99", "Defense", 999),
+    ]
 
     series = _topic_volume_series(run_order, rows, runs_with_missing_articles=set())
 
@@ -454,7 +467,12 @@ def test_topic_volume_series_marks_missing_runs_as_none_not_zero() -> None:
     # every topic must show None there, not a false 0.0 that would claim
     # "this topic genuinely had zero coverage" when the truth is unknown.
     run_order = ["r1", "r2", "r3"]
-    rows = [("r1", "Defense", 10), ("r3", "Defense", 7), ("r1", "Economics", 3), ("r3", "Economics", 2)]
+    rows = [
+        ("r1", "Defense", 10),
+        ("r3", "Defense", 7),
+        ("r1", "Economics", 3),
+        ("r3", "Economics", 2),
+    ]
 
     series = _topic_volume_series(run_order, rows, runs_with_missing_articles={"r2"})
 

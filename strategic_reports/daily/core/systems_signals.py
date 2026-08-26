@@ -284,16 +284,23 @@ def lagged_pearson(
     if lag < 0:
         raise ValueError("lag must be >= 0")
 
-    pairs = [
-        (x[t], y[t + lag])
-        for t in range(len(x) - lag)
-        if x[t] is not None and y[t + lag] is not None
-    ]
-    if len(pairs) < _MIN_RUNS_FOR_LAG:
+    # Built as an explicit loop with local variables (xv/yv), not a
+    # comprehension re-indexing x[t]/y[t+lag] inside the output expression
+    # -- mypy can narrow "xv is not None" to xv: float for a local variable
+    # across the whole if-block, but not across two separate re-evaluations
+    # of the same subscript expression, so the comprehension form left xs/ys
+    # typed as list[float | None] despite the filter guaranteeing no Nones.
+    xs: list[float] = []
+    ys: list[float] = []
+    for t in range(len(x) - lag):
+        xv, yv = x[t], y[t + lag]
+        if xv is not None and yv is not None:
+            xs.append(xv)
+            ys.append(yv)
+
+    if len(xs) < _MIN_RUNS_FOR_LAG:
         return None
 
-    xs = [p[0] for p in pairs]
-    ys = [p[1] for p in pairs]
     return _pearson(xs, ys)
 
 
@@ -346,21 +353,24 @@ def lagged_partial_pearson(
     if lag < 0:
         raise ValueError("lag must be >= 0")
 
-    pairs = [
-        (x[t], y[t + lag], zx[t], zy[t + lag])
-        for t in range(len(x) - lag)
-        if x[t] is not None
-        and y[t + lag] is not None
-        and zx[t] is not None
-        and zy[t + lag] is not None
-    ]
-    if len(pairs) < _MIN_RUNS_FOR_LAG:
+    # See lagged_pearson for why this is an explicit loop with local
+    # variables, not a comprehension re-indexing x[t]/y[t+lag]/zx[t]/
+    # zy[t+lag] in the output expression.
+    xs: list[float] = []
+    ys: list[float] = []
+    zxs: list[float] = []
+    zys: list[float] = []
+    for t in range(len(x) - lag):
+        xv, yv, zxv, zyv = x[t], y[t + lag], zx[t], zy[t + lag]
+        if xv is not None and yv is not None and zxv is not None and zyv is not None:
+            xs.append(xv)
+            ys.append(yv)
+            zxs.append(zxv)
+            zys.append(zyv)
+
+    if len(xs) < _MIN_RUNS_FOR_LAG:
         return None
 
-    xs = [p[0] for p in pairs]
-    ys = [p[1] for p in pairs]
-    zxs = [p[2] for p in pairs]
-    zys = [p[3] for p in pairs]
     x_resid = _ols_residuals(zxs, xs)
     y_resid = _ols_residuals(zys, ys)
     return _pearson(x_resid, y_resid)
@@ -734,7 +744,9 @@ def _topic_volume_series(
     """
     run_index = {run_id: i for i, run_id in enumerate(run_order)}
     known_topics = {topic for _, topic, _ in topic_article_counts}
-    series: dict[str, list[float | None]] = {topic: [0.0] * len(run_order) for topic in known_topics}
+    series: dict[str, list[float | None]] = {
+        topic: [0.0] * len(run_order) for topic in known_topics
+    }
     for run_id, topic, count in topic_article_counts:
         idx = run_index.get(run_id)
         if idx is None:
@@ -803,7 +815,7 @@ def tag_rate_lagged_correlations(
                 "SELECT tag_a, tag_b, SUM(weight) FROM tag_edges GROUP BY tag_a, tag_b"
             ).fetchall()
         }
-        tag_totals = dict(
+        tag_totals: dict[str, int] = dict(
             conn.execute("SELECT tag, SUM(count) FROM tag_counts GROUP BY tag").fetchall()
         )
         tag_community_by_run: dict[str, dict[str, int]] = {}
@@ -814,7 +826,7 @@ def tag_rate_lagged_correlations(
         topic_article_counts = conn.execute(
             "SELECT run_id, topic, COUNT(*) FROM articles GROUP BY run_id, topic"
         ).fetchall()
-        run_article_counts = dict(
+        run_article_counts: dict[str, int] = dict(
             conn.execute("SELECT run_id, article_count FROM runs").fetchall()
         )
         runs_with_articles = {

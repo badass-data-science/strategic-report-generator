@@ -400,10 +400,11 @@ class TestSystemsSignalsSection:
         assert "No candidate feedback loops cleared significance today." not in html
 
     def test_tag_signal_appears(self, tmp_path: Path, successful_result: TopicResult) -> None:
+        signal = _correlation("derivatives", "market", lag=1, correlation=0.99, q_value=0.01)
         render_report(
             [successful_result],
             output_dir=tmp_path,
-            tag_signals=[_correlation("derivatives", "market", lag=1, correlation=0.99, q_value=0.01)],
+            tag_signals=[signal],
         )
         html = (tmp_path / "index.html").read_text()
         assert "Tag Coverage" in html
@@ -447,7 +448,7 @@ class TestSystemsSignalsSection:
     def test_xss_escaping_in_subject_names(
         self, tmp_path: Path, successful_result: TopicResult
     ) -> None:
-        """Tag strings ultimately derive from feed content -- same threat model as article titles."""
+        """Tag strings derive from feed content -- same threat model as article titles."""
         render_report(
             [successful_result],
             output_dir=tmp_path,
