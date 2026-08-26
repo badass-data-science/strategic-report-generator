@@ -37,19 +37,28 @@ correction (`fdr_q`) across every test performed in a single scan, and
 only report a pair that clears BOTH the effect-size floor (r_threshold)
 and FDR-adjusted significance -- see `_significant_correlations`.
 
-tag_rate_lagged_correlations additionally reuses two tables beyond the
-three above -- `articles` (run_id, topic, ...) and `tag_topics`
-(run_id, tag, topic), both already populated every run -- to control out
-each tag's own topic-level article volume before correlating (see
-`lagged_partial_pearson`), catching a confound none of the pairwise
-filters do: two tags from the same busy topic riding that topic's news
-volume together, not one driving the other.
+tag_rate_lagged_correlations additionally reuses three tables beyond the
+three above, all already populated every run:
+  - `tag_topics`   (run_id, tag, topic)  weighted blend of every topic a
+    tag has appeared under (`_topic_weights`), used to control out each
+    tag's own topic-level article volume before correlating (see
+    `lagged_partial_pearson`) -- catches two tags riding the same busy
+    topic's (or cross-topic trend's) news volume together, not one
+    driving the other.
+  - `articles`     (run_id, topic, link, ...) supplies both the
+    topic-volume series above and, joined with `article_tags`, the
+    co-occurring-article links `_drop_single_source_pairs` checks for a
+    dominant link domain -- catches two tags that mostly co-occur because
+    one recurring source (e.g. a daily market digest) republishes both
+    together, not because the tags themselves move together.
+  - `article_tags` (article_id, run_id, tag) supplies that self-join.
 """
 
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import combinations
+from urllib.parse import urlparse
 
 from .db import get_connection
 
@@ -98,6 +107,25 @@ _MAX_SAME_COMMUNITY_RATIO_FOR_TAG_CORRELATION = 0.8
 # there's not enough evidence to judge whether they're the same cluster --
 # same "skip rather than guess" reasoning as _MIN_RUNS_FOR_LAG.
 _MIN_SHARED_RUNS_FOR_COMMUNITY_FILTER = 3
+
+# Above this source-dominance ratio (the single most common link domain
+# among every article where the two tags co-occur, divided by the total
+# number of co-occurring articles), two tags are treated as co-occurring
+# mainly because one recurring source republishes both together -- e.g.
+# "dax"/"nikkei" mostly co-occurred on the same daily Armstrong Economics
+# "Market Talk" digest, not because DAX and Nikkei genuinely move
+# together (2026-08-26 systems-thinking-prototype session). Neither the
+# containment ratio (co-occurrence vs. each tag's OWN total appearances,
+# which can be well under 0.8 even when nearly every co-occurrence traces
+# to one source) nor the community filter (Louvain clustering, unrelated
+# to source diversity) catches this.
+_MAX_SOURCE_DOMINANCE_RATIO_FOR_TAG_CORRELATION = 0.8
+
+# Below this many co-occurring articles, there's not enough evidence to
+# judge source dominance -- same "skip rather than guess" reasoning as
+# _MIN_SHARED_RUNS_FOR_COMMUNITY_FILTER (a pair with only 1-2 co-occurring
+# articles trivially looks "100% one source" regardless).
+_MIN_CO_OCCURRING_ARTICLES_FOR_SOURCE_FILTER = 3
 
 
 @dataclass
@@ -576,20 +604,111 @@ def _drop_topically_clustered_pairs(
     return kept
 
 
-def _primary_topics(tag_topic_rows: list[tuple[str, str, int]]) -> dict[str, str]:
+def _domain(link: str) -> str:
+    """Network location of a URL (e.g. "www.orbex.com") -- a cheap proxy for "source"."""
+    return urlparse(link).netloc
+
+
+def _dominant_source_ratio(domains: Sequence[str]) -> tuple[float, int]:
     """
-    Each tag's most common topic (mode across all runs) from tag_topics --
-    a tag occasionally spans multiple topics in a single run, but the
-    topic-volume control needs one stable topic per tag, not a per-run
-    choice. `tag_topic_rows` is (tag, topic, count) from
-    "SELECT tag, topic, COUNT(*) FROM tag_topics GROUP BY tag, topic".
+    (ratio, n) where n is the number of co-occurring articles and ratio is
+    the fraction of them from the single most common domain. (0.0, 0) if
+    there are no co-occurring articles at all.
     """
-    best: dict[str, tuple[str, int]] = {}
+    if not domains:
+        return 0.0, 0
+    counts: dict[str, int] = {}
+    for domain in domains:
+        counts[domain] = counts.get(domain, 0) + 1
+    return max(counts.values()) / len(domains), len(domains)
+
+
+def _drop_single_source_pairs(
+    edge_rows: list[tuple[str, str]],
+    co_occurring_domains: dict[tuple[str, str], list[str]],
+    max_source_dominance_ratio: float,
+    min_co_occurring_articles: int,
+) -> list[tuple[str, str]]:
+    """
+    Remove pairs whose source-dominance ratio is at or above
+    max_source_dominance_ratio -- unless there are fewer than
+    min_co_occurring_articles co-occurring articles to judge that from,
+    in which case the pair is kept (not enough evidence, so don't guess).
+    """
+    kept = []
+    for tag_a, tag_b in edge_rows:
+        domains = co_occurring_domains.get((tag_a, tag_b), [])
+        ratio, n = _dominant_source_ratio(domains)
+        if n >= min_co_occurring_articles and ratio >= max_source_dominance_ratio:
+            continue
+        kept.append((tag_a, tag_b))
+    return kept
+
+
+def _topic_weights(tag_topic_rows: list[tuple[str, str, int]]) -> dict[str, dict[str, float]]:
+    """
+    {tag: {topic: weight}}, weight = that topic's share of the tag's total
+    tag_topics rows across history -- e.g. "innovation" seen under
+    Business 13x, Leadership 7x, Defense 6x, Artificial Intelligence 6x,
+    ... out of N total gets {"Business": 13/N, "Leadership": 7/N, ...}.
+    `tag_topic_rows` is (tag, topic, count) from "SELECT tag, topic,
+    COUNT(*) FROM tag_topics GROUP BY tag, topic".
+
+    A single mode/"primary" topic per tag isn't enough to control out a
+    confound that spans several topics at once -- e.g. "drug discovery"
+    (Biotechnology) and "innovation" (Business) rode the same broader
+    "AI industry momentum" wave in the 2026-08-26 systems-thinking-
+    prototype session despite having different single primary topics, so
+    controlling each side by just its mode topic's volume missed it. A
+    full weighted blend across every topic a tag has ever appeared under
+    reflects the whole thematic spread it's actually drawn from, and
+    still reduces to the old single-topic behavior for a tag whose
+    coverage is concentrated in one topic (weight ~1.0 there).
+    """
+    totals: dict[str, dict[str, int]] = {}
     for tag, topic, count in tag_topic_rows:
-        current = best.get(tag)
-        if current is None or count > current[1]:
-            best[tag] = (topic, count)
-    return {tag: topic for tag, (topic, _) in best.items()}
+        totals.setdefault(tag, {})
+        totals[tag][topic] = totals[tag].get(topic, 0) + count
+    weights: dict[str, dict[str, float]] = {}
+    for tag, topic_counts in totals.items():
+        total = sum(topic_counts.values())
+        if total == 0:
+            continue
+        weights[tag] = {topic: count / total for topic, count in topic_counts.items()}
+    return weights
+
+
+def _weighted_topic_volume(
+    tag: str,
+    topic_weights: dict[str, dict[str, float]],
+    topic_volume: dict[str, list[float | None]],
+    run_order: list[str],
+) -> list[float | None]:
+    """
+    Per-run control series for `tag`: the weighted sum, across every topic
+    the tag has ever appeared under (weights from _topic_weights), of
+    that topic's article volume that run. A run is a gap (None) unless at
+    least one weighted topic has real (non-None) data that run -- see
+    _topic_volume_series for why a run's article archive can be entirely
+    missing. A tag with no known topic weights gets an all-zero series
+    (no confound to control for, same as before).
+    """
+    weights = topic_weights.get(tag)
+    if not weights:
+        return [0.0] * len(run_order)
+    series: list[float | None] = []
+    for i in range(len(run_order)):
+        total = 0.0
+        any_known = False
+        for topic, weight in weights.items():
+            values = topic_volume.get(topic)
+            value = values[i] if values is not None else 0.0
+            if value is None:
+                continue
+            total += weight * value
+            any_known = True
+        series.append(total if any_known else None)
+    return series
 
 
 def _topic_volume_series(
@@ -636,6 +755,7 @@ def tag_rate_lagged_correlations(
     min_active_runs: int = _MIN_ACTIVE_RUNS_FOR_TAG_CORRELATION,
     max_containment_ratio: float = _MAX_CONTAINMENT_RATIO_FOR_TAG_CORRELATION,
     max_same_community_ratio: float = _MAX_SAME_COMMUNITY_RATIO_FOR_TAG_CORRELATION,
+    max_source_dominance_ratio: float = _MAX_SOURCE_DOMINANCE_RATIO_FOR_TAG_CORRELATION,
 ) -> list[LaggedCorrelation]:
     """
     Lagged correlation over tag rates, restricted to tag pairs that have
@@ -643,26 +763,31 @@ def tag_rate_lagged_correlations(
     -- see module docstring for why an all-pairs scan over ~7k tags isn't
     the right default here -- further restricted to tags active in at
     least min_active_runs runs, so a pair isn't reported purely because
-    both tags are rare and happened to be nonzero together, and with both
-    near-synonymous pairs (containment ratio >= max_containment_ratio) and
-    same-topic-cluster pairs (same-community ratio >= max_same_community_ratio)
-    dropped, since neither co-referential tags nor two tags from the same
-    Louvain community moving together is evidence of a cross-domain
-    feedback loop.
+    both tags are rare and happened to be nonzero together, and with three
+    kinds of structurally-trivial pairs dropped before any correlation is
+    even computed:
+      - near-synonymous pairs (containment ratio >= max_containment_ratio)
+      - same-topic-cluster pairs (same-community ratio >= max_same_community_ratio)
+      - single-source pairs (source-dominance ratio >= max_source_dominance_ratio)
+        -- two tags that mostly co-occur because one recurring source
+        republishes both together (e.g. a daily market-index digest
+        mentioning both "dax" and "nikkei"), not because the tags
+        themselves move together.
+    None of these three is evidence of a cross-domain feedback loop.
 
     The correlation itself is a *partial* correlation (lagged_partial_pearson),
-    controlling out each side's own primary-topic article volume that run --
-    two tags from the same busy topic (e.g. Defense) can otherwise ride that
-    topic's news-volume wave together (one run's Defense coverage is heavy,
-    so every Defense tag's rate rises together) without one predicting the
-    other. That pattern survives the containment-ratio and same-community
-    filters above since those look at tag-to-tag co-occurrence, not shared
-    topic volume, and it isn't a sparsity or multiple-comparisons artifact
-    either -- confirmed by pulling the actual articles behind an
-    "interceptor -> north korea" result in the 2026-08-26
-    systems-thinking-prototype session: both tags' articles were simply
-    part of an unusually busy Defense-topic week, with no article-level
-    thread connecting the two.
+    controlling out each side's own topic article volume that run -- a
+    weighted blend across every topic the tag has ever appeared under
+    (_topic_weights), not just its single most common one, so a confound
+    spanning several topics at once (e.g. "drug discovery" and
+    "innovation" both riding a broader AI-industry-momentum wave despite
+    having different single primary topics) gets removed too, not just a
+    single busy topic (e.g. two Defense tags riding one busy Defense
+    week). That pattern survives the three structural filters above since
+    those look at tag-to-tag co-occurrence, not shared topic volume, and
+    it isn't a sparsity or multiple-comparisons artifact either --
+    confirmed by pulling actual articles in the 2026-08-26
+    systems-thinking-prototype session.
     """
     with get_connection(database_url) as conn:
         edge_rows = conn.execute(
@@ -704,6 +829,29 @@ def tag_rate_lagged_correlations(
         _MIN_SHARED_RUNS_FOR_COMMUNITY_FILTER,
     )
 
+    # Scope the co-occurring-articles lookup to tags still in play after
+    # the two filters above, then apply the single-source filter and
+    # re-scope once more before pulling per-tag rate series.
+    prefiltered_tags = list({t for a, b in edge_rows for t in (a, b)})
+    with get_connection(database_url) as conn:
+        co_occurring_links = conn.execute(
+            "SELECT t1.tag, t2.tag, a.link "
+            "FROM article_tags t1 "
+            "JOIN article_tags t2 ON t1.article_id = t2.article_id AND t1.tag < t2.tag "
+            "JOIN articles a ON a.id = t1.article_id "
+            "WHERE t1.tag = ANY(%s) AND t2.tag = ANY(%s)",
+            (prefiltered_tags, prefiltered_tags),
+        ).fetchall()
+    co_occurring_domains: dict[tuple[str, str], list[str]] = {}
+    for tag_a, tag_b, link in co_occurring_links:
+        co_occurring_domains.setdefault((tag_a, tag_b), []).append(_domain(link))
+    edge_rows = _drop_single_source_pairs(
+        edge_rows,
+        co_occurring_domains,
+        max_source_dominance_ratio,
+        _MIN_CO_OCCURRING_ARTICLES_FOR_SOURCE_FILTER,
+    )
+
     candidate_tags = {t for a, b in edge_rows for t in (a, b)}
     run_order, series = load_tag_rate_series(database_url, tags=candidate_tags)
     active_tags = _tags_with_enough_activity(series, min_active_runs)
@@ -714,13 +862,11 @@ def tag_rate_lagged_correlations(
             "GROUP BY tag, topic",
             (list(candidate_tags),),
         ).fetchall()
-    primary_topic = _primary_topics(tag_topic_rows)
+    topic_weights = _topic_weights(tag_topic_rows)
     topic_volume = _topic_volume_series(run_order, topic_article_counts, runs_with_missing_articles)
-    no_control: list[float | None] = [0.0] * len(run_order)
 
     def control_series(tag: str) -> list[float | None]:
-        topic = primary_topic.get(tag)
-        return topic_volume.get(topic, no_control) if topic else no_control
+        return _weighted_topic_volume(tag, topic_weights, topic_volume, run_order)
 
     candidates: list[tuple[str, str, int, float, int]] = []
     for tag_a, tag_b in edge_rows:

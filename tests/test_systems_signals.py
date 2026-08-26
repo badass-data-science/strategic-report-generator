@@ -14,15 +14,19 @@ import pytest
 from strategic_reports.daily.core.systems_signals import (
     _benjamini_hochberg_qvalues,
     _containment_ratio,
+    _dominant_source_ratio,
+    _domain,
     _drop_near_synonymous_pairs,
+    _drop_single_source_pairs,
     _drop_topically_clustered_pairs,
     _ols_residuals,
     _pearson_p_value,
-    _primary_topics,
     _runs_missing_from,
     _same_community_ratio,
     _tags_with_enough_activity,
     _topic_volume_series,
+    _topic_weights,
+    _weighted_topic_volume,
     lagged_partial_pearson,
     lagged_pearson,
 )
@@ -358,16 +362,82 @@ def test_lagged_partial_pearson_excludes_a_none_control_point() -> None:
     assert partial_r == pytest.approx(0.0, abs=1e-9)
 
 
-def test_primary_topics_picks_the_mode() -> None:
-    rows = [("tagA", "Defense", 5), ("tagA", "Economics", 2), ("tagB", "Forex", 3)]
+def test_topic_weights_splits_proportionally() -> None:
+    rows = [("tagA", "Defense", 6), ("tagA", "Economics", 2), ("tagB", "Forex", 3)]
 
-    assert _primary_topics(rows) == {"tagA": "Defense", "tagB": "Forex"}
+    weights = _topic_weights(rows)
+
+    assert weights["tagA"] == pytest.approx({"Defense": 0.75, "Economics": 0.25})
+    assert weights["tagB"] == pytest.approx({"Forex": 1.0})
 
 
-def test_primary_topics_tie_breaks_to_first_seen() -> None:
-    rows = [("tagC", "A", 3), ("tagC", "B", 3)]
+def test_topic_weights_sums_duplicate_rows_for_the_same_tag_and_topic() -> None:
+    # Multiple GROUP BY rows for the same (tag, topic) shouldn't happen from
+    # the real query, but the function should still be correct if they did.
+    rows = [("tagA", "Defense", 3), ("tagA", "Defense", 2), ("tagA", "Economics", 5)]
 
-    assert _primary_topics(rows) == {"tagC": "A"}
+    weights = _topic_weights(rows)
+
+    assert weights["tagA"] == pytest.approx({"Defense": 0.5, "Economics": 0.5})
+
+
+def test_weighted_topic_volume_blends_by_weight() -> None:
+    run_order = ["r1", "r2"]
+    topic_weights = {"tagA": {"Defense": 0.75, "Economics": 0.25}}
+    topic_volume = {
+        "Defense": [10.0, 20.0],
+        "Economics": [4.0, 8.0],
+    }
+
+    series = _weighted_topic_volume("tagA", topic_weights, topic_volume, run_order)
+
+    # r1: 0.75*10 + 0.25*4 = 8.5;  r2: 0.75*20 + 0.25*8 = 17.0
+    assert series == pytest.approx([8.5, 17.0])
+
+
+def test_weighted_topic_volume_reduces_to_single_topic_case() -> None:
+    # A tag whose coverage is concentrated in one topic behaves exactly
+    # like the old _primary_topics-based control did.
+    run_order = ["r1", "r2"]
+    topic_weights = {"tagA": {"Defense": 1.0}}
+    topic_volume = {"Defense": [10.0, 5.0]}
+
+    assert _weighted_topic_volume("tagA", topic_weights, topic_volume, run_order) == [10.0, 5.0]
+
+
+def test_weighted_topic_volume_no_weights_returns_all_zero() -> None:
+    run_order = ["r1", "r2", "r3"]
+
+    assert _weighted_topic_volume("unknown_tag", {}, {}, run_order) == [0.0, 0.0, 0.0]
+
+
+def test_weighted_topic_volume_gap_only_when_every_weighted_topic_is_none() -> None:
+    run_order = ["r1", "r2"]
+    topic_weights = {"tagA": {"Defense": 0.5, "Economics": 0.5}}
+    # r2: Defense missing (archive failure) but Economics known -- still
+    # computable from what's known, not a full gap.
+    topic_volume = {
+        "Defense": [10.0, None],
+        "Economics": [4.0, 8.0],
+    }
+
+    series = _weighted_topic_volume("tagA", topic_weights, topic_volume, run_order)
+
+    assert series[0] == pytest.approx(7.0)  # 0.5*10 + 0.5*4
+    assert series[1] == pytest.approx(4.0)  # only Economics known: 0.5*8
+
+
+def test_weighted_topic_volume_full_gap_when_all_weighted_topics_are_none() -> None:
+    run_order = ["r1", "r2"]
+    topic_weights = {"tagA": {"Defense": 0.5, "Economics": 0.5}}
+    topic_volume = {
+        "Defense": [10.0, None],
+        "Economics": [4.0, None],
+    }
+
+    series = _weighted_topic_volume("tagA", topic_weights, topic_volume, run_order)
+
+    assert series == [pytest.approx(7.0), None]
 
 
 def test_topic_volume_series_aligns_to_run_order_and_ignores_unknown_runs() -> None:
@@ -406,3 +476,77 @@ def test_runs_missing_from_empty_when_everything_present() -> None:
     runs_present = {"r1", "r2"}
 
     assert _runs_missing_from(run_article_counts, runs_present) == set()
+
+
+def test_domain_extracts_netloc() -> None:
+    assert _domain("https://www.orbex.com/blog/en/2026/08/intraday-analysis-18-08-2026") == (
+        "www.orbex.com"
+    )
+
+
+def test_domain_different_paths_same_domain() -> None:
+    a = _domain("https://www.armstrongeconomics.com/market-talk/market-talk-august-17-2026/")
+    b = _domain("https://www.armstrongeconomics.com/market-talk/market-talk-august-18-2026/")
+    assert a == b == "www.armstrongeconomics.com"
+
+
+def test_dominant_source_ratio_all_one_domain() -> None:
+    domains = ["www.orbex.com"] * 5
+
+    ratio, n = _dominant_source_ratio(domains)
+
+    assert ratio == pytest.approx(1.0)
+    assert n == 5
+
+
+def test_dominant_source_ratio_spread_across_domains() -> None:
+    domains = ["a.com", "b.com", "c.com", "d.com"]
+
+    ratio, n = _dominant_source_ratio(domains)
+
+    assert ratio == pytest.approx(0.25)
+    assert n == 4
+
+
+def test_dominant_source_ratio_empty() -> None:
+    assert _dominant_source_ratio([]) == (0.0, 0)
+
+
+def test_drop_single_source_pairs_excludes_high_dominance() -> None:
+    edge_rows = [("dax", "nikkei"), ("energy", "forex")]
+    co_occurring_domains = {
+        ("dax", "nikkei"): ["www.armstrongeconomics.com"] * 4 + ["other.com"],
+        ("energy", "forex"): ["a.com", "b.com", "c.com", "d.com", "e.com"],
+    }
+
+    kept = _drop_single_source_pairs(
+        edge_rows, co_occurring_domains, max_source_dominance_ratio=0.8, min_co_occurring_articles=3
+    )
+
+    assert kept == [("energy", "forex")]
+
+
+def test_drop_single_source_pairs_keeps_pairs_below_min_evidence() -> None:
+    # 2 co-occurring articles, both the same domain (ratio 1.0) -- but
+    # min_co_occurring_articles=3 means "not enough evidence," so kept.
+    edge_rows = [("a", "b")]
+    co_occurring_domains = {("a", "b"): ["x.com", "x.com"]}
+
+    kept = _drop_single_source_pairs(
+        edge_rows, co_occurring_domains, max_source_dominance_ratio=0.8, min_co_occurring_articles=3
+    )
+
+    assert kept == [("a", "b")]
+
+
+def test_drop_single_source_pairs_keeps_pairs_with_no_recorded_co_occurrence() -> None:
+    # A pair absent from co_occurring_domains entirely (e.g. all its
+    # co-occurrences happened during a run with a missing article archive)
+    # must not be penalized for evidence it doesn't have.
+    edge_rows = [("a", "b")]
+
+    kept = _drop_single_source_pairs(
+        edge_rows, {}, max_source_dominance_ratio=0.8, min_co_occurring_articles=3
+    )
+
+    assert kept == [("a", "b")]
