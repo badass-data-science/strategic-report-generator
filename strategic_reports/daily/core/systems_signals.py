@@ -124,6 +124,24 @@ def load_run_order(database_url: str) -> list[str]:
     return [r[0] for r in rows]
 
 
+def _runs_missing_from(run_article_counts: dict[str, int], runs_present: set[str]) -> set[str]:
+    """
+    Run IDs whose article_count is nonzero but which are absent from
+    `runs_present` (e.g. distinct run_ids actually found in tag_counts, or
+    in articles) -- i.e. a run whose recording into that table failed
+    entirely (see article_archive_savepoint_fix -- confirmed to have
+    happened for `articles`; tag_tracking.record_tags and
+    record_community_summaries share the same fragile all-or-nothing
+    transaction, so nothing rules it out there for a future run), not a
+    run that genuinely had nothing to record.
+    """
+    return {
+        run_id
+        for run_id, article_count in run_article_counts.items()
+        if article_count > 0 and run_id not in runs_present
+    }
+
+
 def load_topic_urgency_series(
     database_url: str,
 ) -> tuple[list[str], dict[str, list[float | None]]]:
@@ -151,12 +169,19 @@ def load_topic_urgency_series(
 
 def load_tag_rate_series(
     database_url: str, tags: set[str] | None = None
-) -> tuple[list[str], dict[str, list[float]]]:
+) -> tuple[list[str], dict[str, list[float | None]]]:
     """
     Return (run_order, {tag: [rate aligned to run_order]}) -- tag count /
     that run's article_count, same normalization as
     tag_tracking.load_tag_rate_history. A run where the tag didn't appear
-    is a real 0.0, not a gap, unlike urgency scores above.
+    is a real 0.0, not a gap.
+
+    A run whose tag_counts recording failed entirely gets None for every
+    tag that run instead of a false 0.0 -- see _runs_missing_from. This
+    matters more here than for the topic-volume control
+    (tag_rate_lagged_correlations): these are the *primary* x/y series
+    every tag-rate correlation is computed from, so a false 0.0 here would
+    directly corrupt results, not just bias a nuisance control variable.
 
     Pass `tags` to restrict to a known candidate set (see
     tag_rate_lagged_correlations) instead of pulling all ~7k distinct tags.
@@ -175,14 +200,26 @@ def load_tag_rate_series(
                 "SELECT run_id, tag, count FROM tag_counts WHERE tag = ANY(%s)",
                 (list(tags),),
             ).fetchall()
+        runs_with_tag_data = {
+            row[0] for row in conn.execute("SELECT DISTINCT run_id FROM tag_counts").fetchall()
+        }
 
-    series: dict[str, list[float]] = {}
+    runs_with_missing_tag_data = _runs_missing_from(article_counts, runs_with_tag_data)
+
+    series: dict[str, list[float | None]] = {}
     for run_id, tag, count in rows:
         idx = run_index.get(run_id)
         article_count = article_counts.get(run_id)
         if idx is None or not article_count:
             continue
         series.setdefault(tag, [0.0] * len(run_order))[idx] = count / article_count
+
+    for run_id in runs_with_missing_tag_data:
+        idx = run_index.get(run_id)
+        if idx is None:
+            continue
+        for rates in series.values():
+            rates[idx] = None
 
     return run_order, series
 
@@ -444,18 +481,21 @@ def topic_urgency_lagged_correlations(
 
 
 def _tags_with_enough_activity(
-    series: dict[str, list[float]], min_active_runs: int
+    series: dict[str, list[float | None]], min_active_runs: int
 ) -> set[str]:
     """
     Tags nonzero in at least `min_active_runs` runs -- see
     _MIN_ACTIVE_RUNS_FOR_TAG_CORRELATION for why this matters: below this
     floor, a "correlation" is often just two rare tags both being nonzero
-    in the same handful of runs, not a real relationship.
+    in the same handful of runs, not a real relationship. A None entry
+    (see load_tag_rate_series -- a run whose tag_counts recording failed)
+    counts as neither active nor inactive, same "skip rather than guess"
+    treatment as everywhere else in this file.
     """
     return {
         tag
         for tag, rates in series.items()
-        if sum(1 for rate in rates if rate > 0.0) >= min_active_runs
+        if sum(1 for rate in rates if rate is not None and rate > 0.0) >= min_active_runs
     }
 
 
@@ -652,17 +692,7 @@ def tag_rate_lagged_correlations(
         runs_with_articles = {
             row[0] for row in conn.execute("SELECT DISTINCT run_id FROM articles").fetchall()
         }
-    # A run whose article_count (set independently by db.record_run, before
-    # record_articles even runs) is nonzero but has zero rows in `articles`
-    # is a run whose article archive failed outright -- see
-    # article_archive.record_articles and _topic_volume_series. A run that
-    # genuinely had 0 articles that day isn't included here: article_count
-    # == 0 there too, so its (real) zero topic volume is trusted as-is.
-    runs_with_missing_articles = {
-        run_id
-        for run_id, article_count in run_article_counts.items()
-        if article_count > 0 and run_id not in runs_with_articles
-    }
+    runs_with_missing_articles = _runs_missing_from(run_article_counts, runs_with_articles)
 
     edge_rows = _drop_near_synonymous_pairs(
         edge_rows, co_occurrence_totals, tag_totals, max_containment_ratio

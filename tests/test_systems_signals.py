@@ -19,6 +19,7 @@ from strategic_reports.daily.core.systems_signals import (
     _ols_residuals,
     _pearson_p_value,
     _primary_topics,
+    _runs_missing_from,
     _same_community_ratio,
     _tags_with_enough_activity,
     _topic_volume_series,
@@ -159,6 +160,18 @@ def test_tags_with_enough_activity_boundary_is_inclusive() -> None:
 
     assert _tags_with_enough_activity(series, min_active_runs=5) == {"exactly_five"}
     assert _tags_with_enough_activity(series, min_active_runs=6) == set()
+
+
+def test_tags_with_enough_activity_none_entries_count_as_neither() -> None:
+    # A None entry (a run whose tag_counts recording failed entirely, see
+    # load_tag_rate_series) must not crash the `rate > 0.0` comparison, and
+    # must not count toward activity either way -- it's unknown, not zero.
+    series = {
+        "tag": [0.1, 0.2, 0.3, 0.4, None, None, None, None, None],  # 4 confirmed-active runs
+    }
+
+    assert _tags_with_enough_activity(series, min_active_runs=4) == {"tag"}
+    assert _tags_with_enough_activity(series, min_active_runs=5) == set()
 
 
 def test_containment_ratio_always_together() -> None:
@@ -376,3 +389,20 @@ def test_topic_volume_series_marks_missing_runs_as_none_not_zero() -> None:
     series = _topic_volume_series(run_order, rows, runs_with_missing_articles={"r2"})
 
     assert series == {"Defense": [10.0, None, 7.0], "Economics": [3.0, None, 2.0]}
+
+
+def test_runs_missing_from_excludes_genuinely_empty_runs() -> None:
+    # r1: has data, present. r2: article_count > 0 but absent from the
+    # table -- recording failed. r3: article_count == 0, genuinely nothing
+    # to record, correctly NOT flagged even though it's also absent.
+    run_article_counts = {"r1": 500, "r2": 300, "r3": 0}
+    runs_present = {"r1"}
+
+    assert _runs_missing_from(run_article_counts, runs_present) == {"r2"}
+
+
+def test_runs_missing_from_empty_when_everything_present() -> None:
+    run_article_counts = {"r1": 500, "r2": 300}
+    runs_present = {"r1", "r2"}
+
+    assert _runs_missing_from(run_article_counts, runs_present) == set()
