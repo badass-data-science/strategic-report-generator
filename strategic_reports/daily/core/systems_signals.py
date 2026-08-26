@@ -251,8 +251,8 @@ def _ols_residuals(z: Sequence[float], w: Sequence[float]) -> list[float]:
 def lagged_partial_pearson(
     x: Sequence[float | None],
     y: Sequence[float | None],
-    zx: Sequence[float],
-    zy: Sequence[float],
+    zx: Sequence[float | None],
+    zy: Sequence[float | None],
     lag: int,
 ) -> tuple[float, int] | None:
     """
@@ -263,6 +263,12 @@ def lagged_partial_pearson(
     different value at run t than at run t+lag) via two independent OLS
     residualizations, so treat this as removing 2 degrees of freedom
     relative to plain lagged_pearson (see _pearson_p_value's `controls`).
+
+    A None in zx/zy excludes that t the same way a None in x/y does --
+    "we don't know this run's confound value" (e.g. a run whose article
+    archive failed, see article_archive.record_articles) must not be
+    silently treated as "confound was zero," which would bias the OLS fit
+    rather than just shrinking n.
 
     Built for tag_rate_lagged_correlations' topic-volume control: two tags
     from the same busy topic (e.g. Defense) can ride that topic's article
@@ -275,7 +281,10 @@ def lagged_partial_pearson(
     pairs = [
         (x[t], y[t + lag], zx[t], zy[t + lag])
         for t in range(len(x) - lag)
-        if x[t] is not None and y[t + lag] is not None
+        if x[t] is not None
+        and y[t + lag] is not None
+        and zx[t] is not None
+        and zy[t + lag] is not None
     ]
     if len(pairs) < _MIN_RUNS_FOR_LAG:
         return None
@@ -544,20 +553,37 @@ def _primary_topics(tag_topic_rows: list[tuple[str, str, int]]) -> dict[str, str
 
 
 def _topic_volume_series(
-    run_order: list[str], topic_article_counts: list[tuple[str, str, int]]
-) -> dict[str, list[float]]:
+    run_order: list[str],
+    topic_article_counts: list[tuple[str, str, int]],
+    runs_with_missing_articles: set[str],
+) -> dict[str, list[float | None]]:
     """
     {topic: [article count that run, aligned to run_order]} from
     "SELECT run_id, topic, COUNT(*) FROM articles GROUP BY run_id, topic"
     -- the raw signal a shared-topic "busy week" confound would show up in.
+
+    A run in `runs_with_missing_articles` gets None for every topic instead
+    of 0.0. Without this, a run whose article archive failed (see
+    article_archive.record_articles -- confirmed to have happened for two
+    real runs, 2026-08-26 systems-thinking-prototype session) looks
+    identical to a run that genuinely had zero articles on some topic: a
+    false 0.0 biases lagged_partial_pearson's OLS fit rather than just
+    shrinking its sample size the way a real gap correctly does.
     """
     run_index = {run_id: i for i, run_id in enumerate(run_order)}
-    series: dict[str, list[float]] = {}
+    known_topics = {topic for _, topic, _ in topic_article_counts}
+    series: dict[str, list[float | None]] = {topic: [0.0] * len(run_order) for topic in known_topics}
     for run_id, topic, count in topic_article_counts:
         idx = run_index.get(run_id)
         if idx is None:
             continue
-        series.setdefault(topic, [0.0] * len(run_order))[idx] = float(count)
+        series[topic][idx] = float(count)
+    for run_id in runs_with_missing_articles:
+        idx = run_index.get(run_id)
+        if idx is None:
+            continue
+        for topic in known_topics:
+            series[topic][idx] = None
     return series
 
 
@@ -620,6 +646,23 @@ def tag_rate_lagged_correlations(
         topic_article_counts = conn.execute(
             "SELECT run_id, topic, COUNT(*) FROM articles GROUP BY run_id, topic"
         ).fetchall()
+        run_article_counts = dict(
+            conn.execute("SELECT run_id, article_count FROM runs").fetchall()
+        )
+        runs_with_articles = {
+            row[0] for row in conn.execute("SELECT DISTINCT run_id FROM articles").fetchall()
+        }
+    # A run whose article_count (set independently by db.record_run, before
+    # record_articles even runs) is nonzero but has zero rows in `articles`
+    # is a run whose article archive failed outright -- see
+    # article_archive.record_articles and _topic_volume_series. A run that
+    # genuinely had 0 articles that day isn't included here: article_count
+    # == 0 there too, so its (real) zero topic volume is trusted as-is.
+    runs_with_missing_articles = {
+        run_id
+        for run_id, article_count in run_article_counts.items()
+        if article_count > 0 and run_id not in runs_with_articles
+    }
 
     edge_rows = _drop_near_synonymous_pairs(
         edge_rows, co_occurrence_totals, tag_totals, max_containment_ratio
@@ -642,10 +685,10 @@ def tag_rate_lagged_correlations(
             (list(candidate_tags),),
         ).fetchall()
     primary_topic = _primary_topics(tag_topic_rows)
-    topic_volume = _topic_volume_series(run_order, topic_article_counts)
-    no_control = [0.0] * len(run_order)
+    topic_volume = _topic_volume_series(run_order, topic_article_counts, runs_with_missing_articles)
+    no_control: list[float | None] = [0.0] * len(run_order)
 
-    def control_series(tag: str) -> list[float]:
+    def control_series(tag: str) -> list[float | None]:
         topic = primary_topic.get(tag)
         return topic_volume.get(topic, no_control) if topic else no_control
 

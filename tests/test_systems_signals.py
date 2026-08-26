@@ -327,6 +327,24 @@ def test_lagged_partial_pearson_below_min_history_returns_none() -> None:
     assert lagged_partial_pearson(x, y, z, z, lag=0) is None
 
 
+def test_lagged_partial_pearson_excludes_a_none_control_point() -> None:
+    # Same 8-point confound setup as the "strips a shared confound" test,
+    # plus a 9th point with wild x/y values but a None control -- a run
+    # whose topic-volume data is unknown (see _topic_volume_series). If
+    # that None were ever treated as a 0.0 confound instead of a gap, the
+    # extreme 9th point would corrupt the residuals and change the result.
+    z = [0.0, 0.0, 0.0, 0.0, 10.0, 10.0, 10.0, 10.0, None]
+    x = [1.0, -1.0, 1.0, -1.0, 11.0, 9.0, 11.0, 9.0, 99999.0]
+    y = [1.0, 1.0, -1.0, -1.0, 9.0, 9.0, 11.0, 11.0, -99999.0]
+
+    partial = lagged_partial_pearson(x, y, z, z, lag=0)
+
+    assert partial is not None
+    partial_r, partial_n = partial
+    assert partial_n == 8  # the None-control point dropped, not coerced
+    assert partial_r == pytest.approx(0.0, abs=1e-9)
+
+
 def test_primary_topics_picks_the_mode() -> None:
     rows = [("tagA", "Defense", 5), ("tagA", "Economics", 2), ("tagB", "Forex", 3)]
 
@@ -343,6 +361,18 @@ def test_topic_volume_series_aligns_to_run_order_and_ignores_unknown_runs() -> N
     run_order = ["r1", "r2"]
     rows = [("r1", "Defense", 10), ("r2", "Defense", 5), ("r1", "Economics", 3), ("r99", "Defense", 999)]
 
-    series = _topic_volume_series(run_order, rows)
+    series = _topic_volume_series(run_order, rows, runs_with_missing_articles=set())
 
     assert series == {"Defense": [10.0, 5.0], "Economics": [3.0, 0.0]}
+
+
+def test_topic_volume_series_marks_missing_runs_as_none_not_zero() -> None:
+    # r2's article archive failed (see article_archive.record_articles) --
+    # every topic must show None there, not a false 0.0 that would claim
+    # "this topic genuinely had zero coverage" when the truth is unknown.
+    run_order = ["r1", "r2", "r3"]
+    rows = [("r1", "Defense", 10), ("r3", "Defense", 7), ("r1", "Economics", 3), ("r3", "Economics", 2)]
+
+    series = _topic_volume_series(run_order, rows, runs_with_missing_articles={"r2"})
+
+    assert series == {"Defense": [10.0, None, 7.0], "Economics": [3.0, None, 2.0]}
