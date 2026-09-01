@@ -196,9 +196,10 @@ def run(
     max_concurrent: int = typer.Option(3, help="Max topics hitting the LLM API simultaneously"),
     temperature: float = typer.Option(0.1, help="LLM sampling temperature"),
     instructor_mode: str = typer.Option(
-        "TOOLS",
-        help="Structured output mode: TOOLS (default, requires tool-calling support), "
-             "JSON (for Ollama models without tool calling), MD_JSON (JSON in markdown fences)",
+        "JSON",
+        help="Structured output mode: JSON (default — glm-5.2:cloud does not reliably "
+             "emit tool calls under TOOLS mode), TOOLS (requires reliable tool-calling "
+             "support), MD_JSON (JSON in markdown fences)",
     ),
     ollama_api_base: str | None = typer.Option(
         None,
@@ -550,9 +551,10 @@ def ask(
     ),
     temperature: float = typer.Option(0.1, help="LLM sampling temperature"),
     instructor_mode: str = typer.Option(
-        "TOOLS",
-        help="Structured output mode: TOOLS (default, requires tool-calling support), "
-             "JSON (for Ollama models without tool calling), MD_JSON (JSON in markdown fences)",
+        "JSON",
+        help="Structured output mode: JSON (default — glm-5.2:cloud does not reliably "
+             "emit tool calls under TOOLS mode), TOOLS (requires reliable tool-calling "
+             "support), MD_JSON (JSON in markdown fences)",
     ),
     ollama_api_base: str | None = typer.Option(
         None,

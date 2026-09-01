@@ -2,9 +2,11 @@
 Prefect flow for the daily strategic report pipeline.
 
 This flow is configured for a hosted Ollama instance. instructor_mode
-defaults to TOOLS, which requires the configured model (via LLM_MODEL) to
-support tool/function calling — e.g. glm-5.2:cloud. If you switch to a model
-without tool-calling support, override instructor_mode to JSON instead.
+defaults to JSON: glm-5.2:cloud (the LLM_MODEL default) does not reliably
+emit proper tool calls under instructor's TOOLS mode — it puts
+<arg_key>/<arg_value> pseudo-tags in the message content instead, which
+exhausts instructor's retries. If you switch to a model with reliable
+tool-calling support, override instructor_mode to TOOLS instead.
 
 WHY PREFECT? The CLI (cli.py) is fine for running the pipeline manually.
 Prefect adds scheduling, run history, per-task retries, and per-task
@@ -595,9 +597,10 @@ async def daily_report_flow(
     batch_size: int = 50,
     max_concurrent: int = 3,
     temperature: float = 0.1,
-    # TOOLS mode requires the configured model to support tool/function
-    # calling (glm-5.2:cloud does; gpt-oss:120b did not — see LLM_MODEL).
-    instructor_mode: str = "TOOLS",
+    # JSON mode: glm-5.2:cloud does not reliably emit proper tool calls under
+    # TOOLS mode (see module docstring). Override to TOOLS for a model with
+    # reliable tool-calling support.
+    instructor_mode: str = "JSON",
     ollama_api_base: str | None = os.environ.get("OLLAMA_API_BASE"),
     ollama_api_key: str | None = os.environ.get("OLLAMA_API_KEY"),
     log_level: str = "INFO",

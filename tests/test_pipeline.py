@@ -250,6 +250,44 @@ class TestRunPipeline:
         assert r.error is not None
         assert "API limit hit" in r.error
 
+    async def test_instructor_retry_exception_yields_concise_error(
+        self, sample_topic_config: TopicConfig
+    ) -> None:
+        """
+        InstructorRetryException.__str__ dumps the *entire* retry history —
+        every raw LLM completion object across every failed attempt — as a
+        pseudo-XML template when failed_attempts is populated. Stored verbatim
+        this makes the report unreadable (a wall of escaped tags around a full
+        prompt/response dump) without adding anything a reader can act on.
+
+        TopicResult.error should hold the concise wrapped message instead
+        (e.g. "No tool calls or function call found in response (mode: TOOLS)"),
+        not the multi-thousand-character debug dump.
+        """
+        from instructor.core.exceptions import FailedAttempt, InstructorRetryException
+
+        attempt = FailedAttempt(
+            attempt_number=1,
+            exception=ValueError("No tool calls or function call found in response (mode: TOOLS)"),
+            completion="ModelResponse(id='...', choices=[...massive raw completion...])",
+        )
+        exc = InstructorRetryException(
+            "No tool calls or function call found in response (mode: TOOLS)",
+            failed_attempts=[attempt],
+            n_attempts=1,
+            total_usage=None,
+        )
+        client = make_mock_client(raises=exc)
+        with patch("strategic_reports.daily.core.pipeline.fetch_topic_articles",
+                   return_value=make_articles()):
+            results = await run_pipeline([sample_topic_config], client)
+
+        r = results[0]
+        assert r.error is not None
+        assert r.error == "No tool calls or function call found in response (mode: TOOLS)"
+        assert "<failed_attempts>" not in r.error
+        assert "ModelResponse" not in r.error
+
     async def test_one_failure_does_not_cancel_others(self, tmp_path: Path) -> None:
         """
         THE MOST IMPORTANT PIPELINE TEST.

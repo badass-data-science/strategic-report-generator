@@ -46,6 +46,7 @@ import asyncio
 from typing import Any
 
 import structlog
+from instructor.core.exceptions import InstructorError
 
 from .archive_query import find_relevant_communities
 from .ingestion import fetch_topic_articles
@@ -156,6 +157,26 @@ async def _synthesize_strategy(
     return strategy, usage
 
 
+def _format_pipeline_error(exc: BaseException) -> str:
+    """
+    Produce a concise, human-readable message for a topic's error slot.
+
+    instructor's InstructorError.__str__ renders a Jinja2 template that dumps
+    the *entire* retry history when the exception carries failed_attempts —
+    every raw LLM completion object (full prompt/response text included) for
+    every retry, wrapped in literal <failed_attempts>/<generation>/<completion>
+    tags. That dump is meant for debugging instructor itself, not for display:
+    stored verbatim in TopicResult.error, it makes the report unreadable (a
+    wall of escaped pseudo-XML) without adding anything a reader can act on.
+    Exception.__str__ (the un-overridden base implementation) returns just the
+    original wrapped message instead, e.g. "No tool calls or function call
+    found in response (mode: TOOLS)".
+    """
+    if isinstance(exc, InstructorError) and exc.failed_attempts:
+        return Exception.__str__(exc)
+    return str(exc)
+
+
 async def _process_topic(
     topic: TopicConfig,
     articles: list[RawArticle] | BaseException,  # BaseException if Phase 1 ingestion failed
@@ -176,8 +197,9 @@ async def _process_topic(
     # Phase 1 failure arrives here as a BaseException in the articles slot
     # because run_pipeline used return_exceptions=True in asyncio.gather.
     if isinstance(articles, BaseException):
-        log.error("topic_fetch_failed", topic=topic.title, error=str(articles))
-        return TopicResult(config=topic, error=str(articles))
+        message = _format_pipeline_error(articles)
+        log.error("topic_fetch_failed", topic=topic.title, error=message)
+        return TopicResult(config=topic, error=message)
 
     if not articles:
         log.warning("topic_no_articles", topic=topic.title)
@@ -202,8 +224,9 @@ async def _process_topic(
             # Catch-all for LLM errors (rate limits, timeouts, schema violations
             # that exhaust tenacity retries). Log it and return an error result
             # so the other topics' results are not lost.
-            log.error("topic_llm_failed", topic=topic.title, error=str(exc))
-            return TopicResult(config=topic, error=str(exc))
+            message = _format_pipeline_error(exc)
+            log.error("topic_llm_failed", topic=topic.title, error=message)
+            return TopicResult(config=topic, error=message)
 
 
 async def synthesize_cross_topic(
