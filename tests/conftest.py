@@ -60,6 +60,7 @@ import json
 import os
 from pathlib import Path
 from unittest.mock import MagicMock
+from urllib.parse import urlsplit
 
 import psycopg
 import pytest
@@ -89,11 +90,28 @@ _TRACKING_TABLES = [
 ]
 
 
+def _pg_identity(url: str) -> tuple[str, int, str]:
+    """(host, port, dbname) so cosmetic differences (user, password, query
+    string) can't mask two URLs that point at the same database."""
+    parsed = urlsplit(url)
+    return (parsed.hostname or "", parsed.port or 5432, parsed.path.lstrip("/"))
+
+
 @pytest.fixture(scope="session")
 def _test_database_url() -> str:
     url = os.environ.get("DATABASE_URL")
     if not url:
         pytest.skip("DATABASE_URL must point at a reachable Postgres instance to run DB tests")
+
+    prod_url = os.environ.get("DAILY_REPORT_DATABASE_URL")
+    if prod_url and _pg_identity(url) == _pg_identity(prod_url):
+        pytest.exit(
+            "DATABASE_URL points at the same database as DAILY_REPORT_DATABASE_URL "
+            "(the production tracking database). Tests TRUNCATE every tracking table "
+            "before each test — refusing to run against it. Point DATABASE_URL at a "
+            "disposable test database instead.",
+            returncode=1,
+        )
     return url
 
 
