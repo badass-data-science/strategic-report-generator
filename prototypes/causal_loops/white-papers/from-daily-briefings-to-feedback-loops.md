@@ -263,3 +263,31 @@ The system is open source under the MIT license and available at [github.com/bad
 7. Aitchison, J. (1986). *The Statistical Analysis of Compositional Data*. London: Chapman and Hall. https://doi.org/10.1007/978-94-009-4109-0
 8. Wang, X., Wei, J., Schuurmans, D., Le, Q., Chi, E., Narang, S., Chowdhery, A., and Zhou, D. (2023). Self-consistency improves chain of thought reasoning in language models. *International Conference on Learning Representations (ICLR 2023)*. https://arxiv.org/abs/2203.11171
 9. Benjamini, Y., and Hochberg, Y. (1995). Controlling the false discovery rate: a practical and powerful approach to multiple testing. *Journal of the Royal Statistical Society, Series B (Methodological)*, 57(1), 289–300. https://doi.org/10.1111/j.2517-6161.1995.tb02031.x
+
+# Tags
+
+- strategic intelligence
+- strategic foresight
+- horizon scanning
+- open-source intelligence
+- policy analysis
+- think tank
+- knowledge graph
+- RDF
+- linked data
+- SKOS
+- PROV-O
+- schema.org
+- data provenance
+- Louvain community detection
+- causal loop diagram
+- system dynamics
+- systems thinking
+- feedback loops
+- large language models
+- LLM
+- AI-assisted analysis
+- human-in-the-loop
+- time series
+- false discovery rate
+- data science
