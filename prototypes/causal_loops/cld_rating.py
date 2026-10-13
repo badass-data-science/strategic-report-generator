@@ -32,9 +32,9 @@ import cld_units as cu  # noqa: E402
 from strategic_reports.daily.core.db import get_connection  # noqa: E402
 from strategic_reports.daily.core.llm_client import LLMClient  # noqa: E402
 from strategic_reports.daily.core.systems_signals import (  # noqa: E402
-    _benjamini_hochberg_qvalues,
-    _pearson_p_value,
+    benjamini_hochberg_qvalues,
     lagged_pearson,
+    pearson_p_value,
 )
 
 ARTICLES_PER_VARIABLE = 20
@@ -240,8 +240,8 @@ def tests_for(
             out = lagged_pearson(series[a], series[b], lag)
             if out is not None:
                 r, n = out
-                tests.append(cu.Test(a, b, lag, r, n, _pearson_p_value(r, n)))
-    for t, q in zip(tests, _benjamini_hochberg_qvalues([t.p for t in tests]), strict=True):
+                tests.append(cu.Test(a, b, lag, r, n, pearson_p_value(r, n)))
+    for t, q in zip(tests, benjamini_hochberg_qvalues([t.p for t in tests]), strict=True):
         t.q = q
     return {(t.a, t.b, t.lag): t for t in tests}
 

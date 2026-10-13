@@ -45,11 +45,11 @@ from pydantic import BaseModel, Field, model_validator
 from strategic_reports.daily.core.db import get_connection
 from strategic_reports.daily.core.llm_client import LLMClient
 from strategic_reports.daily.core.systems_signals import (
-    _MIN_RUNS_FOR_LAG,
-    _benjamini_hochberg_qvalues,
-    _pearson_p_value,
+    MIN_RUNS_FOR_LAG,
+    benjamini_hochberg_qvalues,
     lagged_partial_pearson,
     lagged_pearson,
+    pearson_p_value,
 )
 
 DEFAULT_CLD_SRC = Path.home() / "Desktop/projects/causal-loop-diagram-inator/src"
@@ -429,8 +429,8 @@ def scan(series: Series, partial: bool, n_runs: int) -> dict[tuple[str, str, int
             if out is None:
                 continue
             r, n = out
-            tests.append(Test(a, b, lag, r, n, _pearson_p_value(r, n, 2 if partial else 0)))
-    for t, q in zip(tests, _benjamini_hochberg_qvalues([t.p for t in tests]), strict=True):
+            tests.append(Test(a, b, lag, r, n, pearson_p_value(r, n, 2 if partial else 0)))
+    for t, q in zip(tests, benjamini_hochberg_qvalues([t.p for t in tests]), strict=True):
         t.q = q
     return {(t.a, t.b, t.lag): t for t in tests}
 
@@ -1067,10 +1067,10 @@ async def main() -> None:
     runs_with_articles = len(set(d.article_run.values()))
     if runs_with_articles == 0:
         sys.exit("no runs with archived articles in range; nothing to draft from")
-    if runs_with_articles < _MIN_RUNS_FOR_LAG + MAX_LAG:
+    if runs_with_articles < MIN_RUNS_FOR_LAG + MAX_LAG:
         print(
             f"WARNING: only {runs_with_articles} runs with articles; correlations need "
-            f"{_MIN_RUNS_FOR_LAG} aligned pairs, so links will mostly come back not_detected"
+            f"{MIN_RUNS_FOR_LAG} aligned pairs, so links will mostly come back not_detected"
         )
     client = LLMClient(
         model=args.model, temperature=args.temperature, instructor_mode=instructor.Mode.JSON

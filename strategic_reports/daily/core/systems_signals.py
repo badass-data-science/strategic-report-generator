@@ -22,7 +22,7 @@ migration was ever needed (read-only), and it's now wired into both
 report-generation entry points (cli.py's `run()` and
 flows/daily_report.py's Prefect flow), rendered as the "Systems Signals"
 section in index.html.j2. Everything here is
-gated by _MIN_RUNS_FOR_LAG, the same "skip rather than guess" pattern as
+gated by MIN_RUNS_FOR_LAG, the same "skip rather than guess" pattern as
 tag_tracking's _MIN_HISTORY_RUNS: with only a handful of runs since the
 PostgreSQL migration (2026-08-13), real queries against the live database
 will correctly return an empty list right now -- that's the gate working
@@ -70,10 +70,10 @@ from .db import get_connection
 # number. Deliberately higher than tag_tracking's _MIN_HISTORY_RUNS=7: that
 # gate guards a single tag's mean/std, this one guards a correlation
 # between two already-shortened series.
-_MIN_RUNS_FOR_LAG = 8
+MIN_RUNS_FOR_LAG = 8
 
 # Minimum number of runs a tag must be nonzero in before it's eligible for
-# tag_rate_lagged_correlations at all -- separate from _MIN_RUNS_FOR_LAG.
+# tag_rate_lagged_correlations at all -- separate from MIN_RUNS_FOR_LAG.
 # Two tags that are each only ever nonzero in the same one or two runs
 # (e.g. co-referenced entities like "ugg"/"deckers outdoor") trivially hit
 # r=1.0 with a real, non-spurious p-value -- FDR correction doesn't catch
@@ -108,7 +108,7 @@ _MAX_SAME_COMMUNITY_RATIO_FOR_TAG_CORRELATION = 0.8
 
 # Below this many runs where both tags were assigned a community at all,
 # there's not enough evidence to judge whether they're the same cluster --
-# same "skip rather than guess" reasoning as _MIN_RUNS_FOR_LAG.
+# same "skip rather than guess" reasoning as MIN_RUNS_FOR_LAG.
 _MIN_SHARED_RUNS_FOR_COMMUNITY_FILTER = 3
 
 # Above this source-dominance ratio (the single most common link domain
@@ -282,7 +282,7 @@ def load_tag_rate_series(
 def _pearson(xs: list[float], ys: list[float]) -> tuple[float, int] | None:
     """Plain Pearson r over two already-aligned, gap-free equal-length lists."""
     n = len(xs)
-    if n < _MIN_RUNS_FOR_LAG:
+    if n < MIN_RUNS_FOR_LAG:
         return None
 
     mean_x = sum(xs) / n
@@ -302,7 +302,7 @@ def lagged_pearson(
 ) -> tuple[float, int] | None:
     """
     Pearson correlation between x[t] and y[t + lag] across every t where
-    both are defined. None if fewer than _MIN_RUNS_FOR_LAG aligned pairs
+    both are defined. None if fewer than MIN_RUNS_FOR_LAG aligned pairs
     remain, or either side has zero variance (r is undefined, not 0).
     """
     if lag < 0:
@@ -322,7 +322,7 @@ def lagged_pearson(
             xs.append(xv)
             ys.append(yv)
 
-    if len(xs) < _MIN_RUNS_FOR_LAG:
+    if len(xs) < MIN_RUNS_FOR_LAG:
         return None
 
     return _pearson(xs, ys)
@@ -361,7 +361,7 @@ def lagged_partial_pearson(
     one shared control, since a confound like topic-article-volume takes a
     different value at run t than at run t+lag) via two independent OLS
     residualizations, so treat this as removing 2 degrees of freedom
-    relative to plain lagged_pearson (see _pearson_p_value's `controls`).
+    relative to plain lagged_pearson (see pearson_p_value's `controls`).
 
     A None in zx/zy excludes that t the same way a None in x/y does --
     "we don't know this run's confound value" (e.g. a run whose article
@@ -392,7 +392,7 @@ def lagged_partial_pearson(
             zxs.append(zxv)
             zys.append(zyv)
 
-    if len(xs) < _MIN_RUNS_FOR_LAG:
+    if len(xs) < MIN_RUNS_FOR_LAG:
         return None
 
     x_resid = _ols_residuals(zxs, xs)
@@ -453,7 +453,7 @@ def _regularized_incomplete_beta(x: float, a: float, b: float) -> float:
     return 1.0 - front * _betacf(b, a, 1.0 - x) / b
 
 
-def _pearson_p_value(r: float, n: int, controls: int = 0) -> float:
+def pearson_p_value(r: float, n: int, controls: int = 0) -> float:
     """
     Two-tailed p-value for a Pearson r over n samples -- the same test
     scipy.stats.pearsonr reports, via the standard t = r*sqrt((df)/(1-r^2))
@@ -475,7 +475,7 @@ def _pearson_p_value(r: float, n: int, controls: int = 0) -> float:
     return _regularized_incomplete_beta(df / (df + t_squared), df / 2.0, 0.5)
 
 
-def _benjamini_hochberg_qvalues(p_values: Sequence[float]) -> list[float]:
+def benjamini_hochberg_qvalues(p_values: Sequence[float]) -> list[float]:
     """
     BH FDR-adjusted p-values ("q-values"), same order as `p_values`: the
     smallest FDR threshold at which each hypothesis would be rejected,
@@ -511,11 +511,11 @@ def _significant_correlations(
     effect-size floor (r_threshold) and FDR-adjusted significance (fdr_q)
     -- see module docstring for why the effect-size filter alone isn't
     enough once a scan runs hundreds/thousands of simultaneous tests.
-    Pass `controls` (see _pearson_p_value) when every r in this batch came
+    Pass `controls` (see pearson_p_value) when every r in this batch came
     from a partial correlation, not plain lagged_pearson.
     """
-    p_values = [_pearson_p_value(r, n, controls) for _, _, _, r, n in candidates]
-    q_values = _benjamini_hochberg_qvalues(p_values)
+    p_values = [pearson_p_value(r, n, controls) for _, _, _, r, n in candidates]
+    q_values = benjamini_hochberg_qvalues(p_values)
     results = [
         LaggedCorrelation(a, b, lag, round(r, 3), n, round(p, 4), round(q, 4))
         for (a, b, lag, r, n), p, q in zip(candidates, p_values, q_values, strict=True)

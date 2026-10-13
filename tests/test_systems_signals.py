@@ -4,7 +4,7 @@ Tests for strategic_reports.daily.core.systems_signals's lagged_pearson.
 Pure-function tests against synthetic series -- deliberately no
 database_url fixture here. The live tracking database only has a handful
 of real runs since the PostgreSQL migration (2026-08-13), nowhere near
-_MIN_RUNS_FOR_LAG, so a DB-backed test would only ever exercise the
+MIN_RUNS_FOR_LAG, so a DB-backed test would only ever exercise the
 "too little history, return None" path. Correctness of the correlation
 arithmetic itself is validated here instead, independent of how much real
 history exists.
@@ -14,7 +14,6 @@ from typing import cast
 
 import pytest
 from strategic_reports.daily.core.systems_signals import (
-    _benjamini_hochberg_qvalues,
     _containment_ratio,
     _domain,
     _dominant_source_ratio,
@@ -22,7 +21,6 @@ from strategic_reports.daily.core.systems_signals import (
     _drop_single_source_pairs,
     _drop_topically_clustered_pairs,
     _ols_residuals,
-    _pearson_p_value,
     _runs_missing_from,
     _same_community_ratio,
     _tags_with_enough_activity,
@@ -30,11 +28,13 @@ from strategic_reports.daily.core.systems_signals import (
     _topic_volume_series,
     _topic_weights,
     _weighted_topic_volume,
+    benjamini_hochberg_qvalues,
     lagged_partial_pearson,
     lagged_pearson,
+    pearson_p_value,
 )
 
-_N = 10  # >= _MIN_RUNS_FOR_LAG (8), so these exercise the real computation
+_N = 10  # >= MIN_RUNS_FOR_LAG (8), so these exercise the real computation
 
 
 def test_lagged_pearson_perfect_positive_correlation_at_correct_lag() -> None:
@@ -104,33 +104,33 @@ def test_lagged_pearson_skips_gaps_from_none_entries() -> None:
 
 def test_pearson_p_value_is_one_for_zero_correlation() -> None:
     # t = 0 regardless of n, so the two-tailed p-value is exactly 1.
-    assert _pearson_p_value(0.0, 20) == pytest.approx(1.0)
+    assert pearson_p_value(0.0, 20) == pytest.approx(1.0)
 
 
 def test_pearson_p_value_is_zero_for_perfect_correlation() -> None:
-    assert _pearson_p_value(1.0, 20) == pytest.approx(0.0)
-    assert _pearson_p_value(-1.0, 20) == pytest.approx(0.0)
+    assert pearson_p_value(1.0, 20) == pytest.approx(0.0)
+    assert pearson_p_value(-1.0, 20) == pytest.approx(0.0)
 
 
 def test_pearson_p_value_symmetric_in_sign_of_r() -> None:
-    assert _pearson_p_value(0.6, 15) == pytest.approx(_pearson_p_value(-0.6, 15))
+    assert pearson_p_value(0.6, 15) == pytest.approx(pearson_p_value(-0.6, 15))
 
 
 def test_pearson_p_value_decreases_as_r_grows_for_fixed_n() -> None:
-    p_small = _pearson_p_value(0.3, 15)
-    p_large = _pearson_p_value(0.8, 15)
+    p_small = pearson_p_value(0.3, 15)
+    p_large = pearson_p_value(0.8, 15)
     assert p_large < p_small
 
 
 def test_pearson_p_value_matches_textbook_critical_value() -> None:
     # Standard two-tailed r-critical-value table: df=10 (n=12), alpha=.05 -> r ~= 0.576.
-    assert _pearson_p_value(0.576, 12) == pytest.approx(0.05, abs=0.01)
+    assert pearson_p_value(0.576, 12) == pytest.approx(0.05, abs=0.01)
 
 
 def test_benjamini_hochberg_qvalues_matches_hand_worked_example() -> None:
     p_values = [0.005, 0.011, 0.02, 0.04, 0.13, 0.26, 0.35, 0.5, 0.7, 0.9]
 
-    q_values = _benjamini_hochberg_qvalues(p_values)
+    q_values = benjamini_hochberg_qvalues(p_values)
 
     expected = [0.05, 0.055, 0.0667, 0.1, 0.26, 0.4333, 0.5, 0.625, 0.7778, 0.9]
     for actual, want in zip(q_values, expected, strict=True):
@@ -140,14 +140,14 @@ def test_benjamini_hochberg_qvalues_matches_hand_worked_example() -> None:
 def test_benjamini_hochberg_qvalues_never_below_the_raw_p_value() -> None:
     p_values = [0.001, 0.2, 0.03, 0.9, 0.5]
 
-    q_values = _benjamini_hochberg_qvalues(p_values)
+    q_values = benjamini_hochberg_qvalues(p_values)
 
     for p, q in zip(p_values, q_values, strict=True):
         assert q >= p
 
 
 def test_benjamini_hochberg_qvalues_empty_input() -> None:
-    assert _benjamini_hochberg_qvalues([]) == []
+    assert benjamini_hochberg_qvalues([]) == []
 
 
 def test_tags_with_enough_activity_excludes_rare_tags() -> None:
