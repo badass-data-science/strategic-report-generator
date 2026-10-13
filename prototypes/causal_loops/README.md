@@ -32,10 +32,35 @@ ones but don't have to be. The process is **hypothesis first, data second**:
    stability, not truth: samples can share a bias.
 4. **Data check.** Each kept link is tested at lags 0 to 3 (counted in runs)
    with BH-FDR across the whole scan, and labelled supported, weak, mixed,
-   contradicted or not detected. Edges are coloured by that label in the
-   rendered diagram (`+`/`-` labels carry polarity). Loops aren't drawn as R/B icons
-   on the diagram; they're listed, with their type and each edge's evidence,
-   in the markdown report.
+   expected, contradicted or not detected. Edges are coloured by that label
+   in the rendered diagram (see "Arrow colours" below). Loops aren't drawn as
+   R/B icons on the diagram; they're listed, with their type and each edge's
+   evidence, in the markdown report.
+
+### Arrow colours
+
+An arrow's colour is its evidence verdict, **not** its polarity: the `+`/`-`
+label beside each arrowhead carries the polarity. (This differs from
+`cld`'s default, where green means `+` and red means `-`; the prototype
+renders with `--no-color` and overrides every edge's colour.) A red arrow can
+be a `+` link.
+
+| Colour | Hex | Verdict | Meaning |
+|---|---|---|---|
+| Green | `#2e7d32` | supported | Some lag (0-3 runs) has q <= 0.05, \|r\| >= 0.4, and a sign matching the link's expected sign. |
+| Amber | `#f9a825` | weak | Nothing survives FDR, but some lag has the right sign, \|r\| >= 0.3 and uncorrected p <= 0.05. |
+| Purple | `#6a1b9a` | mixed | Significant evidence in both directions (at different lags, or across the two topic measures). |
+| Light blue | `#64b5f6` | expected | The only strong evidence is lag-0 co-movement between near-duplicate units, which shared coverage alone would produce. |
+| Red | `#c62828` | contradicted | Significant and \|r\| >= 0.4, but the sign is opposite to the link's expected sign. |
+| Grey | `#9e9e9e` | not detected | None of the above. |
+
+In `cld_units.py` diagrams the verdict uses lags 0 to 3, so most green and red
+topic arrows currently rest on same-run correlations, which have no direction;
+each link's lag is in the report. `cld_rating.py` diagrams use the same
+colours, but their verdict is computed on lags 1 to 3 of the rating series
+only, so a same-run correlation can't make an arrow green or red there, and
+light blue never appears. Each diagram's markdown report repeats the colour
+key at the top.
 
 ### Why not tag-level Systems Signals directly
 

@@ -170,6 +170,19 @@ Defense Modernization Spending -> Manufacturing Automation Adoption: + #f9a825
 
 Each line is `source -> target: polarity`, optionally followed by `delay` and a color. The diagram is rendered in the inator's no-color mode, with each edge's color overridden by its *evidence* rather than its polarity: green for supported, amber for weak, purple for mixed, light blue for expected, red for contradicted, and grey for not detected. The `+` and `-` labels beside each arrow carry the polarity. The effect is a diagram you can read in two layers at once: the shape is the LLM's hypothesis, and the colors are the archive's opinion of it.
 
+For anyone squinting at one of these diagrams, the full key:
+
+| Arrow color | Verdict | What the archive is saying |
+|---|---|---|
+| Green | Supported | At some lag, the correlation clears the corrected significance bar, is at least moderately strong, and points the way the link predicts. |
+| Amber | Weak | Nothing survives the correction, but something leans the right way. Worth a glance, not a claim. |
+| Purple | Mixed | Significant evidence pointing both ways at once. |
+| Light blue | Expected | The only evidence is same-night co-movement between two near-duplicate units, which their shared coverage would produce anyway. |
+| Red | Contradicted | Significant and strong, but pointing the *opposite* way from the arrow's claim. |
+| Grey | Not detected | The archive has no opinion yet. |
+
+One warning for henchmen who have used the inator before: on its own, the inator colors arrows by polarity, green for `+` and red for `-`. Here those colors mean evidence instead, so a red arrow can be a perfectly positive link that the data happens to disagree with. When in doubt, read the little `+` or `-` beside the arrowhead, which never lies about polarity, only about whether anyone has checked it.
+
 ## What the Archive Said
 
 Here are both unit sets as of 2026-10-13, thirty-one runs of history:
