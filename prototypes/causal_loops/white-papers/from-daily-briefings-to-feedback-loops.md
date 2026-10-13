@@ -1,48 +1,48 @@
-# From Daily Briefings to Feedback Loops
+TITLE:  From Daily Briefings to Feedback Loops
 
-## Machine-Assisted Strategic Intelligence: An Accumulating News Archive, Its Knowledge Graphs, and Evidence-Graded Causal Loop Diagrams
+SUBTITLE:  Machine-Assisted Strategic Intelligence: An Accumulating News Archive, Its Knowledge Graphs, and Evidence-Graded Causal Loop Diagrams
 
 **White Paper** · October 2026 · Draft for review
 
 ---
 
-## Executive Summary
+# Executive Summary
 
 Strategic decision-makers do not lack information; they lack *structure*. A daily briefing compresses one day's news into a handful of recommendations and is then, in most organizations, forgotten. The accumulated record of what was reported, how topics related to one another, and how those relationships changed over time is discarded at exactly the moment it starts to become valuable.
 
-This paper describes an open-source system, the Strategic Daily Report Generator, that treats each day's briefing as one observation in a growing longitudinal record. Each night it reads news across seventeen strategic domains, uses large language models (LLMs) to summarize and synthesize that coverage into an HTML report, and persists every intermediate result to a relational archive with full provenance. From that archive it builds two complementary knowledge graphs, and, in an experimental extension, drafts *causal loop diagrams* (CLDs): maps of the feedback relationships thought to connect the domains it monitors, with each relationship graded against the archive's own time series.
+This paper describes an open-source system, the Strategic Daily Report Generator, that treats each day's briefing as one observation in a growing longitudinal record. Each night it reads news across seventeen strategic domains, uses large language models (LLMs) to summarize and synthesize that coverage into a daily report (with actionable recommendations), and persists every intermediate result to a relational archive with full provenance. From that archive it builds two complementary knowledge graphs, and, in an experimental extension, drafts *causal loop diagrams* (CLDs): maps of the feedback relationships thought to connect the domains it monitors, with each relationship graded against the archive's own time series.
 
 The central design principle throughout is a separation between what a language model is allowed to assert and what the data is allowed to confirm. Language models write summaries, name concepts, and propose hypotheses; graph algorithms and statistical tests decide what counts as structure and what counts as evidence.
 
 **Key findings**
 
-- **Archiving changes what a daily briefing is worth.** Persisting every article, tag, summary, and score, linked to the run that produced it, converts a disposable report into a queryable record. As of 12 October 2026 the archive held 31 runs and roughly 17,600 summarized articles.
-- **Graph structure is a reliable grounding signal for LLM synthesis.** Tags that appear across three or more domains on the same day ("bridge tags") are computed without any LLM involvement and supplied to the cross-domain synthesis as leads to be confirmed, not conclusions to be repeated.
+- **Archiving changes what a daily briefing is worth.** Persisting every article, article tag, summary, and score, linked to the run that produced it, converts a disposable report into a queryable record. As of 12 October 2026 the archive held 31 runs and roughly 17,600 summarized articles.
+- **Graph structure is a reliable grounding signal for LLM synthesis.** Article tags that appear across three or more domains on the same day ("bridge tags") are computed without any LLM involvement and supplied to the cross-domain synthesis as leads to be confirmed, not conclusions to be repeated.
 - **Standards-based knowledge graphs make the archive portable.** An RDF export built on SKOS, PROV-O, and schema.org lets the archive be merged with other institutional knowledge bases without bespoke integration.
 - **Machine-drafted causal loop diagrams are feasible and readable.** A propose-then-check method, in which an LLM drafts a diagram without seeing any statistics and the archive then grades each link, produces coherent diagrams with both reinforcing and balancing feedback.
-- **Thirty-one runs cannot yet confirm causal structure.** No proposed link has lagged statistical support. Most apparent support is same-day co-movement, which carries no information about direction. Article coverage measures attention rather than real-world change; a preliminary test suggests LLM ratings of real-world movement track market data, but with a one-session lag.
+- **Thirty-one runs cannot yet confirm causal structure.** No proposed link has lagged statistical support. Most apparent support is same-day co-movement, which carries no information about direction. Article coverage measures attention rather than real-world change; a preliminary test suggests LLM ratings of real-world movement track market data, but with a one-session lag. As more data accumulates this view will sharpen.
 
 **Recommendations, in brief.** Treat machine-drafted CLDs as labelled hypotheses, not findings; invest first in better measurement of the variables such diagrams contain; version the analytical partitions on which longitudinal comparisons depend; and continue accumulating history, which is the binding constraint on every quantitative claim this system can make.
 
 ---
 
-## 1. Introduction: The Problem of Strategic Attention
+# 1. Introduction: The Problem of Strategic Attention
 
 Strategic intelligence work has always faced a tension between breadth and depth. An analyst responsible for a dozen domains (artificial intelligence, energy, defense, currency markets, biotechnology, and so on) cannot read everything published about each of them, and the cost of missing a cross-domain development is often higher than the cost of missing a development within a single domain. Automated summarization addresses the breadth problem. It does not, by itself, address depth, because depth depends on memory: on knowing whether today's development continues yesterday's, whether two domains that appear together today have appeared together before, and whether movements in one domain tend to precede movements in another.
 
 Conventional automated briefings are stateless. Each day's report is generated from that day's inputs and stands alone. Whatever structure exists across days, such as recurring clusters of concern, slowly strengthening connections between domains, or feedback relationships, is invisible to a system with no memory of its own output.
 
-The system described in this paper was built around the opposite assumption: that the briefing is the least durable thing it produces. Its more important outputs are the archive the briefings accumulate into, the graphs that archive supports, and, increasingly, the analytical models that can be built on top of both. Section 2 describes the briefing pipeline. Section 3 describes the archive and its knowledge graphs. Section 4 describes the experimental causal loop diagram method and what it has found. Sections 5 and 6 assess the system's limitations and set out recommendations.
+The system described in this paper was built around the opposite assumption: that the daily briefing is the least durable thing it produces. Its more important outputs are the archive the briefings accumulate into, the graphs that archive supports, and, increasingly, the analytical models that can be built on top of both. Section 2 describes the briefing pipeline. Section 3 describes the archive and its knowledge graphs. Section 4 describes the experimental causal loop diagram method and what it has found. Sections 5 and 6 assess the system's limitations and set out recommendations.
 
 ---
 
-## 2. System Overview: The Daily Strategic Report Generator
+# 2. System Overview: The Daily Strategic Report Generator
 
-### 2.1 Scope and operation
+## 2.1 Scope and operation
 
 The system monitors seventeen active domains through curated RSS feeds: among them artificial intelligence, biotechnology, blockchain, business strategy, data science, defense, economics, energy, foreign exchange, genomics, geopolitics, healthcare, IoT and edge computing, leadership, retail, and robotics. It runs once daily on a schedule managed by the Prefect orchestration framework, and can also be run on demand from a command-line interface. A typical run considers between roughly 550 and 780 recent articles.
 
-### 2.2 Processing pipeline
+## 2.2 Processing pipeline
 
 Each run proceeds in stages:
 
@@ -53,7 +53,7 @@ Each run proceeds in stages:
 5. **Alerting.** A domain's urgency score, and each tag's share of the day's coverage, are compared against their own historical baselines; values more than two standard deviations above the baseline are flagged once at least seven prior runs exist. Until then, urgency scores fall back to a fixed absolute threshold, and tags with too little history are not assessed.
 6. **Rendering and archiving.** The day's report is rendered as linked HTML pages, a tag co-occurrence graph is built and rendered as an interactive visualization, every intermediate result is written to the archive, and, on scheduled runs, an RDF export of the full archive is regenerated.
 
-### 2.3 Design principles
+## 2.3 Design principles
 
 Several engineering choices recur throughout the system and bear directly on the reliability of its outputs.
 
@@ -64,9 +64,9 @@ Several engineering choices recur throughout the system and bear directly on the
 
 ---
 
-## 3. From Briefings to Knowledge: The Archive and Its Graphs
+# 3. From Briefings to Knowledge: The Archive and Its Graphs
 
-### 3.1 The tracking archive
+## 3.1 The tracking archive
 
 Every run's outputs are persisted to a PostgreSQL database. The archive records, for every run, the articles considered (title, link, publication date, summary bullets, and tags); each domain's strategic recommendations and urgency score; the day's tag co-occurrence graph (per-tag counts, per-tag domain membership, and tag-pair edges); summaries of the day's tag communities; the bridge tags supplied to the cross-domain synthesis; and the cross-domain observations themselves.
 
@@ -76,21 +76,21 @@ Three properties of the archive matter for analysis:
 - **No pruning.** Full history is retained indefinitely. The archive is designed for longitudinal analysis, and analyses of this kind are only as good as the history they can draw on.
 - **Explicit schema management.** The schema is defined in versioned migrations, applied deliberately once per environment, rather than created implicitly at connection time.
 
-### 3.2 The nightly tag co-occurrence graph and its communities
+## 3.2 The nightly tag co-occurrence graph and its communities
 
 Each night, the system builds a graph in which every tag is a node and every pair of tags appearing on the same article is connected by an edge weighted by how often that happens. The graph is partitioned with the Louvain community detection algorithm, which groups densely interconnected tags without being told in advance how many groups to find or what to call them [1]. The resulting communities frequently cut across the domain boundaries defined by the feed configuration: a community may draw mostly on biotechnology coverage but include defense and trade articles concerned with the same export-control dispute.
 
 For each community, the system then makes one LLM call, grounded strictly in the articles whose tags belong to that community, to write a paragraph describing what the cluster of coverage is substantively about. A label derived from a community's most frequent tag says what a cluster is called; a grounded summary says what it is about. The nightly graph is also rendered as a self-contained interactive visualization in which color encodes community, node size encodes article count, and edge thickness encodes co-occurrence strength.
 
-### 3.3 Bridge tags: structural grounding for cross-domain synthesis
+## 3.3 Bridge tags: structural grounding for cross-domain synthesis
 
 Cross-domain synthesis is the stage most vulnerable to plausible-sounding invention, because it asks a model to find connections between domains that may not be connected. The system constrains this stage with a purely structural signal. Before the synthesis prompt is written, it identifies *bridge tags*: tags whose articles span three or more domains on the same day. These are supplied to the model as candidate leads, with an explicit instruction to confirm whether each represents a substantive connection rather than repeating it. Every bridge tag supplied is recorded in the archive, so that it is later possible to audit whether the day's cross-domain observations reflected what the graph pointed to.
 
-### 3.4 Graph-guided retrieval over the archive
+## 3.4 Graph-guided retrieval over the archive
 
 The archive can be queried in natural language. A question is reduced to candidate tags by an LLM; those tags are matched against every community summary ever written (by exact tag membership first, and by text matching as a fallback); and an answer is synthesized strictly from the summaries retrieved. This is deliberately a modest form of retrieval-augmented generation: it uses the community structure as the retrieval unit and does not use vector embeddings or hierarchical summarization. For a single-analyst tool, the transparency of exact-match retrieval was judged more valuable than the recall of semantic search.
 
-### 3.5 A standards-based knowledge graph
+## 3.5 A standards-based knowledge graph
 
 The nightly graph is ephemeral by design: it describes one day and is rebuilt from scratch the next. For integration with other institutional knowledge, the system also exports the entire archive as an RDF knowledge graph in Turtle format, regenerated at the end of every scheduled run. The export reuses established vocabularies wherever one exists:
 
@@ -107,9 +107,9 @@ The two graphs are complementary, and the system enforces their separation: the 
 
 ---
 
-## 4. Causal Loop Diagrams: From Structure to Dynamics
+# 4. Causal Loop Diagrams: From Structure to Dynamics
 
-### 4.1 Motivation
+## 4.1 Motivation
 
 The knowledge graphs of Section 3 describe *structure*: which concepts appear together, and which domains share concerns. Strategic analysis also requires a view of *dynamics*: which developments drive which others, and whether those influences amplify or dampen one another. The established tool for representing such dynamics is the causal loop diagram, drawn from the system dynamics tradition [4].
 
@@ -117,7 +117,7 @@ A CLD consists of variables (quantities that can rise or fall), directed links b
 
 CLDs are conventionally drawn by domain experts. This paper reports an experimental method, implemented as a prototype, for drafting them automatically from the archive and grading each link against the archive's own time series. The prototype is not part of the nightly report.
 
-### 4.2 Method
+## 4.2 Method
 
 The method proceeds in six steps.
 
@@ -144,7 +144,7 @@ The method proceeds in six steps.
 
 Closed loops are then identified by directed-cycle search and classified as reinforcing or balancing. The diagram is rendered with a separate open-source tool. Polarity is shown by a `+` or `−` label beside each arrowhead, and evidence by the arrow's color.
 
-### 4.3 Findings
+## 4.3 Findings
 
 The method was applied to the archive as of 13 October 2026 (31 runs).
 
@@ -168,7 +168,7 @@ Four findings stand out.
 
 **Coverage is an imperfect proxy for the variables in the diagram.** Article share measures how much is written about a domain, not what is happening within it, and the variables named in a CLD are real-world quantities. This mismatch, rather than any defect in the drafting method, is the principal obstacle to validation.
 
-### 4.4 Toward better measurement
+## 4.4 Toward better measurement
 
 The prototype includes a second experiment addressing the measurement problem directly. Instead of article share, an LLM reads each run's articles for each diagram variable and rates the variable's real-world movement on a five-point scale, or declines to rate it if the articles carry no usable information. The rater is never shown the diagram's links.
 
@@ -178,7 +178,7 @@ A preliminary internal check, not yet part of the published code, tested whether
 
 ---
 
-## 5. Assessment: What the System Can and Cannot Claim
+# 5. Assessment: What the System Can and Cannot Claim
 
 The system's outputs fall into three tiers of epistemic standing, and its design attempts to keep them distinct.
 
@@ -200,7 +200,7 @@ None of these limitations is unusual for observational analysis of news data. Wh
 
 ---
 
-## 6. Recommendations
+# 6. Recommendations
 
 **For practitioners using machine-drafted causal loop diagrams:**
 
@@ -218,7 +218,7 @@ None of these limitations is unusual for observational analysis of news data. Wh
 
 ---
 
-## 7. Conclusion
+# 7. Conclusion
 
 A daily briefing is valuable for a day. An archive of briefings, with full provenance and the graph structure to navigate it, is valuable for as long as it is kept, and becomes more valuable with each day it is kept. The Strategic Daily Report Generator demonstrates that such an archive can be built and maintained by a single analyst with open-source tools, that its structure can be exported in standard form for integration with other knowledge, and that it can support an experimental step from structure toward dynamics: machine-drafted causal loop diagrams graded against the record they were drawn from.
 
@@ -226,7 +226,7 @@ The current results are best described as a successful demonstration of method c
 
 ---
 
-## Appendix A: Glossary
+# Appendix A: Glossary
 
 - **Bridge tag.** A tag whose articles span three or more domains on the same day.
 - **Causal loop diagram (CLD).** A diagram of variables connected by signed, directed links, used to represent feedback structure.
@@ -237,7 +237,7 @@ The current results are best described as a successful demonstration of method c
 - **Near-duplicate units.** Two units sharing enough articles or sources that their co-movement is expected from overlap alone.
 - **Unit.** A node in a causal loop diagram: either a defined domain or a community from a frozen partition.
 
-## Appendix B: Summary of Statistical Methods
+# Appendix B: Summary of Statistical Methods
 
 - **Jaccard similarity** between sets A and B: `|A ∩ B| / |A ∪ B|`.
 - **Modularity** maximized by Louvain, with resolution γ: `Q = (1/2m) Σ_ij [A_ij − γ k_i k_j / 2m] δ(c_i, c_j)`, where `A_ij` is edge weight, `k_i` a node's total edge weight, `m` the total edge weight, and `δ` is 1 when two nodes share a community.
@@ -248,11 +248,11 @@ The current results are best described as a successful demonstration of method c
 - **Significance**: two-tailed p-value from `t² = r²·df/(1 − r²)` with `df = n − 2 − controls`, evaluated through the regularized incomplete beta function.
 - **Benjamini-Hochberg q-value** for the i-th smallest of m p-values: `min over j ≥ i of (p_(j) · m / j)`, capped at 1.
 
-## Appendix C: Data and Reproducibility
+# Appendix C: Data and Reproducibility
 
 The system is open source under the MIT license and available at [github.com/badass-data-science/strategic-report-generator](https://github.com/badass-data-science/strategic-report-generator). The causal loop diagram prototype described in Section 4 resides in `prototypes/causal_loops/` on the `causal-loop-prototype` branch at the time of writing, together with a README documenting its command-line options and results. Results reported here were computed against the project's archive as of 13 October 2026 (31 runs, beginning 1 September 2026) using the `glm-5.2:cloud` model. The prototype supports re-running the analysis against the archive as it stood at any earlier point. The market-data validation described in Section 4.4 was a preliminary internal analysis and is not included in the published code.
 
-## References
+# References
 
 1. Blondel, V. D., Guillaume, J.-L., Lambiotte, R., and Lefebvre, E. (2008). Fast unfolding of communities in large networks. *Journal of Statistical Mechanics: Theory and Experiment*, P10008.
 2. World Wide Web Consortium (2009). *SKOS Simple Knowledge Organization System Reference*. W3C Recommendation.
