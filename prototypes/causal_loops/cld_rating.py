@@ -112,6 +112,7 @@ def load_config(cld_dir: Path, kind: str) -> dict[str, Any]:
         "max_links": cu.MAX_LINKS,
         "max_loops": cu.MAX_LOOPS,
         "max_loop_length": cu.MAX_LOOP_LENGTH,
+        "as_of": None,
     }
     path = cld_dir / kind / "config.json"
     if path.exists():
@@ -382,12 +383,16 @@ async def main() -> None:
     ap.add_argument("--cld-src", type=Path, default=cu.DEFAULT_CLD_SRC)
     args = ap.parse_args()
     url = os.environ.get("DAILY_REPORT_DATABASE_URL") or os.environ["DATABASE_URL"]
-    d = cu.load(url)
+    configs = {k: load_config(args.cld_dir, k) for k in args.units}
+    as_ofs = {c["as_of"] for c in configs.values()}
+    if len(as_ofs) > 1:
+        sys.exit(f"drafts in --cld-dir were made with different --as-of values: {as_ofs}")
+    d = cu.load(url, as_ofs.pop())  # rebuild the archive exactly as the draft saw it
     bullets = load_first_bullets(url)
     client = LLMClient(model=args.model, temperature=0.1, instructor_mode=instructor.Mode.JSON)
 
     async def kind_task(kind: str) -> None:
-        config = load_config(args.cld_dir, kind)
+        config = configs[kind]
         if args.min_agree is not None:
             config["min_agree"] = args.min_agree
         cu.MAX_LINKS = config["max_links"]  # so the draft's samples re-validate

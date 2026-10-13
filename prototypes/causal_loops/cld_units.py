@@ -33,6 +33,7 @@ import subprocess
 import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
 from itertools import permutations
 from pathlib import Path
 from typing import Literal
@@ -43,6 +44,7 @@ from pydantic import BaseModel, Field, model_validator
 from strategic_reports.daily.core.db import get_connection
 from strategic_reports.daily.core.llm_client import LLMClient
 from strategic_reports.daily.core.systems_signals import (
+    _MIN_RUNS_FOR_LAG,
     _benjamini_hochberg_qvalues,
     _pearson_p_value,
     lagged_partial_pearson,
@@ -81,6 +83,7 @@ STATUS_COLORS = {
 @dataclass
 class Data:
     runs: list[str]
+    as_of: str | None  # human-readable cutoff, None = full history
     article_topic: dict[int, str]  # article_id -> topic
     article_run: dict[int, str]
     article_title: dict[int, str]
@@ -96,26 +99,81 @@ class Data:
     recent_communities: list[tuple[set[str], str, str]]  # (tags, label, summary)
 
 
-def load(database_url: str) -> Data:
+def _parse_ts(value: str) -> datetime:
+    ts = datetime.fromisoformat(value)
+    return ts if ts.tzinfo else ts.replace(tzinfo=UTC)
+
+
+def resolve_as_of(
+    runs_rows: list[tuple[str, str, int]], as_of: str | None
+) -> tuple[list[tuple[str, str, int]], str | None]:
+    """
+    Keep only runs at or before --as-of: a run_id (that run and everything
+    before it), an ISO timestamp (naive means UTC), or a bare YYYY-MM-DD date
+    (every run through the end of that UTC day). Compared as parsed datetimes,
+    not strings, since created_at is stored as ISO text.
+    """
+    if as_of is None:
+        return runs_rows, None
+    by_id = {r: created for r, created, _ in runs_rows}
+    if as_of in by_id:
+        cutoff = _parse_ts(by_id[as_of])
+        label = f"run {as_of} ({by_id[as_of]})"
+    elif re.fullmatch(r"\d{4}-\d{2}-\d{2}", as_of):
+        cutoff = _parse_ts(as_of) + timedelta(days=1) - timedelta(microseconds=1)
+        label = f"end of {as_of} UTC"
+    else:
+        try:
+            cutoff = _parse_ts(as_of)
+        except ValueError:
+            sys.exit(f"--as-of {as_of!r} is neither a known run_id nor an ISO timestamp/date")
+        label = cutoff.isoformat()
+    kept = [row for row in runs_rows if _parse_ts(row[1]) <= cutoff]
+    if not kept:
+        sys.exit(f"--as-of {as_of!r}: no runs at or before {label}")
+    return kept, label
+
+
+def load(database_url: str, as_of: str | None = None) -> Data:
     with get_connection(database_url) as c:
-        runs_rows = c.execute(
-            "SELECT run_id, article_count FROM runs ORDER BY created_at"
+        all_runs = c.execute(
+            "SELECT run_id, created_at, article_count FROM runs ORDER BY created_at"
         ).fetchall()
+        kept, as_of_label = resolve_as_of(all_runs, as_of)
+        runs_rows = [(r, n) for r, _, n in kept]
         runs = [r for r, _ in runs_rows]
-        arts = c.execute("SELECT id, run_id, topic, title FROM articles").fetchall()
-        at = c.execute("SELECT article_id, tag FROM article_tags").fetchall()
+        # Every query below is restricted to `runs`, so an --as-of draft sees
+        # exactly the archive as it stood then (history, partition and context).
+        arts = c.execute(
+            "SELECT id, run_id, topic, title FROM articles WHERE run_id = ANY(%s)", (runs,)
+        ).fetchall()
+        at = c.execute(
+            "SELECT article_id, tag FROM article_tags WHERE run_id = ANY(%s)", (runs,)
+        ).fetchall()
         tag_count = dict(
-            c.execute("SELECT tag, SUM(count) FROM tag_counts GROUP BY tag").fetchall()
+            c.execute(
+                "SELECT tag, SUM(count) FROM tag_counts WHERE run_id = ANY(%s) GROUP BY tag",
+                (runs,),
+            ).fetchall()
         )
         edges = c.execute(
-            "SELECT tag_a, tag_b, SUM(weight) FROM tag_edges GROUP BY tag_a, tag_b"
+            "SELECT tag_a, tag_b, SUM(weight) FROM tag_edges WHERE run_id = ANY(%s) "
+            "GROUP BY tag_a, tag_b",
+            (runs,),
         ).fetchall()
-        urg = c.execute("SELECT run_id, topic, score FROM urgency_scores").fetchall()
+        urg = c.execute(
+            "SELECT run_id, topic, score FROM urgency_scores WHERE run_id = ANY(%s)", (runs,)
+        ).fetchall()
         bullets = c.execute(
             "SELECT DISTINCT ON (topic, bullet_index) topic, bullet_index, bullet_text "
-            "FROM bullets ORDER BY topic, bullet_index, created_at DESC"
+            "FROM bullets WHERE run_id = ANY(%s) ORDER BY topic, bullet_index, created_at DESC",
+            (runs,),
         ).fetchall()
-        tt = c.execute("SELECT topic, tag, COUNT(*) FROM tag_topics GROUP BY topic, tag").fetchall()
+        tt = c.execute(
+            "SELECT topic, tag, COUNT(*) FROM tag_topics WHERE run_id = ANY(%s) "
+            "GROUP BY topic, tag",
+            (runs,),
+        ).fetchall()
         last = runs[-1]
         overview = [
             r[0]
@@ -159,6 +217,7 @@ def load(database_url: str) -> Data:
 
     return Data(
         runs=runs,
+        as_of=as_of_label,
         article_topic={a: t for a, _, t, _ in arts},
         article_run={a: r for a, r, _, _ in arts},
         article_title={a: ti for a, _, _, ti in arts},
@@ -676,7 +735,7 @@ def render(cld_path: Path, cld_src: Path) -> None:
 async def run_kind(kind: str, d: Data, client: LLMClient, args: argparse.Namespace) -> None:
     out_dir = args.out_dir / kind
     out_dir.mkdir(parents=True, exist_ok=True)
-    log: list[str] = []
+    log: list[str] = [f"as of {d.as_of}: {len(d.runs)} runs"] if d.as_of else []
     warn: list[str] = []
     units = (
         topic_units(d)
@@ -752,7 +811,8 @@ async def run_kind(kind: str, d: Data, client: LLMClient, args: argparse.Namespa
     nn = node_names(links, display)
     loops = loops_of(links, nn, args.max_loops, args.max_loop_length)
     cld_path = out_dir / "causal_hypothesis.cld"
-    cld_path.write_text(to_cld(links, nn, f"Causal Loop Hypothesis: {kind}"))
+    title = f"Causal Loop Hypothesis: {kind}" + (f" (as of {d.as_of})" if d.as_of else "")
+    cld_path.write_text(to_cld(links, nn, title))
     (out_dir / "causal_hypothesis.md").write_text(
         to_markdown(
             kind,
@@ -789,6 +849,7 @@ async def run_kind(kind: str, d: Data, client: LLMClient, args: argparse.Namespa
             "max_links",
             "max_loops",
             "max_loop_length",
+            "as_of",
         )
     }
     (out_dir / "config.json").write_text(json.dumps(config, indent=1))
@@ -842,14 +903,30 @@ async def main() -> None:
         default=MAX_LOOP_LENGTH,
         help="Longest loop (in nodes) looked for.",
     )
+    ap.add_argument(
+        "--as-of",
+        default=None,
+        help="Draft from the archive as it stood at a point in time: a run_id (that run and "
+        "everything before it), an ISO timestamp (naive = UTC), or a YYYY-MM-DD date (through "
+        "the end of that UTC day). Default: every run.",
+    )
     args = ap.parse_args()
     if args.target_communities[0] > args.target_communities[1]:
         ap.error("--target-communities LO must be <= HI")
     MAX_LINKS = args.max_links
-    d = load(os.environ.get("DAILY_REPORT_DATABASE_URL") or os.environ["DATABASE_URL"])
+    d = load(os.environ.get("DAILY_REPORT_DATABASE_URL") or os.environ["DATABASE_URL"], args.as_of)
     print(
         f"{len(d.runs)} runs, {len(d.article_topic)} articles, {len(d.bad_runs)} runs w/o archive"
+        + (f" (as of {d.as_of})" if d.as_of else "")
     )
+    runs_with_articles = len(set(d.article_run.values()))
+    if runs_with_articles == 0:
+        sys.exit("no runs with archived articles in range; nothing to draft from")
+    if runs_with_articles < _MIN_RUNS_FOR_LAG + MAX_LAG:
+        print(
+            f"WARNING: only {runs_with_articles} runs with articles; correlations need "
+            f"{_MIN_RUNS_FOR_LAG} aligned pairs, so links will mostly come back not_detected"
+        )
     client = LLMClient(
         model=args.model, temperature=args.temperature, instructor_mode=instructor.Mode.JSON
     )

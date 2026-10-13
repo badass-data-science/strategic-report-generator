@@ -152,6 +152,15 @@ Size of the diagram:
 | `--max-loops` | 10 | Most loops declared in the diagram (shortest first). |
 | `--max-loop-length` | 6 | Longest loop, in nodes, that's looked for. |
 
+To draft from the archive as it stood at an earlier point, pass `--as-of`
+with a run_id (that run and everything before it), an ISO timestamp (naive
+means UTC), or a bare `YYYY-MM-DD` date (every run through the end of that
+UTC day). Every query is restricted to those runs: the correlation history,
+the frozen community partition, and the "latest run" context the LLM reads.
+Without it, every run in the database is used. It warns when fewer than 11
+runs with articles remain, since a lag-3 test then can't reach the 8 aligned
+pairs a correlation needs, and exits if none remain.
+
 For example, a deliberately loose diagram:
 
 ```bash
@@ -160,8 +169,9 @@ For example, a deliberately loose diagram:
     --runs 5 --min-agree 1 --max-loops 20
 ```
 
-Each unit set's settings are saved to `<out-dir>/<kind>/config.json`, and
-`cld_rating.py` reads them back so it rebuilds the same units and links. Rendering
+Each unit set's settings (including `--as-of`) are saved to
+`<out-dir>/<kind>/config.json`, and `cld_rating.py` reads them back so it
+rebuilds the same archive state, units and links. Rendering
 also needs the `d2` and `inkscape` CLIs. It reads the tracking database only;
 each run makes 3 LLM calls per unit set (about 10k prompt tokens each).
 
