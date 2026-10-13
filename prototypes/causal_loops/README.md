@@ -83,17 +83,48 @@ Bottom line: hypothesis-first works as a diagram generator, but article
 share measures publishing volume, not the world, and after 31 runs it can't
 confirm or refute causal links.
 
-## Next idea: measure the variables directly
+## Variable rating: measure the diagram's variables directly (tried, negative)
 
-Once a CLD is drafted, rate each of its variables directly every run: an
-LLM reads that run's articles for the variable's unit and says whether the
-variable rose, fell or stayed flat (with a short justification). Links are
-then tested on those per-variable series instead of on article share. That
-turns the CLD from a one-off picture into a monitored model whose links
-build up evidence run by run. Shipping it would need a pipeline step and a
-table, so it needs discussing first (see AGENTS.md's "discuss before adding
-a table" conventions). A scratchpad prototype backfills ratings over the
-existing archive first.
+`cld_rating.py` takes the consensus diagrams drafted by `cld_units.py` and,
+for every run, asks an LLM (temperature 0.1) to rate each diagram variable's
+current real-world movement from -2 to +2, or null for no information, from
+that run's articles for the variable's unit (up to 20 articles, title plus
+first summary bullet). The rater never sees the links. Each link is then
+tested on the rating series. The verdict uses lags 1 to 3 only, with FDR over
+the pre-specified links times lags (legitimate because the links were
+proposed blind). Lag 0 is shown as context only, since one article mentioning
+two variables inflates it.
+
+Results as of 2026-10-13 (30 rated runs, about 60 rating calls):
+
+- **No lagged support.** 1 weak link per unit set; nothing survives FDR; a
+  full lagged scan finds no unproposed relationships either. With about 27
+  points per test, a link needs roughly |r| >= 0.6. The largest lagged
+  correlations were 0.4 to 0.6.
+- **Growth-framed variables come back "rising" every day.** Topic variables
+  like "AI Agent Deployment Scale" (+2 in 17 of 20 rated runs), "Data Quality
+  Investment" (+1 in 13 of 13, SD 0.00) and "Crypto Institutional Adoption"
+  (SD 0.20) have almost no variance, so they can't correlate with anything.
+  Most topic-link failures are "can't test", not "data says no".
+- **Market-like community variables move both ways**: Energy Commodity
+  Prices (SD 1.03), Crypto Market Volatility (1.13), Market Sentiment (0.80),
+  Retail Business Confidence (0.62), Construction Activity (0.71). That's the
+  kind of variable this method can work with.
+- **Lag 0 shows co-movement**: AI Infrastructure with Semiconductor Demand
+  (r = +0.51) and with Manufacturing Automation (+0.56), q = 0.019. That's
+  either a shared news cycle or the rater reading one upbeat batch into
+  several variables. It isn't directional either way.
+- **Timescale mismatch.** A lag of 1 to 3 runs is 1 to 3 business days; most
+  proposed mechanisms (inflation to clean-energy manufacturing, AI deployment
+  to governance maturity) act over months.
+
+Ideas if this route is resumed: rate level ("how intense today, 1-5")
+instead of direction; ask the proposer for fast-moving, rateable variables
+(prices, sentiment, threat levels, policy actions), keeping slow trends as
+structure labelled untestable at daily resolution; and first check that the
+rater tracks ground truth on market variables (daily oil, BTC, S&P/VIX,
+dollar index, 10-year yield). That validation is the next step being
+prototyped.
 
 ## Running
 
@@ -108,3 +139,12 @@ source ~/environment_variables/strategic_daily_report.sh   # DAILY_REPORT_DATABA
 `CLD_TOOL_SRC`) pointing at causal-loop-diagram-inator's `src/`. Rendering
 also needs the `d2` and `inkscape` CLIs. It reads the tracking database only;
 each run makes 3 LLM calls per unit set (about 10k prompt tokens each).
+
+```bash
+.venv/bin/python prototypes/causal_loops/cld_rating.py \
+    --cld-dir /tmp/cld_out --out-dir /tmp/rating_out [--last-n 2]
+```
+
+Needs `cld_units.py`'s output for the same database state (it aborts if the
+units have changed since drafting, e.g. after new runs). One LLM call per
+run per unit set; ratings are cached per run, so it can be resumed.
