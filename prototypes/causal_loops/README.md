@@ -17,7 +17,7 @@ ones but don't have to be. The process is **hypothesis first, data second**:
 1. **Units and series.** For each unit and run, compute its share of that
    run's articles, centered-log-ratio (CLR) transformed so that "shares sum
    to 1" doesn't manufacture negative correlations. For topics, also the
-   urgency score, partial-correlated against the leave-one-out mean urgency
+   urgency score, bipartial-correlated against the leave-one-out mean urgency
    (same control as `systems_signals.py`).
 2. **Blind proposal.** An LLM drafts a CLD among the units from qualitative
    context only (top tags, latest strategic bullets, closest recent daily
