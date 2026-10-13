@@ -108,6 +108,8 @@ LLMs are not deterministic, and a single sample is a single opinion. So `cld_uni
 polarity_display = s · direction_display_source · direction_display_target
 ```
 
+Matching votes on `s` has one side effect worth confessing. If one sample says AI Agent Deployment Scale *raises* AI-Driven Labor Displacement and another says it *lowers* it, those are two different links as far as the vote is concerned, and if both pass the threshold, the diagram gets two arrows pointing the same way between the same two nodes, cheerfully contradicting each other. At the default two-of-three vote that's arithmetically impossible: both versions would need two votes each, which takes four samples. But loosen the vote to `--min-agree 1`, or ask for more samples, and it happens: seven pairs on the topic side and one on the community side, in the existing drafts. So the diagram now draws exactly one arrow per direction between any two nodes. The version more samples agreed on wins; delay marks break ties, then confidence. Our heroine's first version of this rule put the delay marks first, on the theory that a delayed arrow carries more information. It took about one test run to notice that this let a single sample overrule two others on the arrow's polarity just by marking it delayed, which in turn could flip a whole loop between reinforcing and balancing. Majority rule it is. The price is that when the majority's version has no delay marks and a lone dissenter's does, the arrow is drawn without them. Nothing is thrown away silently, though: every dropped alternative is listed in the report's warnings, since two samples disagreeing about which way an arrow pushes is itself worth knowing.
+
 Our heroine's earlier experiments taught her what this vote is and isn't good for. It is excellent at removing one-off inventions: a loop that appears in only one sample is, almost by definition, something the model made up on the spot. It is not a truth detector. Three samples from the same model can share the same blind spot, and during the tag-level attempt, a link the earlier careful run had rejected sailed through a three-sample vote unanimously at the higher temperature. Agreement measures *stability*. Truth is the next section's job.
 
 ## The Data Checks the Robot's Homework
@@ -197,7 +199,7 @@ For those who want a bigger, louder diagram, every constraint that shapes it is 
 |---|---|---|
 | `--units` | both | `topics`, `communities`, or both |
 | `--runs` | 3 | How many independent samples the LLM drafts |
-| `--min-agree` | 2 | How many samples must agree on a link; `1` keeps the union of everything, inventions included |
+| `--min-agree` | 2 | How many samples must agree on a link; `1` keeps the union of everything, inventions included (where samples disagree on an arrow's polarity, the majority version is drawn) |
 | `--temperature` | 0.7 | How adventurous the samples are |
 | `--target-communities LO HI` | 15 20 | The community count the resolution sweep aims for |
 | `--max-links` | 22 | The most links one sample may propose |
