@@ -40,12 +40,12 @@ than _MIN_HISTORY_RUNS prior appearances (including a brand-new tag) is
 silently skipped rather than guessed at.
 """
 
-import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
 from .db import get_connection, insert_rows_isolating_failures
+from .stats import population_mean_std
 
 # Minimum number of historical runs required before a tag can be flagged.
 # Matches urgency.py's _MIN_HISTORY_RUNS for consistency.
@@ -195,9 +195,7 @@ def check_emerging_tags(
         if len(historical) < _MIN_HISTORY_RUNS:
             continue
 
-        mean = sum(historical) / len(historical)
-        variance = sum((x - mean) ** 2 for x in historical) / len(historical)
-        std = math.sqrt(variance)
+        mean, std = population_mean_std(historical)
         if std == 0:
             continue
 

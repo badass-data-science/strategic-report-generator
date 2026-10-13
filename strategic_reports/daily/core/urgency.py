@@ -23,12 +23,12 @@ keeps the functions safe to call from Prefect tasks, where a shared
 connection can't be passed between tasks (it isn't picklable).
 """
 
-import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from .db import get_connection, insert_rows_isolating_failures
 from .models import TopicResult
+from .stats import population_mean_std
 
 # Minimum number of historical runs required before the statistical baseline
 # is used. Below this threshold the absolute threshold is the only check.
@@ -132,9 +132,7 @@ def check_alerts(
         historical = history.get(topic, [])
 
         if len(historical) >= _MIN_HISTORY_RUNS:
-            mean = sum(historical) / len(historical)
-            variance = sum((x - mean) ** 2 for x in historical) / len(historical)
-            std = math.sqrt(variance)
+            mean, std = population_mean_std(historical)
 
             if std > 0:
                 z = (score - mean) / std

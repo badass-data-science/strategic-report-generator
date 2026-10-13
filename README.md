@@ -808,7 +808,7 @@ ruff check .
 mypy
 ```
 
-293 tests across 17 files. No real API calls — the LLM client is fully mocked.
+318 tests across 19 files. No real API calls — the LLM client is fully mocked.
 DB-touching tests need a reachable PostgreSQL instance (`DATABASE_URL`) —
 run `docker compose up -d` first for local dev (see [Quick
 start](#quick-start)). A GitHub Actions workflow
@@ -836,7 +836,8 @@ tests/test_archive_query.py  find_relevant_communities(): exact/substring matchi
 tests/test_tag_normalizer.py  Tag synonym normalization
 tests/test_overview_archive.py  Cross-topic overview bullet round-trip, ordering, multi-run
 tests/test_rdf_export.py  RDF ontology mapping (articles/tags/communities/bridge tags/urgency/bullets/overview), --since filtering, Turtle serialization
-tests/test_systems_signals.py  Lagged/partial-correlation math, Benjamini-Hochberg FDR correction, all five tag-rate filters (sparsity, containment, community, topic-volume, single-source), topic-urgency leave-one-out trend control, article-archive-gap handling for both series — pure-function tests against synthetic series, no DB
+tests/test_stats.py       Lagged/partial-correlation math, scipy-free p-value, Benjamini-Hochberg FDR correction, leave-one-out mean, population mean/std
+tests/test_systems_signals.py  All five tag-rate filters (sparsity, containment, community, topic-volume, single-source), topic-urgency leave-one-out trend control, article-archive-gap handling for both series — pure-function tests against synthetic series, no DB
 ```
 
 ---
@@ -866,6 +867,7 @@ strategic_reports/
       archive_query.py   Graph-guided retrieval: find_relevant_communities() for the `ask` CLI command
       tag_tracking.py    Per-run tag-graph persistence (linked to run_id) + emerging-tag z-score alerting + community-summary persistence
       systems_signals.py Lagged/partial correlation over topic urgency + tag coverage rate history; five-filter tag-rate chain + FDR correction — read-only, nothing persisted
+      stats.py           Shared statistics (pure functions): lagged/partial Pearson, scipy-free p-value, Benjamini-Hochberg q-values, leave-one-out mean, population mean/std for z-scores
       rdf_export.py      Builds an RDF (Turtle) export of the tracking database for the `export-rdf` CLI command
       tracing.py         Langfuse and Phoenix setup (opt-in)
     templates/

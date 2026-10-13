@@ -6,7 +6,7 @@ from a frozen Louvain partition of the cumulative tag graph.
   1. Build units + per-run series (share of articles, CLR-transformed so the
      compositional "shares sum to 1" effect doesn't manufacture negative
      correlations; for topics also urgency score, partial-correlated against
-     the leave-one-out mean like systems_signals does).
+     the leave-one-out mean like systems_signals does, via stats.leave_one_out_mean).
   2. LLM proposes a CLD among the units BLIND -- it never sees the
      correlations, so the check below is independent. k samples, keep links
      >= min_agree samples agree on.
@@ -44,11 +44,12 @@ import networkx as nx
 from pydantic import BaseModel, Field, model_validator
 from strategic_reports.daily.core.db import get_connection
 from strategic_reports.daily.core.llm_client import LLMClient
-from strategic_reports.daily.core.systems_signals import (
+from strategic_reports.daily.core.stats import (
     MIN_RUNS_FOR_LAG,
     benjamini_hochberg_qvalues,
     lagged_partial_pearson,
     lagged_pearson,
+    leave_one_out_mean,
     pearson_p_value,
 )
 
@@ -397,14 +398,6 @@ def urgency_series(d: Data, units: list[Unit]) -> Series:
     return out
 
 
-def _loo_control(series: Series, uid: str, n_runs: int) -> list[float | None]:
-    ctrl: list[float | None] = []
-    for i in range(n_runs):
-        vals = [s[i] for k, s in series.items() if k != uid and s[i] is not None]
-        ctrl.append(sum(vals) / len(vals) if len(vals) >= 2 else None)  # type: ignore[arg-type]
-    return ctrl
-
-
 @dataclass
 class Test:
     a: str
@@ -417,7 +410,7 @@ class Test:
 
 
 def scan(series: Series, partial: bool, n_runs: int) -> dict[tuple[str, str, int], Test]:
-    ctrl = {u: _loo_control(series, u, n_runs) for u in series} if partial else {}
+    ctrl = {u: leave_one_out_mean(series, u, n_runs) for u in series} if partial else {}
     tests: list[Test] = []
     for a, b in permutations(series, 2):
         for lag in range(MAX_LAG + 1):

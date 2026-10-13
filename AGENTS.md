@@ -133,7 +133,7 @@ ruff check .
 mypy
 ```
 
-- 293 tests across `tests/test_*.py`, no real network or LLM calls. Unlike
+- 318 tests across `tests/test_*.py`, no real network or LLM calls. Unlike
   before the PostgreSQL migration, DB-touching tests now need a reachable
   Postgres instance (`DATABASE_URL` env var) — see `docker-compose.yml` for
   local dev; CI provides one as a service container. CI
@@ -177,6 +177,7 @@ strategic_reports/
       archive_query.py    Graph-guided retrieval: find_relevant_communities() — pure SQL, no LLM calls
       tag_tracking.py     Per-run tag-graph persistence (linked to run_id) + emerging-tag z-score + community-summary persistence (PostgreSQL-backed)
       systems_signals.py  Lagged/partial correlation over topic urgency + tag coverage rate history; FDR correction + five-filter tag-rate chain; read-only, nothing persisted
+      stats.py            Shared statistics, pure functions: lagged/partial Pearson, scipy-free p-value, Benjamini-Hochberg q-values, leave-one-out mean control, population mean/std for z-scores (used by systems_signals, urgency, tag_tracking, prototypes/)
       rdf_export.py        Builds an RDF/Turtle export of the tracking db (SKOS/PROV-O/schema.org + a custom stratrep: namespace) for `export-rdf`
       tracing.py          Langfuse / Phoenix instrumentation (opt-in)
     templates/            Jinja2 templates (base, index, topic, db_status)

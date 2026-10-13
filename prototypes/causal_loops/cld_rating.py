@@ -31,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import cld_units as cu  # noqa: E402
 from strategic_reports.daily.core.db import get_connection  # noqa: E402
 from strategic_reports.daily.core.llm_client import LLMClient  # noqa: E402
-from strategic_reports.daily.core.systems_signals import (  # noqa: E402
+from strategic_reports.daily.core.stats import (  # noqa: E402
     benjamini_hochberg_qvalues,
     lagged_pearson,
     pearson_p_value,
