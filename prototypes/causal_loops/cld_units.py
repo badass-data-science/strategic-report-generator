@@ -676,7 +676,44 @@ def consensus(
                 polarity="+" if sign * d_src * d_tgt > 0 else "-",
             )
         )
-    return out, display
+    return _one_link_per_direction(out, display, warn), display
+
+
+_CONFIDENCE_RANK = {"low": 0, "medium": 1, "high": 2}
+
+
+def _one_link_per_direction(
+    links: list[CLink], display: dict[str, tuple[str, str]], warn: list[str]
+) -> list[CLink]:
+    """
+    Keep one link per (source, target). Votes are keyed by coverage sign, so
+    samples that drew the same arrow with opposite polarities produce two links
+    pointing the same way (only once both reach --min-agree, so mostly under a
+    low --min-agree or many --runs). The majority polarity always wins (most
+    agreeing samples); delay marks then break ties, then confidence. Record
+    the dropped alternative, since it is a real disagreement between samples.
+    """
+    by_pair: dict[tuple[str, str], list[CLink]] = defaultdict(list)
+    for lk in links:
+        by_pair[(lk.src, lk.tgt)].append(lk)
+    kept = []
+    for (src, tgt), group in by_pair.items():
+        # stable sort, so the first-seen link wins any remaining tie
+        group = sorted(
+            group, key=lambda lk: (-lk.agreement, -lk.delayed, -_CONFIDENCE_RANK[lk.confidence])
+        )
+        kept.append(group[0])
+        if len(group) > 1:
+            dropped = ", ".join(
+                f"{lk.polarity}{' delayed' if lk.delayed else ''} ({lk.agreement} votes)"
+                for lk in group[1:]
+            )
+            warn.append(
+                f"samples disagreed on {display[src][0]} -> {display[tgt][0]}: kept "
+                f"{group[0].polarity}{' delayed' if group[0].delayed else ''} "
+                f"({group[0].agreement} votes), dropped {dropped}"
+            )
+    return kept
 
 
 # --------------------------------------------------------------------------

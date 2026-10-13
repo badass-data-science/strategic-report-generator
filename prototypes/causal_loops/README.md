@@ -152,6 +152,12 @@ Size of the diagram:
 | `--max-loops` | 10 | Most loops declared in the diagram (shortest first). |
 | `--max-loop-length` | 6 | Longest loop, in nodes, that's looked for. |
 
+Only one arrow is drawn per direction between two nodes. Votes are matched on
+expected sign, so samples that drew the same arrow with opposite polarities
+can both pass `--min-agree` (mostly with `--min-agree 1` or many `--runs`).
+The version more samples agreed on always wins; delay marks break ties,
+then confidence. The dropped alternative is listed in the report's warnings.
+
 **Unit overlap.** Before proposing, the script measures every unit pair's
 overlap: *article overlap* (Jaccard of the two units' article sets; always 0
 for topics, since each article has one topic) and *source overlap* (the
