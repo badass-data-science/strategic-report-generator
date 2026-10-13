@@ -40,14 +40,14 @@ The system described in this paper was built around the opposite assumption: tha
 
 ## 2.1 Scope and operation
 
-The system monitors seventeen active domains through curated RSS feeds: among them artificial intelligence, biotechnology, blockchain, business strategy, data science, defense, economics, energy, foreign exchange, genomics, geopolitics, healthcare, IoT and edge computing, leadership, retail, and robotics. It runs once daily on a schedule managed by the Prefect orchestration framework, and can also be run on demand from a command-line interface. A typical run considers between roughly 550 and 780 recent articles.
+The system monitors seventeen active domains through curated RSS feeds: among them artificial intelligence, biotechnology, blockchain, business strategy, data science, defense, economics, energy, foreign exchange, genomics, geopolitics, healthcare, IoT and edge computing, leadership, retail, and robotics. It runs once daily on a schedule managed by the Airflow orchestration framework, and can also be run on demand from a command-line interface. A typical run considers between roughly 550 and 780 recent articles.
 
 ## 2.2 Processing pipeline
 
 Each run proceeds in stages:
 
 1. **Ingestion.** Feeds for all domains are fetched concurrently. Network-bound work proceeds in parallel; the synchronous feed parser is isolated in worker threads.
-2. **Summarization and per-domain synthesis.** For each domain, articles are summarized in batches by an LLM, each summary consisting of exactly three bullets and between five and twenty normalized tags. The domain's summaries are then synthesized into three to five strategic recommendations and an urgency score.
+2. **Summarization and per-domain synthesis.** For each domain, articles are summarized in batches by an LLM, each summary consisting of exactly three bullets and between five and twenty normalized article tags. The domain's summaries are then synthesized into three to five strategic recommendations, each accompanied by an urgency score.
 3. **Cross-domain synthesis.** A single LLM call reads every domain's recommendations, together with that day's bridge tags (Section 3.3), and writes three to four cross-cutting strategic observations.
 4. **Historical comparison.** Each domain's recommendations are compared with the previous run's, and classified as new, continued, or dropped.
 5. **Alerting.** A domain's urgency score, and each tag's share of the day's coverage, are compared against their own historical baselines; values more than two standard deviations above the baseline are flagged once at least seven prior runs exist. Until then, urgency scores fall back to a fixed absolute threshold, and tags with too little history are not assessed.
@@ -59,7 +59,7 @@ Several engineering choices recur throughout the system and bear directly on the
 
 - **Structured outputs, validated at parse time.** Every LLM response is parsed directly into a typed schema. Constraints such as "exactly three bullets" or "at most one variable per domain" are enforced by the schema, and a non-conforming response is returned to the model, with the validation error attached, for correction. No free-text parsing occurs.
 - **Provider independence.** All model calls go through a single abstraction (litellm) addressed by a model string, so the system can run against locally hosted or commercial models without code changes.
-- **Failure isolation.** A failure in one domain, such as an unreachable feed or a model timeout, produces an error notice for that domain only and never aborts the others. At the storage layer, each row of a bulk write is isolated so that a single malformed record cannot silently discard the rest of a run's data, a failure mode the project encountered in production and subsequently eliminated.
+- **Failure isolation.** A failure in one domain, such as an unreachable feed or a model timeout, produces an error notice for that domain only and never aborts the others. At the storage layer, each row of a bulk write is isolated so that a single malformed record cannot silently discard the rest of a run's data.
 - **Explicit concurrency control.** Model calls are throttled with an asynchronous semaphore rather than fixed delays, which keeps throughput within provider rate limits without idle waiting.
 
 ---
@@ -68,7 +68,7 @@ Several engineering choices recur throughout the system and bear directly on the
 
 ## 3.1 The tracking archive
 
-Every run's outputs are persisted to a PostgreSQL database. The archive records, for every run, the articles considered (title, link, publication date, summary bullets, and tags); each domain's strategic recommendations and urgency score; the day's tag co-occurrence graph (per-tag counts, per-tag domain membership, and tag-pair edges); summaries of the day's tag communities; the bridge tags supplied to the cross-domain synthesis; and the cross-domain observations themselves.
+Every run's outputs are persisted to a PostgreSQL database. The archive records, for every run, the articles considered (title, link, publication date, summary bullets, and article tags); each domain's strategic recommendations and urgency score; the day's tag co-occurrence graph (per-tag counts, per-tag domain membership, and tag-pair edges); summaries of the day's tag communities; the bridge tags supplied to the cross-domain synthesis; and the cross-domain observations themselves.
 
 Three properties of the archive matter for analysis:
 
@@ -76,9 +76,9 @@ Three properties of the archive matter for analysis:
 - **No pruning.** Full history is retained indefinitely. The archive is designed for longitudinal analysis, and analyses of this kind are only as good as the history they can draw on.
 - **Explicit schema management.** The schema is defined in versioned migrations, applied deliberately once per environment, rather than created implicitly at connection time.
 
-## 3.2 The nightly tag co-occurrence graph and its communities
+## 3.2 The nightly article tag co-occurrence graph and its communities
 
-Each night, the system builds a graph in which every tag is a node and every pair of tags appearing on the same article is connected by an edge weighted by how often that happens. The graph is partitioned with the Louvain community detection algorithm, which groups densely interconnected tags without being told in advance how many groups to find or what to call them [1]. The resulting communities frequently cut across the domain boundaries defined by the feed configuration: a community may draw mostly on biotechnology coverage but include defense and trade articles concerned with the same export-control dispute.
+Each night, the system builds a graph in which every article tag is a node and every pair of tags appearing on the same article is connected by an edge weighted by how often that happens. The graph is partitioned with the Louvain community detection algorithm, which groups densely interconnected tags without being told in advance how many groups to find or what to call them [1]. The resulting communities frequently cut across the domain boundaries defined by the feed configuration: for example, a community may draw mostly on biotechnology coverage but include defense and trade articles concerned with the same export-control dispute.
 
 For each community, the system then makes one LLM call, grounded strictly in the articles whose tags belong to that community, to write a paragraph describing what the cluster of coverage is substantively about. A label derived from a community's most frequent tag says what a cluster is called; a grounded summary says what it is about. The nightly graph is also rendered as a self-contained interactive visualization in which color encodes community, node size encodes article count, and edge thickness encodes co-occurrence strength.
 
@@ -88,7 +88,7 @@ Cross-domain synthesis is the stage most vulnerable to plausible-sounding invent
 
 ## 3.4 Graph-guided retrieval over the archive
 
-The archive can be queried in natural language. A question is reduced to candidate tags by an LLM; those tags are matched against every community summary ever written (by exact tag membership first, and by text matching as a fallback); and an answer is synthesized strictly from the summaries retrieved. This is deliberately a modest form of retrieval-augmented generation: it uses the community structure as the retrieval unit and does not use vector embeddings or hierarchical summarization. For a single-analyst tool, the transparency of exact-match retrieval was judged more valuable than the recall of semantic search.
+The archive can be queried in natural language. A question is reduced to candidate tags by an LLM; those tags are matched against every community summary ever written (by exact tag membership first, and by text matching as a fallback); and an answer is synthesized strictly from the summaries retrieved. This is deliberately a modest form of retrieval-augmented generation: it uses the community structure as the retrieval unit and does not use vector embeddings or hierarchical summarization. For the current scope of the tool, the transparency of exact-match retrieval was judged more valuable than the recall of semantic search.
 
 ## 3.5 A standards-based knowledge graph
 
@@ -111,9 +111,9 @@ The two graphs are complementary, and the system enforces their separation: the 
 
 ## 4.1 Motivation
 
-The knowledge graphs of Section 3 describe *structure*: which concepts appear together, and which domains share concerns. Strategic analysis also requires a view of *dynamics*: which developments drive which others, and whether those influences amplify or dampen one another. The established tool for representing such dynamics is the causal loop diagram, drawn from the system dynamics tradition [4].
+The knowledge graphs of Section 3 describe *structure*: which concepts appear together, and which domains share concerns. Strategic analysis also requires a view of *dynamics*: which developments drive which others, and whether those influences amplify or dampen one another. The established tool for representing such dynamics is the causal loop diagram (CLD), drawn from the system dynamics tradition [4].
 
-A CLD consists of variables (quantities that can rise or fall), directed links between them marked with a polarity (`+` if the target moves in the same direction as the source, `−` if in the opposite direction), and optional markers for delayed effects. The analytical value of a CLD lies in its closed loops. A loop with an even number of negative links is *reinforcing*, amplifying change; one with an odd number is *balancing*, resisting it. Balancing loops are frequently the less obvious and the more consequential, because they explain why interventions underperform expectations.
+A CLD consists of variables (quantities that can rise or fall), directed links between them marked with a polarity (`+` if the target moves in the same direction as the source, `−` if in the opposite direction), and optional markers for delayed effects. The analytical value of a CLD lies in its closed loops. A loop with an even number of negative links is *reinforcing*, amplifying change; one with an odd number is *balancing*, resisting it. Balancing loops are frequently the less obvious and the more consequential, because they explain why interventions underperform expectations in dynamic systems.
 
 CLDs are conventionally drawn by domain experts. This paper reports an experimental method, implemented as a prototype, for drafting them automatically from the archive and grading each link against the archive's own time series. The prototype is not part of the nightly report.
 
@@ -228,12 +228,12 @@ The current results are best described as a successful demonstration of method c
 
 # Appendix A: Glossary
 
-- **Bridge tag.** A tag whose articles span three or more domains on the same day.
+- **Bridge tag.** An article tag whose articles span three or more domains on the same day.
 - **Causal loop diagram (CLD).** A diagram of variables connected by signed, directed links, used to represent feedback structure.
 - **Centered log-ratio (CLR).** A transformation of compositional data (shares summing to one) that removes the spurious negative correlation such data otherwise exhibits.
 - **Community.** A densely interconnected group of tags identified by the Louvain algorithm.
 - **False discovery rate (FDR).** The expected proportion of reported discoveries that are false; controlled here with the Benjamini-Hochberg procedure.
-- **Lag.** The offset, in runs, between the source variable's observation and the target variable's observation when testing a link.
+- **Lag.** The offset, in daily runs, between the source variable's observation and the target variable's observation when testing a causal link.
 - **Near-duplicate units.** Two units sharing enough articles or sources that their co-movement is expected from overlap alone.
 - **Unit.** A node in a causal loop diagram: either a defined domain or a community from a frozen partition.
 
