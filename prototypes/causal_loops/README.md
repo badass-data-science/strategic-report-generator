@@ -136,7 +136,30 @@ source ~/environment_variables/strategic_daily_report.sh   # DAILY_REPORT_DATABA
 `--units topics communities` (default both), `--runs 3 --min-agree 2
 --temperature 0.7`, `--model` (default `LLM_MODEL` or
 `ollama_chat/glm-5.2:cloud`, JSON instructor mode), and `--cld-src` (or
-`CLD_TOOL_SRC`) pointing at causal-loop-diagram-inator's `src/`. Rendering
+`CLD_TOOL_SRC`) pointing at causal-loop-diagram-inator's `src/`.
+
+Size of the diagram:
+
+| Flag | Default | Effect |
+|---|---|---|
+| `--min-agree` | 2 | `1` keeps every link any sample proposed (the union); the biggest lever for more links and loops, at the cost of one-off inventions. |
+| `--runs` | 3 | More samples give links more chances to reach `--min-agree`. |
+| `--temperature` | 0.7 | Higher = more varied samples: more links under a low `--min-agree`, fewer under a high one. |
+| `--target-communities LO HI` | 15 20 | Community count the resolution sweep aims for (closest wins if none lands in range). On 2026-10-13 it reached 25 at resolution 2.0 and 48 at 4.0. Check the logged seed-stability: 0.90 at 15, 0.73 at 25, 0.93 at 48. |
+| `--max-links` | 22 | Most links one sample may propose; enforced by the response model, so instructor retries an over-long answer. |
+| `--max-loops` | 10 | Most loops declared in the diagram (shortest first). |
+| `--max-loop-length` | 6 | Longest loop, in nodes, that's looked for. |
+
+For example, a deliberately loose diagram:
+
+```bash
+.venv/bin/python prototypes/causal_loops/cld_units.py --out-dir /tmp/cld_loose \
+    --units communities --target-communities 25 30 --max-links 35 \
+    --runs 5 --min-agree 1 --max-loops 20
+```
+
+Each unit set's settings are saved to `<out-dir>/<kind>/config.json`, and
+`cld_rating.py` reads them back so it rebuilds the same units and links. Rendering
 also needs the `d2` and `inkscape` CLIs. It reads the tracking database only;
 each run makes 3 LLM calls per unit set (about 10k prompt tokens each).
 

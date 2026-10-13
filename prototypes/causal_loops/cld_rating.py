@@ -21,6 +21,7 @@ import sys
 from collections import Counter
 from itertools import permutations
 from pathlib import Path
+from typing import Any
 
 import instructor
 from pydantic import BaseModel, Field, model_validator
@@ -103,11 +104,30 @@ def build_rating_prompt(
 # --------------------------------------------------------------------------
 
 
+def load_config(cld_dir: Path, kind: str) -> dict[str, Any]:
+    """cld_units.py's settings for this draft; defaults for drafts made before config.json."""
+    config: dict[str, Any] = {
+        "min_agree": 2,
+        "target_communities": list(cu.TARGET_COMMUNITIES),
+        "max_links": cu.MAX_LINKS,
+        "max_loops": cu.MAX_LOOPS,
+        "max_loop_length": cu.MAX_LOOP_LENGTH,
+    }
+    path = cld_dir / kind / "config.json"
+    if path.exists():
+        config.update(json.loads(path.read_text()))
+    return config
+
+
 def rebuild_cld(
-    kind: str, d: cu.Data, cld_dir: Path, min_agree: int
+    kind: str, d: cu.Data, cld_dir: Path, config: dict[str, Any]
 ) -> tuple[list[cu.Unit], list[cu.CLink], dict[str, tuple[str, str]]]:
     log: list[str] = []
-    units = cu.topic_units(d) if kind == "topics" else cu.community_units(d, log)
+    units = (
+        cu.topic_units(d)
+        if kind == "topics"
+        else cu.community_units(d, log, tuple(config["target_communities"]))
+    )
     saved = json.loads((cld_dir / kind / "units.json").read_text())
     now = [{"id": u.uid, "title": u.title} for u in units]
     if [{"id": s["id"], "title": s["title"]} for s in saved] != now:
@@ -116,7 +136,7 @@ def rebuild_cld(
         cu.SystemHypothesis.model_validate_json(p.read_text())
         for p in sorted((cld_dir / kind).glob("sample*.json"))
     ]
-    links, display = cu.consensus(samples, {u.uid for u in units}, min_agree, [])
+    links, display = cu.consensus(samples, {u.uid for u in units}, config["min_agree"], [])
     return units, links, display
 
 
@@ -239,6 +259,7 @@ def analyse(
     ratings: dict[str, dict[str, VariableRating]],
     out_dir: Path,
     cld_src: Path,
+    config: dict[str, Any],
 ) -> None:
     uids = sorted({u for lk in links for u in (lk.src, lk.tgt)}, key=lambda x: int(x[1:]))
     s = rating_series(d.runs, ratings, uids)
@@ -323,7 +344,7 @@ def analyse(
             md.append(f"- **{display[u][0]}** {mv}: {vr.evidence}")
 
     nn = cu.node_names(links, display)
-    loops = cu.loops_of(links, nn)
+    loops = cu.loops_of(links, nn, config["max_loops"], config["max_loop_length"])
     out_dir.mkdir(parents=True, exist_ok=True)
     cld_path = out_dir / "rated_hypothesis.cld"
     cld_path.write_text(
@@ -351,7 +372,12 @@ async def main() -> None:
     )
     ap.add_argument("--out-dir", type=Path, required=True)
     ap.add_argument("--model", default=os.environ.get("LLM_MODEL", "ollama_chat/glm-5.2:cloud"))
-    ap.add_argument("--min-agree", type=int, default=2)
+    ap.add_argument(
+        "--min-agree",
+        type=int,
+        default=None,
+        help="Override the draft's own --min-agree (read from its config.json).",
+    )
     ap.add_argument("--last-n", type=int, default=None, help="Only rate the last N runs.")
     ap.add_argument("--cld-src", type=Path, default=cu.DEFAULT_CLD_SRC)
     args = ap.parse_args()
@@ -361,7 +387,11 @@ async def main() -> None:
     client = LLMClient(model=args.model, temperature=0.1, instructor_mode=instructor.Mode.JSON)
 
     async def kind_task(kind: str) -> None:
-        units, links, display = rebuild_cld(kind, d, args.cld_dir, args.min_agree)
+        config = load_config(args.cld_dir, kind)
+        if args.min_agree is not None:
+            config["min_agree"] = args.min_agree
+        cu.MAX_LINKS = config["max_links"]  # so the draft's samples re-validate
+        units, links, display = rebuild_cld(kind, d, args.cld_dir, config)
         print(
             f"[{kind}] {len(links)} links, "
             f"{len({u for lk in links for u in (lk.src, lk.tgt)})} variables to rate"
@@ -377,7 +407,7 @@ async def main() -> None:
             args.out_dir / kind / "ratings",
             args.last_n,
         )
-        analyse(kind, d, units, links, display, ratings, args.out_dir / kind, args.cld_src)
+        analyse(kind, d, units, links, display, ratings, args.out_dir / kind, args.cld_src, config)
 
     await asyncio.gather(*(kind_task(k) for k in args.units))
 

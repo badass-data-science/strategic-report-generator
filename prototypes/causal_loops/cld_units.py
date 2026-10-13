@@ -55,8 +55,15 @@ FDR_Q = 0.05
 MIN_R_SUPPORT = 0.4
 MIN_R_WEAK = 0.3
 MIN_COMMUNITY_TAGS = 5
+# Defaults for the --target-communities / --max-links / --max-loops /
+# --max-loop-length flags. MAX_LINKS is read by SystemHypothesis's validator
+# (so instructor retries an over-long answer) and overridden by main() from
+# --max-links: LLMClient doesn't forward instructor's validation context, so a
+# module-level setting is the simplest way to parameterise it.
 TARGET_COMMUNITIES = (15, 20)
+MAX_LINKS = 22
 MAX_LOOPS = 10
+MAX_LOOP_LENGTH = 6
 STATUS_COLORS = {
     "supported": "#2e7d32",
     "weak": "#f9a825",
@@ -220,11 +227,15 @@ def _best_match_jaccard(a: list[set[str]], b: list[set[str]]) -> float:
     return statistics.median(max(len(x & y) / len(x | y) for y in b) for x in a)
 
 
-def community_units(d: Data, log: list[str]) -> list[Unit]:
-    lo, hi = TARGET_COMMUNITIES
+def community_units(
+    d: Data, log: list[str], target: tuple[int, int] = TARGET_COMMUNITIES
+) -> list[Unit]:
+    lo, hi = target
     chosen: tuple[float, list[set[str]]] | None = None
     sweep = []
-    for res in (1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 8.0):
+    # Closest count wins if no resolution lands in [lo, hi]. Higher resolutions
+    # also split off more communities below MIN_COMMUNITY_TAGS, which are dropped.
+    for res in (1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 12.0, 16.0):
         p = louvain_partition(d, res)
         sweep.append((res, len(p)))
         if chosen is None or abs(len(p) - (lo + hi) / 2) < abs(len(chosen[1]) - (lo + hi) / 2):
@@ -423,21 +434,24 @@ class SystemHypothesis(BaseModel):
             raise ValueError(f"links reference units with no declared variable: {sorted(bad)}")
         if any(lk.source_unit == lk.target_unit for lk in self.links):
             raise ValueError("self-links are not allowed")
-        if len(self.links) > 22:
-            raise ValueError(f"{len(self.links)} links; propose at most 22")
+        if len(self.links) > MAX_LINKS:
+            raise ValueError(f"{len(self.links)} links; propose at most {MAX_LINKS}")
         return self
 
 
-SYSTEM = """\
+def system_prompt(max_links: int) -> str:
+    count = f"{min(8, max_links)}-{max_links}" if max_links > 8 else str(max_links)
+    return f"""\
 You are a systems-thinking analyst. Draft a causal loop diagram (CLD) of how \
 the real-world dynamics behind the following news units drive one another.
 
 Rules:
 - Each unit gets at most one variable: a measurable quantity that can rise or \
 fall, tied to that unit. Omit units that don't participate in any link.
-- Propose 8-22 directed causal links, each with a concrete mechanism. Prefer \
-links that form genuine feedback loops. Include balancing (negative) feedback \
-where real counter-pressures exist -- real systems have both.
+- Propose {count} directed causal links, each with a \
+concrete mechanism. Prefer links that form genuine feedback loops. Include \
+balancing (negative) feedback where real counter-pressures exist -- real \
+systems have both.
 - Mark a link `delayed` if its effect takes weeks or longer.
 - You are NOT shown any statistics. Your hypothesis will be tested afterwards \
 against the archive's day-to-day time series, so propose what you actually \
@@ -538,10 +552,15 @@ def node_names(links: list[CLink], display: dict[str, tuple[str, str]]) -> dict[
     return {u: f"{n} ({u})" if n in dup else n for u, n in raw.items()}
 
 
-def loops_of(links: list[CLink], nn: dict[str, str]) -> list[list[str]]:
+def loops_of(
+    links: list[CLink],
+    nn: dict[str, str],
+    max_loops: int = MAX_LOOPS,
+    max_length: int = MAX_LOOP_LENGTH,
+) -> list[list[str]]:
     g = nx.DiGraph((nn[lk.src], nn[lk.tgt]) for lk in links)
-    cycles = sorted(nx.simple_cycles(g, length_bound=6), key=len)
-    return cycles[:MAX_LOOPS]
+    cycles = sorted(nx.simple_cycles(g, length_bound=max_length), key=len)
+    return cycles[:max_loops]
 
 
 def to_cld(links: list[CLink], nn: dict[str, str], loops: list[list[str]], title: str) -> str:
@@ -653,7 +672,11 @@ async def run_kind(kind: str, d: Data, client: LLMClient, args: argparse.Namespa
     out_dir.mkdir(parents=True, exist_ok=True)
     log: list[str] = []
     warn: list[str] = []
-    units = topic_units(d) if kind == "topics" else community_units(d, log)
+    units = (
+        topic_units(d)
+        if kind == "topics"
+        else community_units(d, log, tuple(args.target_communities))
+    )
     valid = {u.uid for u in units}
 
     measures: dict[str, dict[tuple[str, str, int], Test]] = {
@@ -671,11 +694,12 @@ async def run_kind(kind: str, d: Data, client: LLMClient, args: argparse.Namespa
         )
 
     prompt = build_prompt(units, d, kind)
-    (out_dir / "prompt.txt").write_text(SYSTEM + "\n\n" + prompt)
+    system = system_prompt(args.max_links)
+    (out_dir / "prompt.txt").write_text(system + "\n\n" + prompt)
     print(f"[{kind}] {len(units)} units, prompt ~{len(prompt) // 4} tokens; sampling {args.runs}x")
     results = await asyncio.gather(
         *(
-            client.complete_structured(prompt, SystemHypothesis, system=SYSTEM)
+            client.complete_structured(prompt, SystemHypothesis, system=system)
             for _ in range(args.runs)
         ),
         return_exceptions=True,
@@ -720,7 +744,7 @@ async def run_kind(kind: str, d: Data, client: LLMClient, args: argparse.Namespa
     log += warn
 
     nn = node_names(links, display)
-    loops = loops_of(links, nn)
+    loops = loops_of(links, nn, args.max_loops, args.max_loop_length)
     cld_path = out_dir / "causal_hypothesis.cld"
     cld_path.write_text(to_cld(links, nn, loops, f"Causal Loop Hypothesis: {kind}"))
     (out_dir / "causal_hypothesis.md").write_text(
@@ -747,12 +771,28 @@ async def run_kind(kind: str, d: Data, client: LLMClient, args: argparse.Namespa
             indent=1,
         )
     )
+    # Read back by cld_rating.py, which must rebuild these same units and links.
+    config = {
+        k: getattr(args, k)
+        for k in (
+            "model",
+            "runs",
+            "min_agree",
+            "temperature",
+            "target_communities",
+            "max_links",
+            "max_loops",
+            "max_loop_length",
+        )
+    }
+    (out_dir / "config.json").write_text(json.dumps(config, indent=1))
     render(cld_path, args.cld_src)
     print(f"[{kind}] " + "; ".join(log))
     print(f"[{kind}] status: {dict(Counter(lk.status for lk in links))}; loops: {len(loops)}")
 
 
 async def main() -> None:
+    global MAX_LINKS
     ap = argparse.ArgumentParser()
     ap.add_argument(
         "--units", nargs="+", choices=["topics", "communities"], default=["topics", "communities"]
@@ -773,7 +813,33 @@ async def main() -> None:
         default=Path(os.environ.get("CLD_TOOL_SRC", DEFAULT_CLD_SRC)),
         help="causal-loop-diagram-inator's src/ dir (env: CLD_TOOL_SRC).",
     )
+    ap.add_argument(
+        "--target-communities",
+        type=int,
+        nargs=2,
+        metavar=("LO", "HI"),
+        default=list(TARGET_COMMUNITIES),
+        help="Community count to aim for in the Louvain resolution sweep (more = more nodes).",
+    )
+    ap.add_argument(
+        "--max-links",
+        type=int,
+        default=MAX_LINKS,
+        help="Most links one sample may propose (enforced by the response model).",
+    )
+    ap.add_argument(
+        "--max-loops", type=int, default=MAX_LOOPS, help="Most loops declared in the diagram."
+    )
+    ap.add_argument(
+        "--max-loop-length",
+        type=int,
+        default=MAX_LOOP_LENGTH,
+        help="Longest loop (in nodes) looked for.",
+    )
     args = ap.parse_args()
+    if args.target_communities[0] > args.target_communities[1]:
+        ap.error("--target-communities LO must be <= HI")
+    MAX_LINKS = args.max_links
     d = load(os.environ.get("DAILY_REPORT_DATABASE_URL") or os.environ["DATABASE_URL"])
     print(
         f"{len(d.runs)} runs, {len(d.article_topic)} articles, {len(d.bad_runs)} runs w/o archive"
