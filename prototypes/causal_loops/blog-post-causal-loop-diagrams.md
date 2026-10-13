@@ -98,6 +98,25 @@ s = polarity · direction_source · direction_target
 
 where each term is `+1` or `−1`. If `s = +1`, the two units' series should rise and fall together; if `s = −1`, they should move in opposite directions. This is the number the data will eventually be asked to confirm.
 
+The mechanics are unglamorous. Each draft is one call through the same `LLMClient` the nightly pipeline uses, with the same model, about ten thousand tokens of context, and structured JSON output, and `cld_units.py` makes three of them in parallel per unit set. The exact prompt is saved next to the diagram, as is each draft, so any henchman who doubts the robot can read precisely what it was shown and what it said back. What it's shown depends on the kind of unit:
+
+| | Topics | Communities |
+|---|---|---|
+| For each unit | Its top ten tags, up to four of the latest strategic bullets, and up to four headlines from the latest run | Its top ten tags, which defined topics its articles come from, the two closest daily community summaries from the last five runs, and up to four headlines from the latest run |
+| For the whole archive | The latest cross-topic overview, the latest bridge tags, and the near-duplicate unit pairs | The same |
+
+It's worth being equally clear about what the robot does *not* do, because it would be easy to assume it's doing more of the work than it is. It never sees a correlation. It doesn't judge whether any link is supported, it doesn't find the loops, and it has no say in what color anything is drawn. All of that is arithmetic, done afterward, by code that can't be talked into anything. Its one-sentence mechanisms and its self-reported confidence are its own reasoning, recorded faithfully and verified by nobody; confidence is used for display and, in a genuine tie between two conflicting versions of one arrow, as the last tie-breaker, and for nothing else.
+
+This is, for the record, the third different job our heroine has given an LLM in this project, and keeping them straight turns out to matter:
+
+| Where | The LLM's job |
+|---|---|
+| Attempt One (tag-level) | **Judge**: keep or reject each existing Systems Signals pair |
+| `cld_units.py` | **Propose**: draft the whole diagram, blind |
+| `cld_rating.py` (see the confessions near the end) | **Rate**: say whether each diagram variable rose or fell, from one run's articles |
+
+So far the judge has been the easiest of the three to trust, its rejections grounded and stable from sample to sample, which is mildly humbling for the other two and probably says something about how much easier it is to criticize a diagram than to draw one.
+
 ## Three Robots, One Diagram: Agreement Voting
 
 LLMs are not deterministic, and a single sample is a single opinion. So `cld_units.py` asks three times (by default, `--runs 3`) at a fairly lively temperature of 0.7, and keeps a link only if at least two of the three samples agree on it (`--min-agree 2`).

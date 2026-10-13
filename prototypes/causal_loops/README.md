@@ -62,6 +62,51 @@ only, so a same-run correlation can't make an arrow green or red there, and
 light blue never appears. Each diagram's markdown report repeats the colour
 key at the top.
 
+### What the LLM does
+
+The LLM has exactly one job in `cld_units.py`: drafting the hypothesis
+(step 2). The vote, the evidence check, loop finding and rendering are all
+plain code.
+
+- **Calls.** `--runs` independent calls per unit set (3 by default, run in
+  parallel) through the project's `LLMClient`: model `--model` (default
+  `LLM_MODEL` or `ollama_chat/glm-5.2:cloud`), JSON instructor mode,
+  `--temperature` 0.7. About 10k prompt tokens each. The exact prompt is
+  saved as `<out-dir>/<kind>/prompt.txt` and each answer as `sample<i>.json`.
+- **Instructions.** At most one variable per unit, named as a measurable
+  quantity that can rise or fall; omit units that don't participate; propose
+  8 to `--max-links` directed links with a concrete mechanism each; prefer
+  genuine feedback loops; include balancing feedback where real
+  counter-pressures exist; mark a link `delayed` if its effect takes weeks
+  or longer. It's told that it sees no statistics and that its hypothesis
+  will be tested afterwards.
+- **Inputs.**
+
+  | | Topics | Communities |
+  |---|---|---|
+  | Per unit | Top 10 tags, up to 4 latest strategic bullets, up to 4 headlines from the latest run | Top 10 tags, the defined-topic mix of its articles, the 2 closest daily community summaries from the last 5 runs, up to 4 headlines from the latest run |
+  | Shared | Latest cross-topic overview, latest bridge tags (up to 10), near-duplicate unit pairs | same |
+
+  With `--as-of`, "latest" means as of the cutoff.
+- **Output.** A `SystemHypothesis`: variables (`unit_id`, `name`,
+  `direction`: `+` if it rises with its unit's coverage, `-` if it falls) and
+  links (`source_unit`, `target_unit`, `polarity`, `delayed`, `mechanism`,
+  `confidence`). The model's validator enforces one variable per unit,
+  declared endpoints, no self-links and at most `--max-links` links; a
+  violating answer goes back to the LLM with the error for a retry. Unknown
+  unit ids are dropped afterwards with a warning.
+- **What it doesn't do.** It never sees a correlation (otherwise the check
+  would be the data checking itself). It doesn't judge evidence, find loops
+  or choose colours. Its mechanisms and confidence ratings are its own,
+  unverified reasoning; confidence is used only for display and as the last
+  tie-breaker between conflicting versions of an arrow.
+
+How this compares with the other LLM steps in this work: the tag-level
+attempt (below, scratchpad only) asked the LLM to *judge* existing Systems
+Signals, keeping or rejecting each; `cld_units.py` asks it to *propose* a
+diagram blind; `cld_rating.py` asks it to *rate* each diagram variable's
+movement from a run's articles.
+
 ### Why not tag-level Systems Signals directly
 
 That was tried first (scratchpad only, not committed). On 2026-10-13 (31
