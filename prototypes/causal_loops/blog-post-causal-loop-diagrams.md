@@ -148,7 +148,7 @@ t² = r² · df / (1 − r²)        df = n − 2 − controls
 p  = I_( df / (df + t²) )( df/2 , 1/2 )
 ```
 
-where `I` is the regularized incomplete beta function and `controls` is 2 for the partial-correlated urgency series (each OLS residualization costs a degree of freedom) and 0 for the CLR shares. For the CLR shares this is exactly what `scipy.stats.pearsonr` would report; for the urgency series it is deliberately stricter, since `pearsonr` knows nothing about the controls and would use `n − 2` degrees of freedom instead of `n − 4`. Either way it's computed from scratch by the same scipy-free helper Systems Signals already uses, because the project still refuses to take on a numerical dependency just to compute one integral.
+where `I` is the regularized incomplete beta function and `controls` is 2 for the bipartial-correlated urgency series (each OLS residualization costs a degree of freedom) and 0 for the CLR shares. For the CLR shares this is exactly what `scipy.stats.pearsonr` would report; for the urgency series it is deliberately stricter, since `pearsonr` knows nothing about the controls and would use `n − 2` degrees of freedom instead of `n − 4`. Either way it's computed from scratch by the same scipy-free helper Systems Signals already uses, because the project still refuses to take on a numerical dependency just to compute one integral.
 
 Then comes the multiple-comparisons correction, because every unit pair at every lag in both directions is a test, and seventeen topics produce 1,088 of them. Benjamini-Hochberg, same as Systems Signals: sort all `m` p-values ascending, and give the `i`-th smallest the q-value
 
@@ -254,7 +254,7 @@ In keeping with tradition, the confessions:
 
 ## Conclusion
 
-The previous dispatch ended with an archive that could finally say "nothing yet" honestly. This one ends with an archive that can draw a picture of what it *thinks* might be happening, color-code which parts of that picture it can vouch for, and admit that right now the answer is "the shape, mostly, and none of the arrows." Getting there took a frozen Louvain partition with a tuned resolution, a centered log-ratio transform to stop the pie charts from lying, a leave-one-out partial correlation borrowed from Systems Signals, an overlap check to stop twins from being diagrammed as cause and effect, a blindfolded LLM, a three-sample vote, a scipy-free incomplete beta function, Benjamini-Hochberg again (it never really leaves), and a separate rendering project to turn the whole thing into something a henchman could understand at a glance. Whether that adds up to the empire finally understanding its own feedback loops, or merely to a very elaborate way of drawing optimistic arrows and then grading them harshly, is a question our heroine has once again decided not to examine too closely. The archive grows by one run every night. Eventually it will have enough history to say something about the arrows too.
+The previous dispatch ended with an archive that could finally say "nothing yet" honestly. This one ends with an archive that can draw a picture of what it *thinks* might be happening, color-code which parts of that picture it can vouch for, and admit that right now the answer is "the shape, mostly, and none of the arrows." Getting there took a frozen Louvain partition with a tuned resolution, a centered log-ratio transform to stop the pie charts from lying, a leave-one-out bipartial correlation borrowed from Systems Signals, an overlap check to stop twins from being diagrammed as cause and effect, a blindfolded LLM, a three-sample vote, a scipy-free incomplete beta function, Benjamini-Hochberg again (it never really leaves), and a separate rendering project to turn the whole thing into something a henchman could understand at a glance. Whether that adds up to the empire finally understanding its own feedback loops, or merely to a very elaborate way of drawing optimistic arrows and then grading them harshly, is a question our heroine has once again decided not to examine too closely. The archive grows by one run every night. Eventually it will have enough history to say something about the arrows too.
 
 ## Code
 
@@ -279,7 +279,7 @@ The full source code for this project is available on GitHub at [strategic-repor
 - semantic similarity
 - compositional data
 - centered log-ratio transform
-- partial correlation
+- bipartial correlation
 - lagged correlation
 - Pearson correlation
 - Benjamini-Hochberg procedure
