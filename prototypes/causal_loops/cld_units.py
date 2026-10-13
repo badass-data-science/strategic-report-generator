@@ -662,6 +662,8 @@ def render(cld_path: Path, cld_src: Path) -> None:
                 str(cld_path),
                 str(cld_path.with_suffix(f".{ext}")),
                 "--no-color",
+                "--node-shape",
+                "oval",
             ],
             check=True,
             env={**os.environ, "PYTHONPATH": str(cld_src)},
