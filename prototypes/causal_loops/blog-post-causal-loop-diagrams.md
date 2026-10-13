@@ -62,11 +62,31 @@ where `count_k` is the number of articles in unit `k` that run, `n` is the run's
 
 For topics specifically there's a second series available: the LLM-scored urgency each topic receives every run, the same series Systems Signals uses. Urgency doesn't add up to anything, so it isn't compositional, but it has the "busy news day" confound the previous dispatch caught red-handed with Energy and Forex. So it gets the same treatment Systems Signals now applies: before correlating two topics, each one is residualized against the leave-one-out mean urgency of every *other* topic that run, using ordinary least squares, and the correlation is computed on what's left over. Two topics riding the same busy day get that shared wave subtracted out before anyone compares them.
 
+## Twins in Disguise: Spotting Near-Duplicate Units
+
+The previous dispatch's list of confessions included **No semantic similarity filtering**: pairs like "fighter aircraft" and "weapon system" survived every one of Systems Signals' filters despite reading, to any human, as near-definitional. Our heroine's first instinct was to bolt the same missing filter onto this prototype. Her second instinct, which is the one that usually saves the empire money, was to measure whether it would help first.
+
+It mostly wouldn't, for a structural reason. Systems Signals correlates *tags* against each other, so two near-synonyms look like a relationship. `cld_units.py` never correlates tags at all. It correlates *units*, and near-synonymous tags overwhelmingly land in the same Louvain community anyway, since they show up in the same articles. The synonym problem is mostly absorbed before the diagram ever sees it.
+
+At the unit level, the thing that actually inflates correlations isn't shared meaning. It's shared *articles*. An article joins every community that any of its tags belongs to, and about 80% of the archive's articles belong to two or more communities. So our heroine measured every community pair's *article overlap*, the Jaccard similarity of their article sets from earlier, and compared it with how strongly the pair moved together on the same night. The two are related, at a correlation of +0.34, but loosely. The strongest same-night correlations came from pairs that share almost nothing: AI and technology against valuation (r = −0.66, overlap 0.03), defense against crypto (−0.65, overlap 0.09), defense against healthcare (+0.62, overlap 0.05). Meanwhile the most overlapping pair, two finance communities that are frankly the same coverage wearing different hats, correlated at a modest +0.33. A semantic similarity filter would have dutifully removed pairs that weren't causing the problem and left the ones that were.
+
+What overlap *is* good for is catching units that are twins in disguise, before anyone draws a loop between them. `cld_units.py` now scores every unit pair two ways. Article overlap is the Jaccard similarity of the two units' article sets. *Source overlap* compares the two units' mixes of publishers, using a histogram intersection:
+
+```
+source_overlap(A, B) = Σ_d min( p_A(d), p_B(d) )
+```
+
+where `p_A(d)` is the fraction of unit A's articles that came from source domain `d`. It runs from 0 (no publishers in common) to 1 (identical mixes). Neither measure works everywhere. Article overlap is always zero for topics, since every article belongs to exactly one topic, but source overlap catches topics that share feeds. For communities it's the other way around: a few big publishers feed most of them (a median source overlap of 0.52), and source overlap there didn't track same-night co-movement at all, so it's applied to topics only. A pair counts as a *near-duplicate* when its article overlap reaches 0.4, or, for topics, its source overlap reaches 0.05.
+
+On this archive that flagged three pairs. Artificial Intelligence and Data Science, and Biotechnology and Genomics, partly draw on the same feeds. The two finance communities share 61% of their articles. What happens to a flagged pair is deliberately modest: the LLM is told about it (more on that in a moment), same-night evidence between the two can no longer count as support, and any loop running through the pair is marked as such in the report.
+
+Our heroine did not reach for embeddings, for three reasons. Overlap measures the exact mechanism that inflates a correlation, where an embedding would only approximate it. The tag-level LLM filter from Attempt One already is a semantic filter, and the best-performing part of that whole experiment ("Watermark" and "SynthID" are one product, it noted, correctly). And bringing an embedding model into a project that currently has none is a scope decision worth making on purpose, not by reflex.
+
 ## The Robot Proposes, Blindfolded
 
 Here is the part where `cld_units.py` reverses the approach from Attempt One. Instead of letting the data propose links and asking the LLM to filter them, the LLM proposes and the data checks.
 
-The LLM gets a description of every unit: its top tags, the latest strategic bullets for that topic or the closest recent daily community summaries, a few recent headlines, the most recent cross-topic overview, and the latest bridge tags. It gets **no statistics whatsoever**. This is the single most important design decision in the whole script. If the LLM could see the correlations, it would draw the correlations, and then "checking the diagram against the data" would amount to checking the data against itself. A hypothesis that has already peeked at the answer key isn't a hypothesis.
+The LLM gets a description of every unit: its top tags, the latest strategic bullets for that topic or the closest recent daily community summaries, a few recent headlines, the most recent cross-topic overview, the latest bridge tags, and the list of near-duplicate unit pairs, with an instruction not to build a loop solely between the two halves of a pair. It gets **no statistics whatsoever**. This is the single most important design decision in the whole script. If the LLM could see the correlations, it would draw the correlations, and then "checking the diagram against the data" would amount to checking the data against itself. A hypothesis that has already peeked at the answer key isn't a hypothesis.
 
 The model returns a structured response (a Pydantic model, parsed by instructor, same as everywhere else in the pipeline): one variable per unit it chooses to use, named as a measurable quantity that can rise or fall, and a list of directed links, each with a polarity, a delayed flag, a confidence, and a one-sentence mechanism. The model's validator enforces the rules mechanically: each unit gets at most one variable, every link must point between declared variables, no self-links, and no more than `--max-links` links (22 by default). An answer that breaks a rule is sent back to the LLM with the validation error attached, and it tries again. The prompt also tells the model, explicitly, that balancing feedback is common in real systems and should be included where a genuine counter-pressure exists, because left to its own devices an LLM will draw a world in which everything enthusiastically causes more of everything else.
 
@@ -122,16 +142,17 @@ Finally each link gets a verdict, per measure:
 - **Supported**: some lag has `q ≤ 0.05`, `|r| ≥ 0.4`, and a correlation sign matching the link's expected sign `s`.
 - **Contradicted**: same significance bar, but the correlation points the *wrong* way.
 - **Mixed**: significant results in both directions at different lags, which is the data shrugging in two directions at once.
+- **Expected**: the only strong evidence is same-night co-movement between a near-duplicate pair. Between twins, moving together on the same night is what you'd predict from shared coverage alone, so it's reported as expected rather than as support. Lagged evidence between them still counts normally.
 - **Weak**: nothing survives the correction, but some lag has the right sign, `|r| ≥ 0.3`, and an uncorrected `p ≤ 0.05`. Worth a glance, not worth a claim.
 - **Not detected**: everything else.
 
-For topics, which have two measures (shares and urgency), the verdicts are combined: any contradiction alongside any support makes the link mixed; otherwise the strongest verdict wins.
+For topics, which have two measures (shares and urgency), the verdicts are combined: any contradiction alongside any support makes the link mixed; otherwise the strongest verdict wins, in the order supported, contradicted, expected, weak.
 
 ## Finding the Loops
 
 With the links settled, loop-finding is pure graph theory, and NetworkX's `simple_cycles` does the heavy lifting: it enumerates every directed cycle that doesn't revisit a node, up to `--max-loop-length` nodes long (six by default). The script keeps the shortest ones first, up to `--max-loops` of them (ten by default), and classifies each by the parity rule from the beginning of this article: count the `-` links around the cycle, and an odd count makes it balancing.
 
-The loops are listed, with their type and each edge's evidence verdict, in the markdown report that accompanies every diagram. They are deliberately *not* drawn as the little circular R and B icons the inator normally places inside each loop. Those icons are charming on a hand-drawn diagram with three loops. On a machine-drafted diagram with eight overlapping ones, they turned into confetti.
+The loops are listed, with their type and each edge's evidence verdict, in the markdown report that accompanies every diagram, and any loop that runs through a near-duplicate pair says so, since a loop between two units that are mostly the same coverage is closer to circular reasoning than to a feedback loop. They are deliberately *not* drawn as the little circular R and B icons the inator normally places inside each loop. Those icons are charming on a hand-drawn diagram with three loops. On a machine-drafted diagram with eight overlapping ones, they turned into confetti.
 
 ## From Hypothesis to Picture
 
@@ -145,7 +166,7 @@ Energy Commodity Prices -> Construction Activity: - #9e9e9e
 Defense Modernization Spending -> Manufacturing Automation Adoption: + #f9a825
 ```
 
-Each line is `source -> target: polarity`, optionally followed by `delay` and a color. The diagram is rendered in the inator's no-color mode, with each edge's color overridden by its *evidence* rather than its polarity: green for supported, amber for weak, purple for mixed, red for contradicted, and grey for not detected. The `+` and `-` labels beside each arrow carry the polarity. The effect is a diagram you can read in two layers at once: the shape is the LLM's hypothesis, and the colors are the archive's opinion of it.
+Each line is `source -> target: polarity`, optionally followed by `delay` and a color. The diagram is rendered in the inator's no-color mode, with each edge's color overridden by its *evidence* rather than its polarity: green for supported, amber for weak, purple for mixed, light blue for expected, red for contradicted, and grey for not detected. The `+` and `-` labels beside each arrow carry the polarity. The effect is a diagram you can read in two layers at once: the shape is the LLM's hypothesis, and the colors are the archive's opinion of it.
 
 ## What the Archive Said
 
@@ -155,13 +176,14 @@ Here are both unit sets as of 2026-10-13, thirty-one runs of history:
 |---|---|---|
 | Consensus links | 19 | 20 |
 | Loops | 4, one balancing | 8, one balancing |
-| Supported / contradicted / weak / not detected | 8 / 7 / 2 / 2 | 0 / 0 / 3 / 17 |
+| Supported / contradicted / weak / not detected, before the overlap check | 8 / 7 / 2 / 2 | 0 / 0 / 3 / 17 |
+| After the overlap check | 4 supported, 4 expected, 7 / 2 / 2 | unchanged |
 | Significant share tests | 142 of 1,088, only 2 lagged | 8 of 840, none lagged |
 | Significant urgency tests | 0 of 1,088 | n/a |
 
-The diagrams themselves are genuinely good. They have measurable variables ("Inflation Pressure," "AI Infrastructure Investment," "Semiconductor Demand"), several real feedback loops, and balancing feedback: Clean Energy Manufacturing Scale pushing back against Inflation Pressure on the topic side, and Institutional Investor Activity driving Stock Valuation Pressure, which then dampens Market Sentiment, on the community side. The community version reads as the more coherent economic model, probably because communities are cleaner themes than feed-defined topics. They were, after all, discovered rather than decided.
+The diagrams themselves are genuinely good. They have measurable variables ("Inflation Pressure," "AI Infrastructure Investment," "Semiconductor Demand"), several real feedback loops, and balancing feedback: Clean Energy Manufacturing Scale pushing back against Inflation Pressure on the topic side, and Institutional Investor Activity driving Stock Valuation Pressure, which then dampens Market Sentiment, on the community side. The community version reads as the more coherent economic model, probably because communities are cleaner themes than feed-defined topics. They were, after all, discovered rather than decided. (One caveat the overlap check added: that community-side balancing loop, and a reinforcing loop between Market Sentiment and Institutional Investor Activity, both run through the two near-duplicate finance communities, so they are flagged as such.)
 
-The verdicts, unfortunately, deserve an asterisk the size of a death-ray. **Every single supported or contradicted topic link came from a lag-zero correlation.** "Supported" here means two topics' shares rose and fell together on the same night, and "contradicted" means they moved in opposite directions on the same night. Neither says anything about one driving the other, which is the entire claim an arrow on a causal loop diagram makes. Our heroine checked whether this same-night co-movement was just the publishing calendar in disguise: correlations with Monday runs and with total article volume were all below 0.5, so that's not the whole story. Shared feeds explain part of it (the AI and Data Science topics share two feeds and five source domains, which goes a long way toward explaining their r = 0.87). The rest remains unexplained, which in this line of work is not the same as interesting.
+The verdicts, unfortunately, deserve an asterisk the size of a death-ray. **Every single supported or contradicted topic link came from a lag-zero correlation.** "Supported" here means two topics' shares rose and fell together on the same night, and "contradicted" means they moved in opposite directions on the same night. Neither says anything about one driving the other, which is the entire claim an arrow on a causal loop diagram makes. Our heroine checked whether this same-night co-movement was just the publishing calendar in disguise: correlations with Monday runs and with total article volume were all below 0.5, so that's not the whole story. Shared feeds explain part of it: the AI and Data Science topics share two feeds and five source domains, which goes a long way toward explaining their r = 0.87. Re-scoring the same drafts under the overlap check turned exactly those links into "expected": the two-node loops between AI and Data Science and between Biotechnology and Genomics, four of the eight "supported" links. (The new prompt instruction hasn't had its own run yet, so these are the old drafts graded by the new rule.) The other four survive, and the overlap check has nothing to say about them: Inflation Pressure and Consumer Value-Seeking Behavior, for instance, move together at r = +0.90 on the same night with no shared articles or sources at all. That remains unexplained, which in this line of work is not the same as interesting.
 
 The single most satisfying result was one the LLM *didn't* propose. The archive found Defense coverage leading Geopolitics coverage by three runs (r = +0.63, q = 0.005). The LLM had drawn that arrow pointing the other way, Geopolitics driving Defense, which the data rated only weak. It's one data point, but it's the exact behavior a propose-then-check design exists to produce: a hypothesis with a direction, a measurement with a direction, and a disagreement between them worth reading the articles over.
 
@@ -181,6 +203,8 @@ For those who want a bigger, louder diagram, every constraint that shapes it is 
 | `--max-links` | 22 | The most links one sample may propose |
 | `--max-loops` | 10 | The most loops listed per diagram |
 | `--max-loop-length` | 6 | The longest cycle, in nodes, that gets looked for |
+| `--overlap-articles` | 0.4 | Article overlap at which two units count as near-duplicates |
+| `--overlap-sources` | 0.05 | Source overlap at which two topics count as near-duplicates |
 
 A word of caution on `--target-communities`: on this archive, asking for 25 to 30 communities lands at resolution 2.0 with a seed stability of only 0.73, while asking for 40 to 60 lands at resolution 4.0 with 48 communities and a stability of 0.93. Bigger isn't monotonically worse, but it isn't monotonically anything, so check the stability line in the log before trusting a partition. The script also saves each run's settings to a `config.json` next to its output, so anything downstream can rebuild exactly the same units and links later.
 
@@ -190,12 +214,13 @@ In keeping with tradition, the confessions:
 
 - **It's not in the nightly report.** `cld_units.py` lives in `prototypes/causal_loops/`, is not called by the CLI's `run` command, the Prefect flow, or the Airflow port, and persists nothing to the tracking database. It reads, it drafts, it renders, and it leaves. Wiring it into the pipeline would mean deciding how often a diagram should be redrafted, which is a different question from how often the news arrives.
 - **No lagged evidence yet.** Not one proposed link in either unit set has lagged support. Same-night co-movement is all the archive currently offers, and it doesn't count.
+- **Still no semantic similarity filtering, on purpose.** The overlap check catches twins that share articles or feeds. It can't catch two units that are about the same thing while sharing neither, and it does nothing about the strongest same-night co-movements, which come from pairs with no overlap at all.
 - **The partition isn't versioned.** The frozen community partition is rebuilt from the cumulative graph every time the script runs, and it drifts as history grows. A production version would freeze a partition deliberately, keep it, and rebuild it on purpose.
 - **Coverage is the wrong thermometer.** The deepest limitation is the measure, not the method: shares count articles, and articles are a measure of attention, not of the world. A sequel prototype, `cld_rating.py` (on the same branch), tried asking an LLM to rate each diagram variable's actual movement every run instead. It came back negative in an instructive way: variables framed as growth trends ("Adoption," "Scale," "Investment") get rated "rising" nearly every single day, and a series that never changes can't correlate with anything. A follow-up experiment, not yet committed, checked whether the rater can track anything real at all by comparing its ratings for oil, Bitcoin, the S&P 500, the VIX, the dollar, and the 10-year yield against actual market data. The ratings did track the market, at Spearman correlations of +0.47 to +0.75, but against the *previous* trading session's move rather than the current one: the articles in a run describe yesterday's news. That's a promising enough result to justify the next round of scheming, which is a story for another dispatch.
 
 ## Conclusion
 
-The previous dispatch ended with an archive that could finally say "nothing yet" honestly. This one ends with an archive that can draw a picture of what it *thinks* might be happening, color-code which parts of that picture it can vouch for, and admit that right now the answer is "the shape, mostly, and none of the arrows." Getting there took a frozen Louvain partition with a tuned resolution, a centered log-ratio transform to stop the pie charts from lying, a leave-one-out partial correlation borrowed from Systems Signals, a blindfolded LLM, a three-sample vote, a scipy-free incomplete beta function, Benjamini-Hochberg again (it never really leaves), and a separate rendering project to turn the whole thing into something a henchman could understand at a glance. Whether that adds up to the empire finally understanding its own feedback loops, or merely to a very elaborate way of drawing optimistic arrows and then grading them harshly, is a question our heroine has once again decided not to examine too closely. The archive grows by one run every night. Eventually it will have enough history to say something about the arrows too.
+The previous dispatch ended with an archive that could finally say "nothing yet" honestly. This one ends with an archive that can draw a picture of what it *thinks* might be happening, color-code which parts of that picture it can vouch for, and admit that right now the answer is "the shape, mostly, and none of the arrows." Getting there took a frozen Louvain partition with a tuned resolution, a centered log-ratio transform to stop the pie charts from lying, a leave-one-out partial correlation borrowed from Systems Signals, an overlap check to stop twins from being diagrammed as cause and effect, a blindfolded LLM, a three-sample vote, a scipy-free incomplete beta function, Benjamini-Hochberg again (it never really leaves), and a separate rendering project to turn the whole thing into something a henchman could understand at a glance. Whether that adds up to the empire finally understanding its own feedback loops, or merely to a very elaborate way of drawing optimistic arrows and then grading them harshly, is a question our heroine has once again decided not to examine too closely. The archive grows by one run every night. Eventually it will have enough history to say something about the arrows too.
 
 ## Code
 
@@ -216,6 +241,8 @@ The full source code for this project is available on GitHub at [strategic-repor
 - Louvain community detection
 - modularity
 - Jaccard similarity
+- histogram intersection
+- semantic similarity
 - compositional data
 - centered log-ratio transform
 - partial correlation
