@@ -152,6 +152,24 @@ Size of the diagram:
 | `--max-loops` | 10 | Most loops declared in the diagram (shortest first). |
 | `--max-loop-length` | 6 | Longest loop, in nodes, that's looked for. |
 
+**Unit overlap.** Before proposing, the script measures every unit pair's
+overlap: *article overlap* (Jaccard of the two units' article sets; always 0
+for topics, since each article has one topic) and *source overlap* (the
+histogram intersection of their source-domain mixes). Pairs at or above
+`--overlap-articles` (default 0.4), or, for topics only, `--overlap-sources`
+(default 0.05), are *near-duplicates*: largely the same coverage. Source
+overlap isn't applied to communities because a few big publishers feed most of
+them (median 0.52 on 2026-10-13) and it didn't track co-movement at all.
+Near-duplicate pairs are named in the LLM's prompt, with an instruction not to
+build a loop solely between them. Lag-0 evidence between them can't make a
+link supported, contradicted or mixed: lagged evidence still counts, and
+otherwise the link is reported as `expected` (light blue). Loops through a
+near-duplicate pair are marked in the report. On 2026-10-13 this flagged
+AI/Data Science and Biotechnology/Genomics (shared feeds) and the two finance
+communities (61% shared articles). It doesn't explain the strongest same-run
+topic correlations (Business/Economics r = +0.93, Business/Retail +0.91),
+which have no overlap of either kind.
+
 To draft from the archive as it stood at an earlier point, pass `--as-of`
 with a run_id (that run and everything before it), an ISO timestamp (naive
 means UTC), or a bare `YYYY-MM-DD` date (every run through the end of that

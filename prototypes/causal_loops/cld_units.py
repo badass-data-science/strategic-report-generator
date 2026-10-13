@@ -37,6 +37,7 @@ from datetime import UTC, datetime, timedelta
 from itertools import permutations
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
 import instructor
 import networkx as nx
@@ -66,10 +67,21 @@ TARGET_COMMUNITIES = (15, 20)
 MAX_LINKS = 22
 MAX_LOOPS = 10
 MAX_LOOP_LENGTH = 6
+# Unit pairs at or above either threshold are "near-duplicates": largely the
+# same coverage, so same-run co-movement between them is expected rather than
+# evidence. Article overlap is the Jaccard of the two units' article sets
+# (always 0 for topics, where each article has one topic). Source overlap is
+# the histogram intersection of their source-domain mixes; it's applied to
+# topics only, where it surfaces shared feeds -- across communities a few big
+# publishers feed most of them (median 0.52 on 2026-10-13) and it didn't track
+# co-movement at all.
+OVERLAP_ARTICLES = 0.4
+OVERLAP_SOURCES = 0.05
 STATUS_COLORS = {
     "supported": "#2e7d32",
     "weak": "#f9a825",
     "mixed": "#6a1b9a",
+    "expected": "#64b5f6",  # only lag-0 evidence, between near-duplicate units
     "contradicted": "#c62828",
     "not_detected": "#9e9e9e",
 }
@@ -87,6 +99,7 @@ class Data:
     article_topic: dict[int, str]  # article_id -> topic
     article_run: dict[int, str]
     article_title: dict[int, str]
+    article_domain: dict[int, str]
     article_tags: dict[int, set[str]]
     tag_count: dict[str, int]
     edge_weight: Counter[tuple[str, str]]
@@ -146,6 +159,9 @@ def load(database_url: str, as_of: str | None = None) -> Data:
         # exactly the archive as it stood then (history, partition and context).
         arts = c.execute(
             "SELECT id, run_id, topic, title FROM articles WHERE run_id = ANY(%s)", (runs,)
+        ).fetchall()
+        links = c.execute(
+            "SELECT id, link FROM articles WHERE run_id = ANY(%s)", (runs,)
         ).fetchall()
         at = c.execute(
             "SELECT article_id, tag FROM article_tags WHERE run_id = ANY(%s)", (runs,)
@@ -221,6 +237,7 @@ def load(database_url: str, as_of: str | None = None) -> Data:
         article_topic={a: t for a, _, t, _ in arts},
         article_run={a: r for a, r, _, _ in arts},
         article_title={a: ti for a, _, _, ti in arts},
+        article_domain={a: urlparse(lnk).netloc.lower().removeprefix("www.") for a, lnk in links},
         article_tags=tags_by_article,
         tag_count=tag_count,
         edge_weight=Counter({(a, b): w for a, b, w in edges}),
@@ -440,11 +457,33 @@ def classify(
     return "not_detected", best(cands)
 
 
+_STRONG = {"supported", "contradicted", "mixed"}
+
+
+def classify_pair(
+    tests: dict[tuple[str, str, int], Test], a: str, b: str, sign: int, near_duplicate: bool
+) -> tuple[str, Test | None]:
+    """
+    classify(), except that between near-duplicate units lag-0 evidence alone
+    can't make a verdict: shared coverage makes same-run co-movement expected.
+    Lagged evidence still counts; failing that, a strong lag-0-only verdict
+    becomes "expected".
+    """
+    status, best = classify(tests, a, b, sign)
+    if not near_duplicate or status not in _STRONG:
+        return status, best
+    lagged = {k: t for k, t in tests.items() if k[2] > 0}
+    lag_status, lag_best = classify(lagged, a, b, sign)
+    if lag_status in _STRONG:
+        return lag_status, lag_best
+    return "expected", best
+
+
 def combine(statuses: list[str]) -> str:
     s = set(statuses)
     if "supported" in s and "contradicted" in s or "mixed" in s:
         return "mixed"
-    for status in ("supported", "contradicted", "weak"):
+    for status in ("supported", "contradicted", "expected", "weak"):
         if status in s:
             return status
     return "not_detected"
@@ -518,7 +557,43 @@ believe, not what you expect to be easy to confirm.
 """
 
 
-def build_prompt(units: list[Unit], d: Data, kind: str) -> str:
+@dataclass
+class Overlap:
+    a: str
+    b: str
+    articles: float  # Jaccard of the two units' article sets
+    sources: float  # histogram intersection of their source-domain mixes
+    reason: str | None  # why it's a near-duplicate, None if it isn't
+
+    @property
+    def flagged(self) -> bool:
+        return self.reason is not None
+
+
+def unit_overlaps(
+    d: Data, units: list[Unit], use_sources: bool, art_threshold: float, src_threshold: float
+) -> list[Overlap]:
+    mixes = {u.uid: Counter(d.article_domain[a] for a in u.articles) for u in units}
+    totals = {uid: sum(m.values()) or 1 for uid, m in mixes.items()}
+    out = []
+    for i, ua in enumerate(units):
+        for ub in units[i + 1 :]:
+            union = len(ua.articles | ub.articles)
+            art = len(ua.articles & ub.articles) / union if union else 0.0
+            ma, mb = mixes[ua.uid], mixes[ub.uid]
+            src = sum(
+                min(ma[k] / totals[ua.uid], mb[k] / totals[ub.uid]) for k in ma.keys() & mb.keys()
+            )
+            reason = None
+            if art >= art_threshold:
+                reason = f"share {art:.0%} of their articles"
+            elif use_sources and src >= src_threshold:
+                reason = f"partly draw on the same sources ({src:.0%} source overlap)"
+            out.append(Overlap(ua.uid, ub.uid, art, src, reason))
+    return out
+
+
+def build_prompt(units: list[Unit], d: Data, kind: str, near_dupes: list[Overlap]) -> str:
     lines = [f"## Units ({kind})"]
     for u in units:
         lines.append(f"\n### {u.uid}: {u.title}")
@@ -529,6 +604,15 @@ def build_prompt(units: list[Unit], d: Data, kind: str) -> str:
     if d.bridge:
         lines.append("\n## Latest bridge tags (tags spanning 3+ defined topics)")
         lines += [f"- {t}: {', '.join(ts)}" for t, ts in d.bridge[:10]]
+    if near_dupes:
+        lines.append(
+            "\n## Near-duplicate unit pairs\n"
+            "These pairs largely cover the same news, so they will rise and fall together for "
+            "that reason alone. Don't build a loop solely between the two units of a pair. If "
+            "you link them at all, the mechanism must not depend on their being the same "
+            "coverage; using only one unit of a pair is fine."
+        )
+        lines += [f"- {o.a} and {o.b} {o.reason}" for o in near_dupes]
     return "\n".join(lines)
 
 
@@ -633,7 +717,12 @@ def to_cld(links: list[CLink], nn: dict[str, str], title: str) -> str:
     return "\n".join(out) + "\n"
 
 
-def loop_lines(loops: list[list[str]], links: list[CLink], nn: dict[str, str]) -> list[str]:
+def loop_lines(
+    loops: list[list[str]],
+    links: list[CLink],
+    nn: dict[str, str],
+    near_dupes: frozenset[frozenset[str]] = frozenset(),
+) -> list[str]:
     """Markdown bullets: each loop's R/B type (from edge polarities) and edge evidence."""
     by_pair = {(nn[lk.src], nn[lk.tgt]): lk for lk in links}
     lines = []
@@ -641,9 +730,19 @@ def loop_lines(loops: list[list[str]], links: list[CLink], nn: dict[str, str]) -
         edges = [by_pair[(c[i], c[(i + 1) % len(c)])] for i in range(len(c))]
         kind = "B" if sum(e.polarity == "-" for e in edges) % 2 else "R"
         sts = Counter(e.status for e in edges)
+        dupes = sorted(
+            "/".join(sorted((e.src, e.tgt)))
+            for e in edges
+            if frozenset((e.src, e.tgt)) in near_dupes
+        )
         lines.append(
             f"- **{kind}** {' → '.join(c + [c[0]])} — edge evidence: "
             + ", ".join(f"{s} {n}" for s, n in sts.items())
+            + (
+                f" — **runs through near-duplicate units {', '.join(sorted(set(dupes)))}**"
+                if dupes
+                else ""
+            )
         )
     return lines or ["- none"]
 
@@ -666,6 +765,7 @@ def to_markdown(
     k: int,
     min_agree: int,
     model: str,
+    overlaps: list[Overlap],
 ) -> str:
     md = [
         f"# Causal loop hypothesis: {kind} (prototype)",
@@ -701,9 +801,27 @@ def to_markdown(
             f"| {nn[lk.src]} ({lk.src}) → {nn[lk.tgt]} ({lk.tgt}) | {lk.polarity} | "
             f"{lk.agreement}/{k} | **{lk.status}** | {ev} | {lk.mechanism} |"
         )
-    md += ["", "## Loops", ""] + loop_lines(loops, links, nn)
-    md += ["", "## Significant lagged data signals the LLM did not propose", ""]
+    flagged = [o for o in overlaps if o.flagged]
+    near = frozenset(frozenset((o.a, o.b)) for o in flagged)
+    md += ["", "## Loops", ""] + loop_lines(loops, links, nn, near)
+    md += [
+        "",
+        f"## Unit overlap ({len(flagged)} near-duplicate pairs)",
+        "",
+        "Near-duplicate pairs were named in the LLM's prompt, and same-run evidence between "
+        "them is reported as `expected` rather than as support. The most overlapping pairs:",
+        "",
+        "| Pair | Article overlap | Source overlap | Near-duplicate |",
+        "|---|---|---|---|",
+    ]
     uname = {u.uid: u.title for u in units}
+    top = sorted(overlaps, key=lambda o: (-o.flagged, -max(o.articles, o.sources)))[:10]
+    md += [
+        f"| {uname[o.a]} ({o.a}) / {uname[o.b]} ({o.b}) | {o.articles:.2f} | {o.sources:.2f} | "
+        f"{'yes' if o.flagged else ''} |"
+        for o in top
+    ]
+    md += ["", "## Significant lagged data signals the LLM did not propose", ""]
     md += [
         f"- {uname[t.a]} ({t.a}) → {uname[t.b]} ({t.b}): r={t.r:+.2f}, lag {t.lag}, q={t.q:.3f}"
         for t in unproposed
@@ -758,7 +876,16 @@ async def run_kind(kind: str, d: Data, client: LLMClient, args: argparse.Namespa
             f"({sum(t.lag > 0 for t in sig)} at lag>0)"
         )
 
-    prompt = build_prompt(units, d, kind)
+    overlaps = unit_overlaps(
+        d, units, kind == "topics", args.overlap_articles, args.overlap_sources
+    )
+    flagged = [o for o in overlaps if o.flagged]
+    near = frozenset(frozenset((o.a, o.b)) for o in flagged)
+    log.append(
+        f"{len(flagged)} near-duplicate unit pairs: "
+        + (", ".join(f"{o.a}/{o.b}" for o in flagged) or "none")
+    )
+    prompt = build_prompt(units, d, kind, flagged)
     system = system_prompt(args.max_links)
     (out_dir / "prompt.txt").write_text(system + "\n\n" + prompt)
     print(f"[{kind}] {len(units)} units, prompt ~{len(prompt) // 4} tokens; sampling {args.runs}x")
@@ -785,7 +912,10 @@ async def run_kind(kind: str, d: Data, client: LLMClient, args: argparse.Namespa
     links, display = consensus(samples, valid, args.min_agree, warn)
     for lk in links:
         lk.evidence = {
-            m: classify(t, lk.src, lk.tgt, lk.coverage_sign) for m, t in measures.items()
+            m: classify_pair(
+                t, lk.src, lk.tgt, lk.coverage_sign, frozenset((lk.src, lk.tgt)) in near
+            )
+            for m, t in measures.items()
         }
         lk.status = combine([s for s, _ in lk.evidence.values()])
     proposed = {(lk.src, lk.tgt) for lk in links}
@@ -826,6 +956,7 @@ async def run_kind(kind: str, d: Data, client: LLMClient, args: argparse.Namespa
             len(samples),
             args.min_agree,
             args.model,
+            overlaps,
         )
     )
     (out_dir / "units.json").write_text(
@@ -850,6 +981,8 @@ async def run_kind(kind: str, d: Data, client: LLMClient, args: argparse.Namespa
             "max_loops",
             "max_loop_length",
             "as_of",
+            "overlap_articles",
+            "overlap_sources",
         )
     }
     (out_dir / "config.json").write_text(json.dumps(config, indent=1))
@@ -902,6 +1035,18 @@ async def main() -> None:
         type=int,
         default=MAX_LOOP_LENGTH,
         help="Longest loop (in nodes) looked for.",
+    )
+    ap.add_argument(
+        "--overlap-articles",
+        type=float,
+        default=OVERLAP_ARTICLES,
+        help="Article-overlap (Jaccard) at which two units count as near-duplicates.",
+    )
+    ap.add_argument(
+        "--overlap-sources",
+        type=float,
+        default=OVERLAP_SOURCES,
+        help="Source-domain overlap at which two topics count as near-duplicates (topics only).",
     )
     ap.add_argument(
         "--as-of",
