@@ -1,0 +1,110 @@
+# Causal loop diagram prototype
+
+Exploratory, not part of the pipeline: nothing here is called from `cli.py`
+or `flows/daily_report.py`, so there's no entry-point parity to maintain
+yet, and nothing is persisted to the tracking database. The goal is to judge
+whether a causal loop diagram (CLD), rendered with the separate
+`causal-loop-diagram-inator` project (`cld`), could usefully accompany a
+day's strategic report.
+
+## The idea
+
+Draw a CLD whose nodes are **units**: either the user-defined topics or
+communities from a **frozen** Louvain partition of the cumulative tag graph.
+The unit set is pluggable on purpose, so the topics *can* be the defined
+ones but don't have to be. The process is **hypothesis first, data second**:
+
+1. **Units and series.** For each unit and run, compute its share of that
+   run's articles, centered-log-ratio (CLR) transformed so that "shares sum
+   to 1" doesn't manufacture negative correlations. For topics, also the
+   urgency score, partial-correlated against the leave-one-out mean urgency
+   (same control as `systems_signals.py`).
+2. **Blind proposal.** An LLM drafts a CLD among the units from qualitative
+   context only (top tags, latest strategic bullets, closest recent daily
+   community summaries, headlines, cross-topic overview, bridge tags). It
+   never sees the correlations, so the check in step 4 is independent. Each
+   variable declares a `direction` relative to its unit's coverage, so a
+   variable like "Market Stability" on a market-turmoil unit flips the
+   expected sign correctly.
+3. **Agreement across 3 samples.** Draw 3 samples at temperature 0.7 and keep
+   a link only if at least 2 agree on its source, target and
+   coverage-level sign. This filters out one-off inventions. It measures
+   stability, not truth: samples can share a bias.
+4. **Data check.** Each kept link is tested at lags 0 to 3 (counted in runs)
+   with BH-FDR across the whole scan, and labelled supported, weak, mixed,
+   contradicted or not detected. Edges are coloured by that label in the
+   rendered diagram (`+`/`-` labels carry polarity).
+
+### Why not tag-level Systems Signals directly
+
+That was tried first (scratchpad only, not committed). On 2026-10-13 (31
+runs) there were 147 tag-rate signals but only 26 directed (lag > 0) pairs
+and a single directed cycle, all positive, so every loop would be classified
+reinforcing. An LLM filter rejected about 60% of them as coverage artifacts
+(same publisher or beat, same entity), and its added links ended up closing
+the only longer loop. The rejection step was the most reliable part and
+might be worth reusing as an artifact filter for Systems Signals on its
+own.
+
+### Why a frozen partition, not the daily communities
+
+Daily Louvain communities can't be tracked across runs: a community's best
+match in the previous run shares a median of 0.11 of its tags (Jaccard),
+and none share half. A partition of the *cumulative* graph is stable:
+about 0.9 best-match Jaccard across seeds, and about 0.7 against a partition
+built from only the first two-thirds of history, so it drifts and would need
+versioning. A resolution sweep picks about 15 to 20 communities (the default
+resolution gives only 8).
+
+## Results as of 2026-10-13 (31 runs, `glm-5.2:cloud`)
+
+| | Topics (17) | Communities (15, resolution 1.5) |
+|---|---|---|
+| Consensus links | 19 | 20 |
+| Loops | 4 (1 balancing) | 8 (1 balancing) |
+| Supported / contradicted / weak / not detected | 8 / 7 / 2 / 2 | 0 / 0 / 3 / 17 |
+| Significant tests (share) | 142, of which 2 lagged | 8, none lagged |
+| Significant tests (urgency) | 0 | n/a |
+
+- The diagrams read like real CLDs: measurable variables, several loops,
+  balancing feedback. The community version is the more coherent economic
+  model.
+- **No proposed link had lagged evidence.** Every supported or contradicted
+  verdict came from a lag-0 share correlation, which has no direction.
+  Lag-0 results should be read as co-movement, not support.
+- Same-day share co-movement is not explained by Monday runs (the archive
+  has no weekend runs) or total article volume (all |r| < 0.5). Shared
+  feeds explain part of it (AI and Data Science share 2 feeds and 5 domains).
+- The data did surface one link the LLM missed: Defense coverage leads
+  Geopolitics by 3 runs (r = +0.63, q = 0.005). The LLM proposed the reverse
+  direction, which the data rates only weak.
+
+Bottom line: hypothesis-first works as a diagram generator, but article
+share measures publishing volume, not the world, and after 31 runs it can't
+confirm or refute causal links.
+
+## Next idea: measure the variables directly
+
+Once a CLD is drafted, rate each of its variables directly every run: an
+LLM reads that run's articles for the variable's unit and says whether the
+variable rose, fell or stayed flat (with a short justification). Links are
+then tested on those per-variable series instead of on article share. That
+turns the CLD from a one-off picture into a monitored model whose links
+build up evidence run by run. Shipping it would need a pipeline step and a
+table, so it needs discussing first (see AGENTS.md's "discuss before adding
+a table" conventions). A scratchpad prototype backfills ratings over the
+existing archive first.
+
+## Running
+
+```bash
+source ~/environment_variables/strategic_daily_report.sh   # DAILY_REPORT_DATABASE_URL
+.venv/bin/python prototypes/causal_loops/cld_units.py --out-dir /tmp/cld_out
+```
+
+`--units topics communities` (default both), `--runs 3 --min-agree 2
+--temperature 0.7`, `--model` (default `LLM_MODEL` or
+`ollama_chat/glm-5.2:cloud`, JSON instructor mode), and `--cld-src` (or
+`CLD_TOOL_SRC`) pointing at causal-loop-diagram-inator's `src/`. Rendering
+also needs the `d2` and `inkscape` CLIs. It reads the tracking database only;
+each run makes 3 LLM calls per unit set (about 10k prompt tokens each).
