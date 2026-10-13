@@ -325,6 +325,9 @@ def analyse(
         ),
         key=lambda t: -abs(t.r),
     )
+    nn = cu.node_names(links, display)
+    loops = cu.loops_of(links, nn, config["max_loops"], config["max_loop_length"])
+    md += ["", "## Loops (edge evidence = lag 1-3 verdicts)", ""] + cu.loop_lines(loops, links, nn)
     md += [
         "",
         "## Lagged relationships between rated variables the CLD didn't propose "
@@ -343,15 +346,12 @@ def analyse(
             mv = "null" if vr.movement is None else f"{vr.movement:+d}"
             md.append(f"- **{display[u][0]}** {mv}: {vr.evidence}")
 
-    nn = cu.node_names(links, display)
-    loops = cu.loops_of(links, nn, config["max_loops"], config["max_loop_length"])
     out_dir.mkdir(parents=True, exist_ok=True)
     cld_path = out_dir / "rated_hypothesis.cld"
     cld_path.write_text(
         cu.to_cld(
             links,
             nn,
-            loops,
             f"Causal Loop Hypothesis: {kind}, checked on rated variables (lag 1-3)",
         )
     )

@@ -563,14 +563,30 @@ def loops_of(
     return cycles[:max_loops]
 
 
-def to_cld(links: list[CLink], nn: dict[str, str], loops: list[list[str]], title: str) -> str:
+def to_cld(links: list[CLink], nn: dict[str, str], title: str) -> str:
+    # No `loop:` lines on purpose: cld draws an R/B icon (and a legend entry)
+    # for each one, and the diagrams are cleaner without them. Loops are still
+    # listed in the markdown report via loop_lines().
     out = [f"title: {title}", ""]
     for lk in links:
         delay = " delay" if lk.delayed else ""
         out.append(f"{nn[lk.src]} -> {nn[lk.tgt]}: {lk.polarity}{delay} {STATUS_COLORS[lk.status]}")
-    out.append("")
-    out += ["loop: " + ", ".join(c) for c in loops]
     return "\n".join(out) + "\n"
+
+
+def loop_lines(loops: list[list[str]], links: list[CLink], nn: dict[str, str]) -> list[str]:
+    """Markdown bullets: each loop's R/B type (from edge polarities) and edge evidence."""
+    by_pair = {(nn[lk.src], nn[lk.tgt]): lk for lk in links}
+    lines = []
+    for c in loops:
+        edges = [by_pair[(c[i], c[(i + 1) % len(c)])] for i in range(len(c))]
+        kind = "B" if sum(e.polarity == "-" for e in edges) % 2 else "R"
+        sts = Counter(e.status for e in edges)
+        lines.append(
+            f"- **{kind}** {' → '.join(c + [c[0]])} — edge evidence: "
+            + ", ".join(f"{s} {n}" for s, n in sts.items())
+        )
+    return lines or ["- none"]
 
 
 def fmt_ev(status: str, t: Test | None) -> str:
@@ -626,19 +642,7 @@ def to_markdown(
             f"| {nn[lk.src]} ({lk.src}) → {nn[lk.tgt]} ({lk.tgt}) | {lk.polarity} | "
             f"{lk.agreement}/{k} | **{lk.status}** | {ev} | {lk.mechanism} |"
         )
-    by_pair = {(nn[lk.src], nn[lk.tgt]): lk for lk in links}
-    md += ["", "## Loops", ""]
-    for c in loops:
-        edges = [by_pair[(c[i], c[(i + 1) % len(c)])] for i in range(len(c))]
-        neg = sum(e.polarity == "-" for e in edges)
-        kind_ = "B" if neg % 2 else "R"
-        sts = Counter(e.status for e in edges)
-        md.append(
-            f"- **{kind_}** {' → '.join(c + [c[0]])} — edge evidence: "
-            + ", ".join(f"{s} {n}" for s, n in sts.items())
-        )
-    if not loops:
-        md.append("- none")
+    md += ["", "## Loops", ""] + loop_lines(loops, links, nn)
     md += ["", "## Significant lagged data signals the LLM did not propose", ""]
     uname = {u.uid: u.title for u in units}
     md += [
@@ -746,7 +750,7 @@ async def run_kind(kind: str, d: Data, client: LLMClient, args: argparse.Namespa
     nn = node_names(links, display)
     loops = loops_of(links, nn, args.max_loops, args.max_loop_length)
     cld_path = out_dir / "causal_hypothesis.cld"
-    cld_path.write_text(to_cld(links, nn, loops, f"Causal Loop Hypothesis: {kind}"))
+    cld_path.write_text(to_cld(links, nn, f"Causal Loop Hypothesis: {kind}"))
     (out_dir / "causal_hypothesis.md").write_text(
         to_markdown(
             kind,

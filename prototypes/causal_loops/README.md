@@ -33,7 +33,9 @@ ones but don't have to be. The process is **hypothesis first, data second**:
 4. **Data check.** Each kept link is tested at lags 0 to 3 (counted in runs)
    with BH-FDR across the whole scan, and labelled supported, weak, mixed,
    contradicted or not detected. Edges are coloured by that label in the
-   rendered diagram (`+`/`-` labels carry polarity).
+   rendered diagram (`+`/`-` labels carry polarity). Loops aren't drawn as R/B icons
+   on the diagram; they're listed, with their type and each edge's evidence,
+   in the markdown report.
 
 ### Why not tag-level Systems Signals directly
 
