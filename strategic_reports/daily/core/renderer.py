@@ -27,6 +27,7 @@ Template inheritance:
   only the parts that differ, without duplicating the boilerplate.
 """
 
+import dataclasses
 import json
 import shutil
 from datetime import datetime
@@ -126,6 +127,8 @@ def render_report(
     diffs: dict[str, BulletDiff] | None = None,
     topic_signals: list[LaggedCorrelation] | None = None,
     tag_signals: list[LaggedCorrelation] | None = None,
+    systems_signals_error: str | None = None,
+    run_id: str | None = None,
 ) -> None:
     """
     Render all pipeline results to HTML files in output_dir.
@@ -138,11 +141,16 @@ def render_report(
     topic_urgency_lagged_correlations()/tag_rate_lagged_correlations()
     output (already FDR-corrected and filtered at call time -- everything
     passed in here is treated as significant, there's no threshold logic
-    left to apply in the template).
+    left to apply here). They're written to systems_signals.json rather
+    than index.html, so they can be reviewed independently of the report.
+    systems_signals_error is the caller's repr() of the exception if
+    computing them failed -- recorded as status "failed" so a failed scan
+    is never mistaken for a scan that found nothing.
 
     Output files:
       index.html              — main strategic report (one section per topic)
       {topic}_summaries.html  — per-topic article summaries (only if articles exist)
+      systems_signals.json    — this run's Systems Signals (see _write_systems_signals_json)
 
     The slug → filename mapping strips the "feeds_" prefix:
       feeds_ai          → ai_summaries.html
@@ -180,9 +188,16 @@ def render_report(
             updated=updated_str,
             hours_cutoff=hours_cutoff,
             total_tokens=total_usage.total_tokens,
-            topic_signals=_dedupe_bidirectional_lag_zero(topic_signals or []),
-            tag_signals=_dedupe_bidirectional_lag_zero(tag_signals or []),
         )
+    )
+
+    _write_systems_signals_json(
+        output_dir / "systems_signals.json",
+        topic_signals=topic_signals or [],
+        tag_signals=tag_signals or [],
+        error=systems_signals_error,
+        run_id=run_id,
+        generated_at=now,
     )
 
     # Per-topic summary pages — only written for topics that have articles.
@@ -204,6 +219,39 @@ def render_report(
                 article_jsonld=_build_article_jsonld(result.articles),
             )
         )
+
+
+def _write_systems_signals_json(
+    path: Path,
+    topic_signals: list[LaggedCorrelation],
+    tag_signals: list[LaggedCorrelation],
+    error: str | None,
+    run_id: str | None,
+    generated_at: datetime,
+) -> None:
+    """
+    Write this run's Systems Signals to a standalone JSON file.
+
+    "status" distinguishes a scan that ran and found nothing significant
+    ("ok", both lists empty) from one that never ran ("failed", with the
+    error) -- the two looked identical when this lived in index.html.
+    Lag-0 mirror pairs are deduped the same way the old HTML section did.
+    Lives in output_dir, so it's overwritten every run like the rest of
+    the report -- today's signals only, not a history.
+    """
+    payload = {
+        "run_id": run_id,
+        "generated_at": generated_at.isoformat(),
+        "status": "failed" if error else "ok",
+        "error": error,
+        "topic_signals": [
+            dataclasses.asdict(c) for c in _dedupe_bidirectional_lag_zero(topic_signals)
+        ],
+        "tag_signals": [
+            dataclasses.asdict(c) for c in _dedupe_bidirectional_lag_zero(tag_signals)
+        ],
+    }
+    path.write_text(json.dumps(payload, indent=2) + "\n")
 
 
 def render_db_status(report: DbStatusReport, output_path: Path) -> None:

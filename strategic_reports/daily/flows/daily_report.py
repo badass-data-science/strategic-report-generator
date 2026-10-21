@@ -225,8 +225,10 @@ def render_html_report(
     diffs: dict[str, BulletDiff] | None = None,
     topic_signals: list[LaggedCorrelation] | None = None,
     tag_signals: list[LaggedCorrelation] | None = None,
+    systems_signals_error: str | None = None,
+    run_id: str | None = None,
 ) -> None:
-    """Render TopicResults into the HTML report using Jinja2 templates."""
+    """Render TopicResults into the HTML report (plus systems_signals.json) via Jinja2."""
     logger = get_run_logger()
     render_report(
         results,
@@ -236,8 +238,11 @@ def render_html_report(
         diffs=diffs,
         topic_signals=topic_signals,
         tag_signals=tag_signals,
+        systems_signals_error=systems_signals_error,
+        run_id=run_id,
     )
     logger.info(f"Report written to {output_dir / 'index.html'}")
+    logger.info(f"Systems signals written to {output_dir / 'systems_signals.json'}")
 
 
 # ---------------------------------------------------------------------------
@@ -512,13 +517,16 @@ async def run_bullet_diff(
 # here even though it isn't numbered 3 (render-html-report, defined
 # earlier, is likewise called last in the flow body below -- task numbers
 # here track definition order, not call order).
-# Fails gracefully: a failure here logs a warning but does not block
-# rendering, same pattern as every other optional stage in this file.
+# Output goes to systems_signals.json (written by render-html-report), not
+# index.html. Fails gracefully: a failure here logs a warning but does not
+# block rendering, same pattern as every other optional stage in this
+# file -- the error is returned so the JSON records status "failed" rather
+# than looking like a scan that found nothing.
 
 @task(name="compute-systems-signals")
 def compute_systems_signals(
     database_url: str,
-) -> tuple[list[LaggedCorrelation], list[LaggedCorrelation]]:
+) -> tuple[list[LaggedCorrelation], list[LaggedCorrelation], str | None]:
     """Candidate feedback-loop correlations across topic urgency and tag coverage rate history."""
     logger = get_run_logger()
     try:
@@ -527,10 +535,12 @@ def compute_systems_signals(
         logger.info(
             f"Systems signals: {len(topic_signals)} topic-level, {len(tag_signals)} tag-level"
         )
-        return topic_signals, tag_signals
+        return topic_signals, tag_signals, None
     except Exception as exc:
-        logger.warning(f"Systems signals failed: {exc!r} — report will render without them")
-        return [], []
+        logger.warning(
+            f"Systems signals failed: {exc!r} — recorded as failed in systems_signals.json"
+        )
+        return [], [], repr(exc)
 
 
 # ---------------------------------------------------------------------------
@@ -707,10 +717,18 @@ async def daily_report_flow(
         api_key=ollama_api_key,
     )
 
-    topic_signals, tag_signals = compute_systems_signals(database_url)
+    topic_signals, tag_signals, systems_signals_error = compute_systems_signals(database_url)
 
     render_html_report(
-        results, output_dir, hours_cutoff, overview, diffs, topic_signals, tag_signals
+        results,
+        output_dir,
+        hours_cutoff,
+        overview,
+        diffs,
+        topic_signals,
+        tag_signals,
+        systems_signals_error,
+        run_id,
     )
     build_tag_graph(results, output_dir)
     export_rdf_task(database_url, output_dir)

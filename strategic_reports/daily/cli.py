@@ -486,17 +486,21 @@ def run(
     # urgency and tag coverage rate history (see systems_signals.py). Runs
     # last, right before rendering, since it reads this run's own
     # urgency_scores/tag_counts/tag_edges/tag_topics/community_summary_tags/
-    # articles rows — all written by steps above. Never blocks rendering
-    # on failure.
+    # articles rows — all written by steps above. Written to
+    # systems_signals.json (not index.html) by render_report(). Never blocks
+    # rendering on failure — the failure is recorded in that file instead.
+    systems_signals_error: str | None = None
     try:
         topic_signals = topic_urgency_lagged_correlations(database_url)
         tag_signals = tag_rate_lagged_correlations(database_url)
     except Exception as exc:
         typer.echo(
-            f"[warn] Systems signals failed: {exc!r} — report will render without them",
+            f"[warn] Systems signals failed: {exc!r} — recorded as failed in "
+            f"systems_signals.json",
             err=True,
         )
         topic_signals, tag_signals = [], []
+        systems_signals_error = repr(exc)
 
     # render_report() is synchronous (Jinja2 rendering is fast, no I/O bottleneck).
     render_report(
@@ -507,6 +511,8 @@ def run(
         diffs=diffs,
         topic_signals=topic_signals,
         tag_signals=tag_signals,
+        systems_signals_error=systems_signals_error,
+        run_id=run_id,
     )
 
     # Tag co-occurrence graph — written into the same output_dir as the HTML
@@ -529,6 +535,7 @@ def run(
     typer.echo(f"  Total tokens used:     {client.total_usage.total_tokens:,}")
     typer.echo(f"  Report written to:     {output_dir / 'index.html'}")
     typer.echo(f"  Tag graph written to:  {output_dir / 'tag_graph.html'}")
+    typer.echo(f"  Systems signals:       {output_dir / 'systems_signals.json'}")
 
 
 @app.command()

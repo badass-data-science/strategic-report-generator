@@ -309,9 +309,16 @@ LICENSE                 MIT
   and `tag_rate_lagged_correlations()` recompute their result fresh from
   `urgency_scores`/`tag_counts`/`tag_edges`/`tag_topics`/
   `community_summary_tags`/`articles` on every call; the only place the
-  output goes is that run's `index.html` Systems Signals section, and it
-  doesn't survive to the next run — this was a deliberate choice, not an
-  oversight, made explicitly when asked. An uncorrected all-pairs scan is
+  output goes is that run's `systems_signals.json` in `--output-dir`
+  (written by `renderer.render_report()`, which wipes that directory, so
+  it doesn't survive to the next run) — this was a deliberate choice, not
+  an oversight, made explicitly when asked. It used to be a Systems
+  Signals section of `index.html`; it was moved out into its own file on
+  request so it can be reviewed independently of the report, and
+  `index.html` no longer mentions it. The JSON carries a `status`
+  (`"ok"`/`"failed"`) plus `error` so a failed scan is never mistaken for
+  one that found nothing — keep passing `systems_signals_error` through
+  from every entry point. An uncorrected all-pairs scan is
   almost pure noise (a 14-run archive produced ~40 "significant" topic
   pairs and ~9,700 tag pairs before any correction), so both functions run
   a Benjamini-Hochberg FDR correction across every test in a single scan.

@@ -4,6 +4,17 @@ All notable changes to this project are documented here. Entries are
 grouped by date rather than a semantic version number, since this project
 doesn't tag releases.
 
+## 2026-10-21
+
+### Changed
+- Systems Signals moved out of `index.html` into its own
+  `systems_signals.json` in `--output-dir`, so it can be reviewed
+  independently of the report. The file adds `run_id`, `generated_at`,
+  and a `status`/`error` pair that distinguishes a failed computation from
+  a scan with no significant results (previously indistinguishable in the
+  HTML). `render_report()` gains optional `systems_signals_error` and
+  `run_id` parameters; `cli.py run` and the Prefect flow pass both.
+
 ## 2026-08-26
 
 ### Added

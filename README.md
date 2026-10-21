@@ -89,7 +89,7 @@ Phase 5 — Systems Signals  [pure DB read, no LLM]
 Phase 6 — Rendering  [Jinja2 templates]
 
   CrossTopicSynthesis      ──► Strategic Overview section (top of index.html)
-  list[LaggedCorrelation] x2 ──► Systems Signals section (index.html)
+  list[LaggedCorrelation] x2 ──► systems_signals.json (not index.html)
   dict[topic, BulletDiff]  ──► "Since yesterday" annotations per topic
   list[TopicResult]   ──► index.html  (per-topic sections)
                       ──► {topic}_summaries.html  (one per topic)
@@ -211,8 +211,8 @@ structural/statistical filters specific to the tag-rate side:
 more than once in a day. Nothing here is persisted: both functions
 recompute fresh from `urgency_scores`/`tag_counts`/`tag_edges`/
 `tag_topics`/`community_summary_tags`/`articles` (see [Output](#output))
-on every call, and the result only ever reaches that run's `index.html`
-**Systems Signals** section — not the database, not a prior report, since
+on every call, and the result only ever reaches that run's
+`systems_signals.json` — not the database, not a prior report, since
 `--output-dir` itself is wiped every run (see the warning in
 [Output](#output)).
 
@@ -821,7 +821,7 @@ in `--strict` mode across both `strategic_reports/` and `tests/`.
 ```
 tests/test_models.py      Pydantic validation and TokenUsage arithmetic
 tests/test_prompts.py     Prompt builder output shape and content
-tests/test_renderer.py    HTML rendering for all three result states + XSS; Systems Signals section (empty state, both-and-neither signal groups, lag=0 bidirectional dedup, XSS); render_db_status() output + XSS
+tests/test_renderer.py    HTML rendering for all three result states + XSS; systems_signals.json (ok/failed status, field serialization, lag=0 bidirectional dedup, absent from index.html); render_db_status() output + XSS
 tests/test_ingestion.py   RSS fetching with mocked feedparser
 tests/test_feed_validation.py  Feed health checks and REMOVED.json pruning/logging, with mocked feedparser
 tests/test_pipeline.py    Async orchestration with mocked LLMClient; summarize_communities() and answer_archive_question()/extract_query_tags() concurrency + failure isolation
@@ -872,7 +872,7 @@ strategic_reports/
       tracing.py         Langfuse and Phoenix setup (opt-in)
     templates/
       base.html.j2       Shared layout and styles
-      index.html.j2      Main strategic report (Strategic Overview + Systems Signals + per-topic sections)
+      index.html.j2      Main strategic report (Strategic Overview + per-topic sections)
       topic.html.j2      Per-topic article summaries
       db_status.html.j2  Standalone page for the `db status --html` CLI flag
     data/
@@ -906,9 +906,10 @@ docker-compose.yml      Local-dev PostgreSQL for the test suite / manual runs
 
 The pipeline writes the following files to `--output-dir`:
 
-- **`index.html`** — the main report. Opens with a highlighted **Strategic Overview** section (3–4 cross-cutting bullets synthesized across all topics), followed by a **Systems Signals** section (candidate feedback loops from lagged correlation — see [Design decisions](#systems-signals-surfaces-candidate-feedback-loops-filtered-aggressively) — grouped into Topic Urgency and Tag Coverage results, each with its correlation, lag, and q-value; shown even when empty, with a plain "no candidate feedback loops cleared significance today" message rather than disappearing), followed by one section per topic with 3–5 strategic bullet points. On runs after the first, each topic also shows a **Since yesterday** annotation: new bullets highlighted in green, dropped bullets in muted strikethrough. Errors and empty topics are surfaced inline rather than hidden.
+- **`index.html`** — the main report. Opens with a highlighted **Strategic Overview** section (3–4 cross-cutting bullets synthesized across all topics), followed by one section per topic with 3–5 strategic bullet points. On runs after the first, each topic also shows a **Since yesterday** annotation: new bullets highlighted in green, dropped bullets in muted strikethrough. Errors and empty topics are surfaced inline rather than hidden.
 - **`{topic}_summaries.html`** — per-article summaries and tags for every article that fed into that topic's strategic synthesis. Each article is also marked up as a `schema:Article` JSON-LD block (`headline`/`url`/`datePublished`) — the same fields `export-rdf` maps onto `schema:Article` — for structured-data consumers (search engines, scrapers) that only have access to the HTML, not `--database-url`.
 - **`tag_graph.html`** — interactive D3.js force-directed graph of tag co-occurrences. Self-contained: graph data is inlined at build time so it opens directly from the filesystem (`file://`) without a web server. Node color = Louvain community cluster; node size = article count; edge thickness = co-occurrence count. Sliders allow further filtering by minimum co-occurrence and minimum article count. Hovering a node shows its community label (named after the highest-count tag in that cluster).
+- **`systems_signals.json`** — this run's Systems Signals (candidate feedback loops from lagged correlation — see [Design decisions](#systems-signals-surfaces-candidate-feedback-loops-filtered-aggressively)), kept out of `index.html` so it can be reviewed on its own. Top-level keys: `run_id`, `generated_at`, `status` (`"ok"`, or `"failed"` if the computation raised — so an empty result is never ambiguous), `error`, and `topic_signals`/`tag_signals` — lists of `{subject_a, subject_b, lag, correlation, n, p_value, q_value}`, already FDR-corrected, with lag-0 mirror pairs deduplicated.
 - **`tag_graph_display.json`** — pruned and community-annotated graph consumed by `tag_graph.html`. Nodes with fewer than 3 article appearances and edges with fewer than 2 co-occurrences are dropped before Louvain community detection runs. Typically ~200 nodes and ~800 edges.
 - **`tag_graph.json`** — full graph (all tags and co-occurrence edges, unfiltered) for downstream data science use.
 

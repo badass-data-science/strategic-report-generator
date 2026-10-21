@@ -50,6 +50,7 @@ to avoid duplicating data setup.
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 from strategic_reports.daily.core.db_status import DbStatusReport, RunGap, RunHealth
@@ -381,55 +382,62 @@ class TestDedupeBidirectionalLagZero:
         assert _dedupe_bidirectional_lag_zero([]) == []
 
 
-class TestSystemsSignalsSection:
-    """Tests for the "Systems Signals" section of index.html."""
+class TestSystemsSignalsJson:
+    """Tests for systems_signals.json, which replaced index.html's Systems Signals section."""
 
-    def test_omitted_content_when_no_signals(
+    def _load(self, tmp_path: Path) -> dict[str, Any]:
+        data: dict[str, Any] = json.loads((tmp_path / "systems_signals.json").read_text())
+        return data
+
+    def test_written_with_ok_status_when_no_signals(
         self, tmp_path: Path, successful_result: TopicResult
     ) -> None:
-        render_report([successful_result], output_dir=tmp_path)
-        html = (tmp_path / "index.html").read_text()
-        assert "Systems Signals" in html
-        assert "No candidate feedback loops cleared significance today." in html
+        render_report([successful_result], output_dir=tmp_path, run_id="run-123")
+        data = self._load(tmp_path)
+        assert data["status"] == "ok"
+        assert data["error"] is None
+        assert data["run_id"] == "run-123"
+        assert data["topic_signals"] == []
+        assert data["tag_signals"] == []
+        assert data["generated_at"]
 
-    def test_topic_signal_appears(self, tmp_path: Path, successful_result: TopicResult) -> None:
-        render_report(
-            [successful_result],
-            output_dir=tmp_path,
-            topic_signals=[_correlation("Energy", "Forex", lag=0, correlation=0.92, q_value=0.002)],
-        )
-        html = (tmp_path / "index.html").read_text()
-        assert "Topic Urgency" in html
-        assert "Energy" in html and "Forex" in html
-        assert "0.002" in html
-        assert "No candidate feedback loops cleared significance today." not in html
-
-    def test_tag_signal_appears(self, tmp_path: Path, successful_result: TopicResult) -> None:
-        signal = _correlation("derivatives", "market", lag=1, correlation=0.99, q_value=0.01)
-        render_report(
-            [successful_result],
-            output_dir=tmp_path,
-            tag_signals=[signal],
-        )
-        html = (tmp_path / "index.html").read_text()
-        assert "Tag Coverage" in html
-        assert "derivatives" in html and "market" in html
-        # lag > 0 is directional -- "led ... by 1 run", not the "↔" symmetric symbol.
-        assert "led" in html
-
-    def test_only_topic_signals_omits_tag_coverage_group(
+    def test_failed_status_records_error(
         self, tmp_path: Path, successful_result: TopicResult
     ) -> None:
         render_report(
             [successful_result],
             output_dir=tmp_path,
-            topic_signals=[_correlation("Energy", "Forex")],
+            systems_signals_error="RuntimeError('db down')",
         )
-        html = (tmp_path / "index.html").read_text()
-        assert "Topic Urgency" in html
-        assert "Tag Coverage" not in html
+        data = self._load(tmp_path)
+        assert data["status"] == "failed"
+        assert data["error"] == "RuntimeError('db down')"
+        assert data["topic_signals"] == []
 
-    def test_bidirectional_lag_zero_pair_shown_once(
+    def test_signals_serialized_with_all_fields(
+        self, tmp_path: Path, successful_result: TopicResult
+    ) -> None:
+        topic = _correlation("Energy", "Forex", lag=0, correlation=0.92, q_value=0.002)
+        tag = _correlation("derivatives", "market", lag=1, correlation=0.99, q_value=0.01)
+        render_report(
+            [successful_result], output_dir=tmp_path, topic_signals=[topic], tag_signals=[tag]
+        )
+        data = self._load(tmp_path)
+        assert data["topic_signals"] == [
+            {
+                "subject_a": "Energy",
+                "subject_b": "Forex",
+                "lag": 0,
+                "correlation": 0.92,
+                "n": 12,
+                "p_value": 0.001,
+                "q_value": 0.002,
+            }
+        ]
+        assert data["tag_signals"][0]["subject_a"] == "derivatives"
+        assert data["tag_signals"][0]["lag"] == 1
+
+    def test_bidirectional_lag_zero_pair_written_once(
         self, tmp_path: Path, successful_result: TopicResult
     ) -> None:
         render_report(
@@ -440,28 +448,19 @@ class TestSystemsSignalsSection:
                 _correlation("Forex", "Energy", lag=0),
             ],
         )
-        html = (tmp_path / "index.html").read_text()
-        assert html.count("Significant · q =") == 1
+        assert len(self._load(tmp_path)["topic_signals"]) == 1
 
-    def test_toc_entry_present_even_with_no_signals(
+    def test_section_no_longer_in_index_html(
         self, tmp_path: Path, successful_result: TopicResult
     ) -> None:
-        render_report([successful_result], output_dir=tmp_path)
-        html = (tmp_path / "index.html").read_text()
-        assert '<a href="#systems-signals">Systems Signals</a>' in html
-
-    def test_xss_escaping_in_subject_names(
-        self, tmp_path: Path, successful_result: TopicResult
-    ) -> None:
-        """Tag strings derive from feed content -- same threat model as article titles."""
         render_report(
             [successful_result],
             output_dir=tmp_path,
-            tag_signals=[_correlation("<script>alert(1)</script>", "market")],
+            topic_signals=[_correlation("Energy", "Forex")],
         )
         html = (tmp_path / "index.html").read_text()
-        assert "<script>alert(1)</script>" not in html
-        assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+        assert "Systems Signals" not in html
+        assert "systems-signals" not in html
 
 
 class TestRenderDbStatus:
