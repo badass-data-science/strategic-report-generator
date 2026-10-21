@@ -28,7 +28,7 @@ import instructor
 import litellm
 import structlog
 from pydantic import BaseModel
-from tenacity import before_sleep_log, retry, stop_after_attempt, wait_exponential
+from tenacity import AsyncRetrying, RetryCallState, stop_after_attempt, wait_exponential
 
 from .models import TokenUsage
 
@@ -43,9 +43,39 @@ litellm.suppress_debug_info = True
 # passed in as response_model, not just "BaseModel".
 T = TypeVar("T", bound=BaseModel)
 
-# tenacity's before_sleep_log requires a stdlib logger, not a structlog logger.
-# We create one here at module level so tenacity can log retry attempts.
+# Retry attempts are logged through a stdlib logger, matching what
+# tenacity's own before_sleep_log used to emit here.
 _TENACITY_LOGGER = logging.getLogger(__name__)
+
+
+def _retrying(method: str) -> AsyncRetrying:
+    """
+    Up to 5 tries, waiting 2s/4s/8s/16s/30s between attempts; re-raises the
+    last exception once retries are exhausted rather than swallowing it.
+
+    Used as an explicit AsyncRetrying loop in each public method rather than
+    @retry -- see complete_structured for why. tenacity's before_sleep_log
+    names the retried function from the decorator, which a loop doesn't
+    have (it logs "<unknown>"), so the method name is passed in instead.
+    """
+
+    def log_before_sleep(retry_state: RetryCallState) -> None:
+        exc = retry_state.outcome.exception() if retry_state.outcome else None
+        sleep = retry_state.next_action.sleep if retry_state.next_action else 0.0
+        _TENACITY_LOGGER.warning(
+            "Retrying LLMClient.%s in %s seconds as it raised %s: %s.",
+            method,
+            sleep,
+            type(exc).__name__,
+            exc,
+        )
+
+    return AsyncRetrying(
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=1, min=2, max=30),
+        before_sleep=log_before_sleep,
+        reraise=True,
+    )
 
 
 class LLMClient:
@@ -135,14 +165,6 @@ class LLMClient:
         except Exception:
             return TokenUsage()
 
-    # Up to 5 tries, waiting 2s/4s/8s/16s/30s between attempts; re-raises the
-    # last exception once retries are exhausted rather than swallowing it.
-    @retry(
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=1, min=2, max=30),
-        before_sleep=before_sleep_log(_TENACITY_LOGGER, logging.WARNING),
-        reraise=True,
-    )
     async def complete_structured(
         self,
         prompt: str,
@@ -151,6 +173,28 @@ class LLMClient:
     ) -> tuple[T, TokenUsage]:
         """
         Call the LLM and parse the response into a Pydantic model via instructor.
+
+        Retries via an explicit AsyncRetrying loop (_retrying) rather
+        than @retry: since tenacity 9.2, @retry types the decorated function
+        as a generic _RetryDecorated[P, R] object, which loses this method's
+        own TypeVar -- every caller then sees a bare "T" instead of the
+        response_model it passed in, failing mypy --strict.
+        """
+        async for attempt in _retrying("complete_structured"):
+            with attempt:
+                return await self._complete_structured_once(prompt, response_model, system)
+        # Unreachable: reraise=True means AsyncRetrying either returns above
+        # or raises the last exception -- it never just stops iterating.
+        raise AssertionError("AsyncRetrying exited without returning or raising")
+
+    async def _complete_structured_once(
+        self,
+        prompt: str,
+        response_model: type[T],
+        system: str | None,
+    ) -> tuple[T, TokenUsage]:
+        """
+        A single attempt of complete_structured (no retries).
 
         instructor handles:
           - Injecting the JSON schema into the request
@@ -210,12 +254,6 @@ class LLMClient:
 
         return result, usage
 
-    @retry(
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=1, min=2, max=30),
-        before_sleep=before_sleep_log(_TENACITY_LOGGER, logging.WARNING),
-        reraise=True,
-    )
     async def complete_text(
         self,
         prompt: str,
@@ -227,7 +265,19 @@ class LLMClient:
         Use this for cases where the output is genuinely free-form and can't
         be usefully constrained by a schema — e.g., long-form narrative text.
         For anything with predictable structure, prefer complete_structured.
+        Retries the same way complete_structured does.
         """
+        async for attempt in _retrying("complete_text"):
+            with attempt:
+                return await self._complete_text_once(prompt, system)
+        raise AssertionError("AsyncRetrying exited without returning or raising")
+
+    async def _complete_text_once(
+        self,
+        prompt: str,
+        system: str | None,
+    ) -> tuple[str, TokenUsage]:
+        """A single attempt of complete_text (no retries)."""
         messages = []
         if system:
             messages.append({"role": "system", "content": system})

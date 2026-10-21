@@ -15,6 +15,16 @@ doesn't tag releases.
   HTML). `render_report()` gains optional `systems_signals_error` and
   `run_id` parameters; `cli.py run` and the Prefect flow pass both.
 
+### Fixed
+- CI `typecheck` failing with 8 mypy errors (`"T" has no attribute ...`)
+  once a fresh install resolved tenacity 9.2: its `@retry` now types the
+  decorated function as a generic `_RetryDecorated[P, R]`, which drops
+  `LLMClient.complete_structured`'s own `TypeVar`. Both `LLMClient` methods
+  now retry via an explicit `AsyncRetrying` loop (`llm_client._retrying`)
+  instead of the decorator — same policy (5 tries, 2s–30s exponential
+  backoff, re-raise the last exception), and retry warnings still name the
+  method. Clean under mypy with tenacity 9.1 and 9.2, so no version cap.
+
 ## 2026-08-26
 
 ### Added
