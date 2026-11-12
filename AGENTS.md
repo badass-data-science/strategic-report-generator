@@ -100,8 +100,26 @@ stderr instead of stdout so a monitoring parser's stdin stays clean JSON.
 Like `validate-feeds`, it has no Prefect equivalent — it's a diagnostic you
 run, not a pipeline step.
 
-**CLI invocation shape**: `cli.py` now has six commands (`run`, `ask`,
-`export-rdf`, `validate-feeds`, `db upgrade`, `db status`), so naming one
+A sixth command, `python -m strategic_reports.daily.cli render-from-db
+--output-dir <dir> [--run-id <id>]`, is another on-demand exception:
+re-renders a stored run's `index.html`, featured reports, and
+`{topic}_summaries.html` from the tracking database (latest run by
+default) — no ingestion, no LLM calls, read-only against the db. See
+`report_rebuild.py` (pure DB access, no LLM dependency, same split as
+`archive_query.py`), which feeds the unchanged `renderer.render_report()`
+via two parameters added for it: `generated_at` (stamps the page with the
+run's own time) and `write_systems_signals=False`. What isn't persisted
+can't be reproduced, and that's by design, not a gap to fill: bullet diffs
+(LLM output, render-only), Systems Signals (recomputed from full history,
+so recomputing now wouldn't reflect a past run — the file is skipped
+rather than written as a misleading "ok, nothing found"), the original
+`TopicResult.error` text (a topic with archived articles but no bullets
+gets a generic synthesis-failed note instead), and token usage. Like
+`ask`, it has no Prefect equivalent — intentional, not a parity gap.
+
+**CLI invocation shape**: `cli.py` now has seven commands (`run`, `ask`,
+`export-rdf`, `validate-feeds`, `render-from-db`, `db upgrade`,
+`db status`), so naming one
 explicitly is required (`... cli.py run --output-dir ...`) — typer's
 single-command auto-invoke shorthand (bare `... cli.py --output-dir ...`)
 only applies when there's exactly one command, and no longer applies here.
@@ -133,7 +151,7 @@ ruff check .
 mypy
 ```
 
-- 326 tests across `tests/test_*.py`, no real network or LLM calls. Unlike
+- 337 tests across `tests/test_*.py`, no real network or LLM calls. Unlike
   before the PostgreSQL migration, DB-touching tests now need a reachable
   Postgres instance (`DATABASE_URL` env var) — see `docker-compose.yml` for
   local dev; CI provides one as a service container. CI
@@ -171,6 +189,7 @@ strategic_reports/
       urgency.py          Urgency alerting: absolute threshold + z-score (PostgreSQL-backed)
       bullet_diff.py      Historical diffing vs. yesterday's bullets (PostgreSQL-backed)
       db.py               PostgreSQL tracking db: pooled connection helper, reachability check, run registration, shared insert_rows_isolating_failures helper (schema lives in alembic/, not here)
+      report_rebuild.py   Rebuilds a stored run's TopicResults + overview from the tracking db for `render-from-db` — read-only, no LLM
       db_status.py        Read-only run cadence + per-run persistence health check + db_status_as_dict() for `db status`
       article_archive.py  Persists each run's article summaries (source material), linked to run_id
       overview_archive.py Persists each run's cross-topic synthesis overview bullets, linked to run_id
@@ -184,7 +203,7 @@ strategic_reports/
     data/rss_feeds/       One JSON file per topic listing feed URLs — packaged as wheel data
       REMOVED.json        Audit log of feeds removed by `validate-feeds --fix` or by hand
     flows/daily_report.py Prefect flow (12 tasks, incl. export-rdf as the last one) for scheduled runs — no `ask` equivalent, deliberately (see above)
-    cli.py                typer CLI entrypoint — six commands: run, ask, export-rdf, validate-feeds, db upgrade, db status
+    cli.py                typer CLI entrypoint — seven commands: run, ask, export-rdf, validate-feeds, render-from-db, db upgrade, db status
     paths.py              default_data_dir() — resolves bundled rss_feeds/ via importlib.resources
     config/topic_order.py Ordered topic slugs + display titles
     config/featured_reports.py Featured reports ({name}-report.html): lead topics in order, rest follow, overview last

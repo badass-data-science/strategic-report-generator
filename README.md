@@ -626,6 +626,37 @@ Read-only against `--database-url`; never touches `--output-dir`.
 
 ---
 
+## Re-rendering a stored run
+
+`python -m strategic_reports.daily.cli render-from-db` rebuilds a past
+run's HTML report — `index.html`, every featured report (e.g.
+`retail-report.html`), and the `{topic}_summaries.html` pages — from the
+tracking database, without re-running ingestion or any LLM call. Useful
+for previewing template or featured-report changes against real data, or
+regenerating a report whose output directory has since been wiped.
+
+```bash
+python -m strategic_reports.daily.cli render-from-db --output-dir /path/to/output
+python -m strategic_reports.daily.cli render-from-db --output-dir /path/to/output --run-id <run_id>
+```
+
+| Flag | Env var | Default | Description |
+|------|---------|---------|-------------|
+| `--output-dir` | — | *(required)* | Directory to write the report to — **wiped and recreated**, same as `run` |
+| `--run-id` | — | most recent run | Which run to re-render |
+| `--database-url` | `DATABASE_URL` | *(required)* | PostgreSQL tracking database to read from |
+| `--hours-cutoff` | — | `24` | Only used in the "no articles found in the past N hours" note — the original run's value isn't stored |
+
+The page is stamped with the run's own timestamp, not the time you
+re-rendered it. Some things are never persisted and so can't be
+reproduced: the "Since yesterday" bullet diffs, Systems Signals
+(`systems_signals.json` is not written), a topic's original error message
+(a topic with archived articles but no stored bullets shows a generic
+synthesis-failed note), and token usage (footer shows 0). See
+`report_rebuild.py`. Read-only against `--database-url`.
+
+---
+
 ## Scheduling with Prefect
 
 The pipeline ships with a [Prefect](https://www.prefect.io) flow that runs automatically at **16:00 America/Los_Angeles, Monday through Friday** (no weekend runs). It uses a local Prefect server — no cloud account required.
@@ -823,6 +854,7 @@ in `--strict` mode across both `strategic_reports/` and `tests/`.
 tests/test_models.py      Pydantic validation and TokenUsage arithmetic
 tests/test_prompts.py     Prompt builder output shape and content
 tests/test_renderer.py    HTML rendering for all three result states + XSS; systems_signals.json (ok/failed status, field serialization, lag=0 bidirectional dedup, absent from index.html); render_db_status() output + XSS; featured reports (ordering, hyphenated filename, overview last, index TOC links)
+tests/test_report_rebuild.py  load_stored_run()/resolve_run() against a seeded db (latest vs. specific run, topic states, overview) + the render-from-db CLI command
 tests/test_featured_reports.py  config/featured_reports.py sanity: every slug is an active topic, no duplicates, filename-safe names
 tests/test_ingestion.py   RSS fetching with mocked feedparser
 tests/test_feed_validation.py  Feed health checks and REMOVED.json pruning/logging, with mocked feedparser
@@ -871,6 +903,7 @@ strategic_reports/
       systems_signals.py Lagged/partial correlation over topic urgency + tag coverage rate history; five-filter tag-rate chain + FDR correction — read-only, nothing persisted
       stats.py           Shared statistics (pure functions): lagged/partial Pearson, scipy-free p-value, Benjamini-Hochberg q-values, leave-one-out mean, population mean/std for z-scores
       rdf_export.py      Builds an RDF (Turtle) export of the tracking database for the `export-rdf` CLI command
+      report_rebuild.py  Rebuilds a stored run's report inputs from the tracking database for the `render-from-db` CLI command
       tracing.py         Langfuse and Phoenix setup (opt-in)
     templates/
       base.html.j2       Shared layout and styles

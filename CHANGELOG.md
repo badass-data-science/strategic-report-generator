@@ -7,6 +7,14 @@ doesn't tag releases.
 ## 2026-11-11
 
 ### Added
+- `render-from-db` CLI command: re-renders a stored run's `index.html`,
+  featured reports, and `{topic}_summaries.html` from the tracking
+  database (latest run by default, or `--run-id`) — no ingestion, no LLM
+  calls, read-only. Bullet diffs, Systems Signals, original error text, and
+  token usage aren't persisted, so they're omitted. New
+  `core/report_rebuild.py`; `render_report()` gains optional
+  `generated_at` and `write_systems_signals` parameters. On-demand only, no
+  Prefect equivalent (same as `ask`).
 - Featured reports: `retail-report.html`, written next to `index.html` in
   `--output-dir`. Same per-topic sections as `index.html`, re-ordered to
   lead with Retail (then Business, Business Strategy, Economics, Forex,

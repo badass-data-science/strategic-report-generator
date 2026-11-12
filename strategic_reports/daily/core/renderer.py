@@ -152,6 +152,8 @@ def render_report(
     systems_signals_error: str | None = None,
     run_id: str | None = None,
     featured_reports: Sequence[FeaturedReport] = _DEFAULT_FEATURED_REPORTS,
+    generated_at: datetime | None = None,
+    write_systems_signals: bool = True,
 ) -> None:
     """
     Render all pipeline results to HTML files in output_dir.
@@ -169,6 +171,13 @@ def render_report(
     systems_signals_error is the caller's repr() of the exception if
     computing them failed -- recorded as status "failed" so a failed scan
     is never mistaken for a scan that found nothing.
+
+    generated_at sets the report's date/"Updated" stamp (default: now).
+    write_systems_signals=False skips systems_signals.json entirely. Both
+    exist for `render-from-db` (report_rebuild.py), which re-renders a past
+    run: its date is the run's own timestamp, and Systems Signals can't be
+    reconstructed for it, so writing an "ok, nothing found" file would be
+    misleading.
 
     Output files:
       index.html              — main strategic report (one section per topic)
@@ -190,7 +199,7 @@ def render_report(
     output_dir.mkdir(parents=True)
 
     env = _env()
-    now = datetime.now().astimezone()
+    now = (generated_at or datetime.now()).astimezone()
     date_str = str(now.date())                              # "2026-06-27"
     updated_str = now.strftime("%Y-%m-%d %H:%M:%S %Z")      # "2026-06-27 14:32:01 PDT"
 
@@ -233,14 +242,15 @@ def render_report(
             )
         )
 
-    _write_systems_signals_json(
-        output_dir / "systems_signals.json",
-        topic_signals=topic_signals or [],
-        tag_signals=tag_signals or [],
-        error=systems_signals_error,
-        run_id=run_id,
-        generated_at=now,
-    )
+    if write_systems_signals:
+        _write_systems_signals_json(
+            output_dir / "systems_signals.json",
+            topic_signals=topic_signals or [],
+            tag_signals=tag_signals or [],
+            error=systems_signals_error,
+            run_id=run_id,
+            generated_at=now,
+        )
 
     # Per-topic summary pages — only written for topics that have articles.
     # Topics with errors or no news produce no summaries page, so the

@@ -690,3 +690,24 @@ class TestFeaturedReports:
         out = tmp_path / "out"
         render_report(results, output_dir=out)
         assert (out / "retail-report.html").exists()
+
+
+class TestRenderFromDbHooks:
+    """generated_at / write_systems_signals exist for `render-from-db`."""
+
+    def test_generated_at_sets_report_date(
+        self, tmp_path: Path, successful_result: TopicResult
+    ) -> None:
+        from datetime import UTC, datetime
+
+        stamp = datetime(2026, 3, 4, 12, 0, tzinfo=UTC)
+        render_report([successful_result], output_dir=tmp_path, generated_at=stamp)
+        local_date = str(stamp.astimezone().date())
+        assert f"Strategic Review — {local_date}" in (tmp_path / "index.html").read_text()
+
+    def test_write_systems_signals_false_skips_file(
+        self, tmp_path: Path, successful_result: TopicResult
+    ) -> None:
+        render_report([successful_result], output_dir=tmp_path, write_systems_signals=False)
+        assert not (tmp_path / "systems_signals.json").exists()
+        assert (tmp_path / "index.html").exists()

@@ -1,8 +1,8 @@
 """
 Daily strategic report pipeline — CLI entrypoint.
 
-Two commands (naming one explicitly is required now that there are two —
-typer's single-command auto-invoke shorthand only applies to a one-command app):
+Seven commands (naming one explicitly is required — typer's single-command
+auto-invoke shorthand only applies to a one-command app), e.g.:
 
     python -m strategic_reports.daily.cli run --output-dir /path/to/output
     python -m strategic_reports.daily.cli ask "What's happening with export controls?"
@@ -30,6 +30,17 @@ below), the same envvar= pattern used by --model/LLM_MODEL below.
     Graph-guided retrieval over community_summaries written by `run` — see
     archive_query.py and pipeline.answer_archive_question. Read-only;
     doesn't touch --output-dir.
+
+`render-from-db` key options:
+    --output-dir        Where to write HTML output (required; wiped and
+                        recreated, same as `run`)
+    --run-id            Run to re-render (default: the most recent run)
+    --database-url      PostgreSQL tracking database to read (required;
+                        env DATABASE_URL)
+    Re-renders a stored run's index.html, featured reports, and
+    {topic}_summaries.html from the tracking db — no ingestion, no LLM
+    calls, read-only against the db. See report_rebuild.py for what can't
+    be reconstructed (bullet diffs, Systems Signals, error text).
 
 `validate-feeds` key options:
     --data-dir          Where to find rss_feeds/*.json files
@@ -114,6 +125,7 @@ from strategic_reports.daily.core.models import BulletDiff, TopicConfig
 from strategic_reports.daily.core.pipeline import synthesize_cross_topic
 from strategic_reports.daily.core.rdf_export import export_rdf
 from strategic_reports.daily.core.renderer import render_report
+from strategic_reports.daily.core.report_rebuild import load_stored_run
 from strategic_reports.daily.core.tracing import generate_run_id, setup_tracing
 from strategic_reports.daily.paths import default_data_dir
 
@@ -679,6 +691,81 @@ def export_rdf_command(
     triple_count = export_rdf(database_url, output, since=since)
 
     typer.echo(f"RDF export written to {output} ({triple_count:,} triples)")
+
+
+@app.command(name="render-from-db")
+def render_from_db_command(
+    output_dir: Path = typer.Option(
+        ...,
+        help="Directory to write HTML report files (required). "
+             "WARNING: wiped and recreated, same as `run`.",
+    ),
+    run_id: str | None = typer.Option(
+        None,
+        help="run_id to re-render. Omit for the most recent run.",
+    ),
+    database_url: str = typer.Option(
+        ...,
+        envvar="DATABASE_URL",
+        help="PostgreSQL tracking database to read from (required) — the "
+             "same one --database-url pointed at during `run` invocations. "
+             "Also read from DATABASE_URL env var (or a .env file).",
+    ),
+    hours_cutoff: int = typer.Option(
+        24,
+        help="Only used in the 'No articles found in the past N hours' "
+             "note for empty topics — the original run's value isn't stored.",
+    ),
+) -> None:
+    """
+    Re-render a stored run's report from the tracking database.
+
+    Rebuilds index.html, every featured report (e.g. retail-report.html),
+    and the {topic}_summaries.html pages from persisted bullets, urgency
+    scores, articles, and the Strategic Overview — no ingestion, no LLM
+    calls, read-only against --database-url. Bullet diffs, Systems Signals
+    (systems_signals.json isn't written), pipeline error text, and token
+    usage aren't persisted, so they can't be reproduced; see
+    report_rebuild.py.
+    """
+    try:
+        ensure_database_reachable(database_url)
+    except Exception as e:
+        typer.echo(f"--database-url is not reachable: {e}", err=True)
+        raise typer.Exit(code=1)
+
+    try:
+        stored = load_stored_run(database_url, run_id)
+    except LookupError as e:
+        typer.echo(f"Cannot render: {e}", err=True)
+        raise typer.Exit(code=1)
+
+    for title in stored.unknown_topics:
+        typer.echo(
+            f"[warn] topic {title!r} has rows in this run but isn't in topic_order.py; "
+            "not rendered",
+            err=True,
+        )
+    if stored.unvalidated_article_count:
+        typer.echo(
+            f"[warn] {stored.unvalidated_article_count} archived article(s) failed "
+            "ArticleSummary validation; rendered as stored",
+            err=True,
+        )
+
+    render_report(
+        stored.results,
+        output_dir=output_dir,
+        hours_cutoff=hours_cutoff,
+        overview=stored.overview,
+        run_id=stored.run_id,
+        generated_at=stored.created_at,
+        write_systems_signals=False,
+    )
+    typer.echo(
+        f"Re-rendered run {stored.run_id} ({stored.created_at.isoformat()}) "
+        f"to {output_dir}"
+    )
 
 
 db_app = typer.Typer(add_completion=False, help="Tracking-database schema management.")
