@@ -853,6 +853,10 @@ class TestFeaturedReportTagGraph:
         # Featured reports open fitted to the panel (the standalone
         # tag_graph.html doesn't opt in -- see TestWriteTagGraphHtml).
         assert "fitToView: true" in html
+        # Opens at a readable zoom (readableView), with a taller panel than
+        # the shared 560px default.
+        assert "readableView(0)" in html
+        assert "#tag-graph-root .tg-canvas { height: 700px; }" in html
         assert '"topic_order": ["Retail", "Economics"]' in html
         assert '"id": "pricing"' in html
         assert '"id": "llm"' not in html  # AI isn't in this report

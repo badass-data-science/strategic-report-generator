@@ -325,12 +325,19 @@ function mountTagGraph(root, allData, opts) {
       circles && circles.attr("fill", nodeColor);
     });
   }
-  let fitView = null;  // set by render(); re-fits the current graph to the panel
+  // Both set by render(): fitView shows the whole graph; readableView is the
+  // initial view (labels at a legible scale, centered on the densest region).
+  let fitView = null;
+  let readableView = null;
   if (opts.fitToView) {
-    const fitButton = el("button", "tg-fit", "Fit to view");
-    fitButton.type = "button";
-    fitButton.addEventListener("click", () => fitView && fitView(500));
-    controls.appendChild(fitButton);
+    const button = (label, action) => {
+      const b = el("button", "tg-fit", label);
+      b.type = "button";
+      b.addEventListener("click", () => { const f = action(); if (f) f(500); });
+      controls.appendChild(b);
+    };
+    button("Reset view", () => readableView);
+    button("Fit to view", () => fitView);
   }
   const stats = el("div", "tg-stats");
   controls.appendChild(stats);
@@ -439,18 +446,52 @@ d.fx = d.x; d.fy = d.y; })
       const settle = Math.ceil(Math.log(sim.alphaMin()) / Math.log(1 - sim.alphaDecay()));
       for (let i = 0; i < settle; i++) sim.tick();
       draw();
+      const apply = (k, cx, cy, duration) => {
+        const t = d3.zoomIdentity.translate(width / 2 - k * cx, height / 2 - k * cy).scale(k);
+        (duration ? svg.transition().duration(duration) : svg).call(zoom.transform, t);
+      };
+      const fitScale = box =>
+        Math.min(1, 0.94 * Math.min(width / box.width, height / box.height));
+
+      // Whole graph, labels included, never past 1:1.
       fitView = duration => {
         const box = g.node().getBBox();
         if (!box.width || !box.height) return;
-        const pad = 0.94;
-        const k = Math.min(1, pad * Math.min(width / box.width, height / box.height));
-        const t = d3.zoomIdentity
-          .translate(width / 2 - k * (box.x + box.width / 2),
-                     height / 2 - k * (box.y + box.height / 2))
-          .scale(k);
-        (duration ? svg.transition().duration(duration) : svg).call(zoom.transform, t);
+        apply(fitScale(box), box.x + box.width / 2, box.y + box.height / 2, duration);
       };
-      fitView(0);
+
+      // Initial view: a scale where labels are legible (labels are drawn at
+      // 10.5-13px, so READABLE_SCALE 1 shows them at that size). If the whole
+      // graph fits at that scale, just fit it; otherwise center on the point
+      // that puts the most nodes in the panel (ties -> closest to the
+      // article-count-weighted centroid, i.e. the busiest part of the graph).
+      const READABLE_SCALE = opts.readableScale ?? 1;
+      readableView = duration => {
+        const box = g.node().getBBox();
+        if (!box.width || !box.height) return;
+        if (fitScale(box) >= READABLE_SCALE) {
+          apply(fitScale(box), box.x + box.width / 2, box.y + box.height / 2, duration);
+          return;
+        }
+        const k = READABLE_SCALE;
+        const halfW = 0.92 * width / (2 * k), halfH = 0.92 * height / (2 * k);
+        const total = d3.sum(simNodes, d => d.count) || 1;
+        const wx = d3.sum(simNodes, d => d.x * d.count) / total;
+        const wy = d3.sum(simNodes, d => d.y * d.count) / total;
+        let best = null;
+        for (const c of simNodes.concat([{ x: wx, y: wy }])) {
+          let inView = 0;
+          for (const n of simNodes) {
+            if (Math.abs(n.x - c.x) <= halfW && Math.abs(n.y - c.y) <= halfH) inView++;
+          }
+          const dist = (c.x - wx) ** 2 + (c.y - wy) ** 2;
+          if (!best || inView > best.inView || (inView === best.inView && dist < best.dist)) {
+            best = { x: c.x, y: c.y, inView, dist };
+          }
+        }
+        apply(k, best.x, best.y, duration);
+      };
+      readableView(0);
     }
   }
 

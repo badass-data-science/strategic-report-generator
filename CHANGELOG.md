@@ -12,6 +12,12 @@ doesn't tag releases.
   set where each featured report's inline graph is pruned and where its
   sliders start. The retail report uses 2 and 2. Featured reports only:
   the standalone `tag_graph.html` keeps its fixed thresholds.
+- Featured reports' inline tag network now opens at a readable zoom:
+  1:1 (labels at 10.5–13px instead of ~4–5px when the whole graph was
+  fitted), centered on the region that puts the most nodes in view, in a
+  700px-tall panel (was 560px). A *Reset view* button returns there; *Fit
+  to view* still shows the whole graph. On the 2026-11-11 run: 100 of 168
+  nodes and 50 labels visible on load.
 - Featured reports' inline tag network now opens fitted to its panel
   instead of at 1:1 (where a 2/2 graph spilled far past the panel and
   looked zoomed in): the layout settles before first paint, with a gentle

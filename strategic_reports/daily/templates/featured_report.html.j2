@@ -10,6 +10,9 @@
   }
   {# Shared viewer styles from tag_graph.py (a Python constant, not user data). #}
   {{ tag_graph_css | safe }}
+  /* Taller than the shared default (560px) so more of the graph fits at the
+     readable initial zoom. */
+  #tag-graph-root .tg-canvas { height: 700px; }
 </style>
 {% endblock %}
 
