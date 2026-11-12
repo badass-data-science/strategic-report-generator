@@ -17,17 +17,24 @@
 {% set results = featured_results + related_results %}
 <h1>{{ report.title }} — {{ date }}</h1>
 <p class="meta">
+
+  <span class="warn">Generated from recent industry news using LLM analysis.
+  Apply judgement before acting on any recommendation. <strong>Caveat emptor!</strong></span>
+  <br>
+
+  Updated: {{ updated }}
+  <br>
+
   {# knowledge_graph.ttl sits next to the report pages on the published site
      (publishing_dag copies both into reports/daily-strategic-report/). In the
      local pipeline output it's one level up (output_dir.parent), so this
      link only resolves on the published site. #}
-  Download the knowledge graph for this report: <a href="knowledge_graph.ttl">knowledge_graph.ttl</a><br>
-  Questions? Comments? Please email Emily Williams at 
-  <a href="mailto:emw314159@gmail.com">emw314159@gmail.com</a>.<br>
-  Updated: {{ updated }}<br>
+  Download the knowledge graph for this report: <a href="knowledge_graph.ttl">knowledge_graph.ttl</a>
   <br>
-  <span class="warn">Generated from recent industry news using LLM analysis.
-  Apply judgement before acting on any recommendation. <strong>Caveat emptor!</strong></span>
+
+  Questions? Comments? Please email Emily Williams at 
+  <a href="mailto:emw314159@gmail.com">emw314159@gmail.com</a>.
+  <br>
 </p>
 
 {% if results %}
