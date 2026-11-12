@@ -275,7 +275,7 @@ class TestRunPipeline:
             "No tool calls or function call found in response (mode: TOOLS)",
             failed_attempts=[attempt],
             n_attempts=1,
-            total_usage=None,
+            total_usage=0,
         )
         client = make_mock_client(raises=exc)
         with patch("strategic_reports.daily.core.pipeline.fetch_topic_articles",
