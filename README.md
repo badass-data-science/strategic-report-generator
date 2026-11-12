@@ -92,6 +92,7 @@ Phase 6 — Rendering  [Jinja2 templates]
   list[LaggedCorrelation] x2 ──► systems_signals.json (not index.html)
   dict[topic, BulletDiff]  ──► "Since yesterday" annotations per topic
   list[TopicResult]   ──► index.html  (per-topic sections)
+                      ──► {name}-report.html  (one per featured report: same sections, re-ordered)
                       ──► {topic}_summaries.html  (one per topic)
                       ──► tag_graph.html + tag_graph.json  (D3.js tag network)
 
@@ -821,7 +822,8 @@ in `--strict` mode across both `strategic_reports/` and `tests/`.
 ```
 tests/test_models.py      Pydantic validation and TokenUsage arithmetic
 tests/test_prompts.py     Prompt builder output shape and content
-tests/test_renderer.py    HTML rendering for all three result states + XSS; systems_signals.json (ok/failed status, field serialization, lag=0 bidirectional dedup, absent from index.html); render_db_status() output + XSS
+tests/test_renderer.py    HTML rendering for all three result states + XSS; systems_signals.json (ok/failed status, field serialization, lag=0 bidirectional dedup, absent from index.html); render_db_status() output + XSS; featured reports (ordering, hyphenated filename, overview last, index TOC links)
+tests/test_featured_reports.py  config/featured_reports.py sanity: every slug is an active topic, no duplicates, filename-safe names
 tests/test_ingestion.py   RSS fetching with mocked feedparser
 tests/test_feed_validation.py  Feed health checks and REMOVED.json pruning/logging, with mocked feedparser
 tests/test_pipeline.py    Async orchestration with mocked LLMClient; summarize_communities() and answer_archive_question()/extract_query_tags() concurrency + failure isolation
@@ -873,6 +875,8 @@ strategic_reports/
     templates/
       base.html.j2       Shared layout and styles
       index.html.j2      Main strategic report (Strategic Overview + per-topic sections)
+      featured_report.html.j2  Featured report: index.html's sections re-ordered to lead with one topic, overview last
+      _macros.html.j2    Topic-section/overview macros shared by index and featured_report
       topic.html.j2      Per-topic article summaries
       db_status.html.j2  Standalone page for the `db status --html` CLI flag
     data/
@@ -882,6 +886,7 @@ strategic_reports/
       daily_report.py    Prefect flow (see Scheduling with Prefect) — twelve tasks, including export-rdf as the last one
     config/
       topic_order.py     Ordered list of topic slugs and display titles
+      featured_reports.py  Featured-report definitions (name, title, lead topics) — see Output
     cli.py               typer CLI entrypoint
     paths.py             default_data_dir() — resolves the bundled rss_feeds/ via importlib.resources
 alembic/                Tracking-db schema migrations (Postgres) — versions/0001_initial_schema.py is the whole schema, hand-written
@@ -907,6 +912,7 @@ docker-compose.yml      Local-dev PostgreSQL for the test suite / manual runs
 The pipeline writes the following files to `--output-dir`:
 
 - **`index.html`** — the main report. Opens with a highlighted **Strategic Overview** section (3–4 cross-cutting bullets synthesized across all topics), followed by one section per topic with 3–5 strategic bullet points. On runs after the first, each topic also shows a **Since yesterday** annotation: new bullets highlighted in green, dropped bullets in muted strikethrough. Errors and empty topics are surfaced inline rather than hidden.
+- **`{name}-report.html`** — one per entry in `config/featured_reports.py` (currently just `retail-report.html`). The same per-topic sections as `index.html`, re-ordered: the report's listed topics first, in the order given (the first one visually highlighted), then every other topic in `topic_order.py` order, with the Strategic Overview moved to the end. Pure re-rendering of the run's existing results — no extra LLM calls, nothing persisted. Linked from `index.html`'s table of contents. Add a report by adding a `FeaturedReport` entry; `tests/test_featured_reports.py` fails on any slug not in `topic_order.py`.
 - **`{topic}_summaries.html`** — per-article summaries and tags for every article that fed into that topic's strategic synthesis. Each article is also marked up as a `schema:Article` JSON-LD block (`headline`/`url`/`datePublished`) — the same fields `export-rdf` maps onto `schema:Article` — for structured-data consumers (search engines, scrapers) that only have access to the HTML, not `--database-url`.
 - **`tag_graph.html`** — interactive D3.js force-directed graph of tag co-occurrences. Self-contained: graph data is inlined at build time so it opens directly from the filesystem (`file://`) without a web server. Node color = Louvain community cluster; node size = article count; edge thickness = co-occurrence count. Sliders allow further filtering by minimum co-occurrence and minimum article count. Hovering a node shows its community label (named after the highest-count tag in that cluster).
 - **`systems_signals.json`** — this run's Systems Signals (candidate feedback loops from lagged correlation — see [Design decisions](#systems-signals-surfaces-candidate-feedback-loops-filtered-aggressively)), kept out of `index.html` so it can be reviewed on its own. Top-level keys: `run_id`, `generated_at`, `status` (`"ok"`, or `"failed"` if the computation raised — so an empty result is never ambiguous), `error`, and `topic_signals`/`tag_signals` — lists of `{subject_a, subject_b, lag, correlation, n, p_value, q_value}`, already FDR-corrected, with lag-0 mirror pairs deduplicated.

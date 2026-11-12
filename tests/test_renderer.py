@@ -53,9 +53,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from strategic_reports.daily.config.featured_reports import FeaturedReport
 from strategic_reports.daily.core.db_status import DbStatusReport, RunGap, RunHealth
 from strategic_reports.daily.core.models import (
     ArticleSummary,
+    CrossTopicSynthesis,
     StrategicInsight,
     TokenUsage,
     TopicConfig,
@@ -63,6 +65,7 @@ from strategic_reports.daily.core.models import (
 )
 from strategic_reports.daily.core.renderer import (
     _dedupe_bidirectional_lag_zero,
+    _order_for_featured,
     render_db_status,
     render_report,
 )
@@ -582,3 +585,108 @@ class TestRenderDbStatus:
         html = output_path.read_text()
         assert "<script>alert(1)</script>" not in html
         assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+
+
+def _topic(tmp_path: Path, slug: str, title: str) -> TopicResult:
+    return TopicResult(
+        config=TopicConfig(slug=slug, title=title, feeds_file=tmp_path / f"{slug}.json"),
+        strategy=StrategicInsight(
+            bullets=[f"{title} one.", f"{title} two.", f"{title} three."], urgency_score=0.3
+        ),
+    )
+
+
+class TestFeaturedReports:
+    """
+    Featured reports re-order the same results to lead with one topic, with
+    the cross-topic overview last. Written next to index.html.
+    """
+
+    RETAIL_FIRST = FeaturedReport(
+        name="retail", title="Retail Report", topics=("feeds_retail", "feeds_economics")
+    )
+
+    @pytest.fixture
+    def results(self, tmp_path: Path) -> list[TopicResult]:
+        return [
+            _topic(tmp_path, "feeds_ai", "Artificial Intelligence"),
+            _topic(tmp_path, "feeds_economics", "Economics"),
+            _topic(tmp_path, "feeds_defense", "Defense"),
+            _topic(tmp_path, "feeds_retail", "Retail"),
+        ]
+
+    @pytest.fixture
+    def overview(self) -> CrossTopicSynthesis:
+        return CrossTopicSynthesis(bullets=["Cross A.", "Cross B.", "Cross C."])
+
+    def test_order_listed_first_then_rest_in_original_order(
+        self, results: list[TopicResult]
+    ) -> None:
+        ordered = _order_for_featured(results, ("feeds_retail", "feeds_economics"))
+        assert [r.config.slug for r in ordered] == [
+            "feeds_retail",
+            "feeds_economics",
+            "feeds_ai",
+            "feeds_defense",
+        ]
+
+    def test_order_skips_unknown_lead_slug(self, results: list[TopicResult]) -> None:
+        ordered = _order_for_featured(results, ("feeds_nonexistent", "feeds_retail"))
+        assert [r.config.slug for r in ordered][0] == "feeds_retail"
+        assert len(ordered) == len(results)
+
+    def test_file_written_with_hyphenated_name(
+        self, tmp_path: Path, results: list[TopicResult]
+    ) -> None:
+        out = tmp_path / "out"
+        render_report(results, output_dir=out, featured_reports=[self.RETAIL_FIRST])
+        assert (out / "retail-report.html").exists()
+        assert (out / "index.html").exists()
+
+    def test_sections_in_featured_order_with_overview_last(
+        self, tmp_path: Path, results: list[TopicResult], overview: CrossTopicSynthesis
+    ) -> None:
+        out = tmp_path / "out"
+        render_report(
+            results, output_dir=out, overview=overview, featured_reports=[self.RETAIL_FIRST]
+        )
+        html = (out / "retail-report.html").read_text()
+        positions = [
+            html.index('<section id="retail"'),
+            html.index('<section id="economics"'),
+            html.index('<section id="ai"'),
+            html.index('<section id="defense"'),
+            html.index('<div class="overview" id="strategic-overview"'),
+        ]
+        assert positions == sorted(positions)
+        assert "<h1>Retail Report" in html
+        assert '<section id="retail" class="featured">' in html
+        assert 'href="index.html"' in html
+
+    def test_index_unchanged_order_and_links_to_featured(
+        self, tmp_path: Path, results: list[TopicResult], overview: CrossTopicSynthesis
+    ) -> None:
+        out = tmp_path / "out"
+        render_report(
+            results, output_dir=out, overview=overview, featured_reports=[self.RETAIL_FIRST]
+        )
+        html = (out / "index.html").read_text()
+        assert html.index('id="strategic-overview"') < html.index('<section id="ai"')
+        assert html.index('<section id="ai"') < html.index('<section id="retail"')
+        assert 'href="retail-report.html"' in html
+        assert 'class="featured"' not in html
+
+    def test_no_featured_reports_writes_none(
+        self, tmp_path: Path, results: list[TopicResult]
+    ) -> None:
+        out = tmp_path / "out"
+        render_report(results, output_dir=out, featured_reports=[])
+        assert not list(out.glob("*-report.html"))
+        assert "Featured Reports" not in (out / "index.html").read_text()
+
+    def test_default_config_renders_retail_report(
+        self, tmp_path: Path, results: list[TopicResult]
+    ) -> None:
+        out = tmp_path / "out"
+        render_report(results, output_dir=out)
+        assert (out / "retail-report.html").exists()

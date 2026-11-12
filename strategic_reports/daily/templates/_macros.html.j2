@@ -1,0 +1,57 @@
+{#
+  Shared fragments for index.html.j2 and featured_report.html.j2, so the two
+  pages can't drift apart in how a topic or the overview is rendered.
+  Macros don't see the caller's template context, so everything they need is
+  passed explicitly.
+#}
+
+{% macro topic_section(result, diffs, hours_cutoff, extra_class="") %}
+<section id="{{ result.config.slug | replace('feeds_', '') }}"{% if extra_class %} class="{{ extra_class }}"{% endif %}>
+  <h2>{{ result.config.title }}</h2>
+
+  {% if result.error %}
+  <p class="error-note">Pipeline error for this topic: {{ result.error }}</p>
+
+  {% elif result.strategy %}
+  <ul>
+    {% for bullet in result.strategy.bullets %}
+    <li>{{ bullet }}</li>
+    {% endfor %}
+  </ul>
+  {% set diff = diffs.get(result.config.title) %}
+  {% if diff and (diff.new or diff.dropped) %}
+  <div class="bullet-diff">
+    {% if diff.new %}
+    <p class="diff-label">New since yesterday</p>
+    <ul class="diff-new">
+      {% for b in diff.new %}<li>{{ b }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% if diff.dropped %}
+    <p class="diff-label">No longer in focus</p>
+    <ul class="diff-dropped">
+      {% for b in diff.dropped %}<li>{{ b }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+  {% endif %}
+  <p class="source-link">
+    <a href="{{ result.config.slug | replace('feeds_', '') }}_summaries.html">Source material →</a>
+  </p>
+
+  {% else %}
+  <p class="meta">No articles found in the past {{ hours_cutoff }} hours.</p>
+  {% endif %}
+</section>
+{% endmacro %}
+
+{% macro overview_block(overview) %}
+<div class="overview" id="strategic-overview">
+  <h2>Strategic Overview</h2>
+  <ul>
+    {% for bullet in overview.bullets %}
+    <li>{{ bullet }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endmacro %}

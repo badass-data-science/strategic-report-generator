@@ -21,7 +21,11 @@ Jinja2 templates solve all three:
 Template inheritance:
   base.html.j2   — shared <head>, styles, <body> wrapper
   index.html.j2  — extends base; the main strategic report
+  featured_report.html.j2 — extends base; the main report re-ordered to lead
+                 with one topic (see config/featured_reports.py)
   topic.html.j2  — extends base; per-topic article summaries
+  _macros.html.j2 — topic-section/overview macros shared by index and
+                 featured_report, so the two can't drift apart
 
   {% extends "base.html.j2" %} + {% block body %} lets each template override
   only the parts that differ, without duplicating the boilerplate.
@@ -30,11 +34,14 @@ Template inheritance:
 import dataclasses
 import json
 import shutil
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
+from ..config.featured_reports import FeaturedReport
+from ..config.featured_reports import featured_reports as _DEFAULT_FEATURED_REPORTS
 from .db_status import DbStatusReport
 from .models import ArticleSummary, BulletDiff, CrossTopicSynthesis, TokenUsage, TopicResult
 from .systems_signals import LaggedCorrelation
@@ -119,6 +126,21 @@ def _dedupe_bidirectional_lag_zero(
     return deduped
 
 
+def _order_for_featured(
+    results: list[TopicResult], lead_slugs: Sequence[str]
+) -> list[TopicResult]:
+    """
+    Re-order results for a featured report: topics named in lead_slugs
+    first, in that order, then every remaining topic in its original
+    (topic_order.py) order. A lead slug with no matching result is skipped
+    rather than raising -- the report still renders with what's there.
+    """
+    by_slug = {r.config.slug: r for r in results}
+    lead = [by_slug[s] for s in lead_slugs if s in by_slug]
+    lead_set = set(lead_slugs)
+    return lead + [r for r in results if r.config.slug not in lead_set]
+
+
 def render_report(
     results: list[TopicResult],
     output_dir: Path,
@@ -129,6 +151,7 @@ def render_report(
     tag_signals: list[LaggedCorrelation] | None = None,
     systems_signals_error: str | None = None,
     run_id: str | None = None,
+    featured_reports: Sequence[FeaturedReport] = _DEFAULT_FEATURED_REPORTS,
 ) -> None:
     """
     Render all pipeline results to HTML files in output_dir.
@@ -149,6 +172,7 @@ def render_report(
 
     Output files:
       index.html              — main strategic report (one section per topic)
+      {name}-report.html      — one per featured_reports entry (see _order_for_featured)
       {topic}_summaries.html  — per-topic article summaries (only if articles exist)
       systems_signals.json    — this run's Systems Signals (see _write_systems_signals_json)
 
@@ -188,8 +212,26 @@ def render_report(
             updated=updated_str,
             hours_cutoff=hours_cutoff,
             total_tokens=total_usage.total_tokens,
+            featured_reports=featured_reports,
         )
     )
+
+    # Featured reports: the same results, re-ordered to lead with one topic,
+    # overview last. Written next to index.html -- no extra LLM work.
+    featured_tmpl = env.get_template("featured_report.html.j2")
+    for report in featured_reports:
+        (output_dir / f"{report.name}-report.html").write_text(
+            featured_tmpl.render(
+                report=report,
+                results=_order_for_featured(results, report.topics),
+                overview=overview,
+                diffs=diffs or {},
+                date=date_str,
+                updated=updated_str,
+                hours_cutoff=hours_cutoff,
+                total_tokens=total_usage.total_tokens,
+            )
+        )
 
     _write_systems_signals_json(
         output_dir / "systems_signals.json",

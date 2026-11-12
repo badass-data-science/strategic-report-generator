@@ -1,0 +1,47 @@
+{% extends "base.html.j2" %}
+{% from "_macros.html.j2" import topic_section, overview_block %}
+
+{% block head %}
+<title>{{ report.title }} — {{ date }}</title>
+<style>
+  section.featured {
+    border-left: 4px solid #4a6cf7;
+    padding-left: 1rem;
+  }
+</style>
+{% endblock %}
+
+{% block body %}
+<h1>{{ report.title }} — {{ date }}</h1>
+<p class="meta">
+  <a href="index.html">← Strategic Report</a><br>
+  Updated: {{ updated }}<br>
+  <span class="warn">Generated from recent industry news using LLM analysis.
+  Apply judgement before acting on any recommendation. <strong>Caveat emptor!</strong></span>
+</p>
+
+{% if overview or results %}
+<nav class="toc">
+  <h2>Table of Contents</h2>
+  <ul>
+    {% for result in results %}
+    <li><a href="#{{ result.config.slug | replace('feeds_', '') }}">{{ result.config.title }}</a></li>
+    {% endfor %}
+    {% if overview %}
+    <li><a href="#strategic-overview">Strategic Overview</a></li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}
+
+{% for result in results %}
+{{ topic_section(result, diffs, hours_cutoff, "featured" if result.config.slug == report.topics[0] else "") }}
+{% endfor %}
+
+{% if overview %}
+{{ overview_block(overview) }}
+{% endif %}
+
+<hr style="margin-top:3rem; border:none; border-top:1px solid #ddd;">
+<p class="meta">Total tokens used: {{ total_tokens | default(0) }}</p>
+{% endblock %}

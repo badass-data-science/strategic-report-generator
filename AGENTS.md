@@ -133,7 +133,7 @@ ruff check .
 mypy
 ```
 
-- 318 tests across `tests/test_*.py`, no real network or LLM calls. Unlike
+- 326 tests across `tests/test_*.py`, no real network or LLM calls. Unlike
   before the PostgreSQL migration, DB-touching tests now need a reachable
   Postgres instance (`DATABASE_URL` env var) — see `docker-compose.yml` for
   local dev; CI provides one as a service container. CI
@@ -180,13 +180,14 @@ strategic_reports/
       stats.py            Shared statistics, pure functions: lagged/partial Pearson, scipy-free p-value, Benjamini-Hochberg q-values, leave-one-out mean control, population mean/std for z-scores (used by systems_signals, urgency, tag_tracking, prototypes/)
       rdf_export.py        Builds an RDF/Turtle export of the tracking db (SKOS/PROV-O/schema.org + a custom stratrep: namespace) for `export-rdf`
       tracing.py          Langfuse / Phoenix instrumentation (opt-in)
-    templates/            Jinja2 templates (base, index, topic, db_status)
+    templates/            Jinja2 templates (base, index, featured_report, topic, db_status; _macros shared by index + featured_report)
     data/rss_feeds/       One JSON file per topic listing feed URLs — packaged as wheel data
       REMOVED.json        Audit log of feeds removed by `validate-feeds --fix` or by hand
     flows/daily_report.py Prefect flow (12 tasks, incl. export-rdf as the last one) for scheduled runs — no `ask` equivalent, deliberately (see above)
     cli.py                typer CLI entrypoint — six commands: run, ask, export-rdf, validate-feeds, db upgrade, db status
     paths.py              default_data_dir() — resolves bundled rss_feeds/ via importlib.resources
     config/topic_order.py Ordered topic slugs + display titles
+    config/featured_reports.py Featured reports ({name}-report.html): lead topics in order, rest follow, overview last
 alembic/                Tracking-db schema migrations (Postgres) — versions/0001_initial_schema.py is the whole schema, hand-written, no autogeneration (no SQLAlchemy models in this codebase)
 tests/                  Per-module test files + conftest.py fixtures (database_url fixture requires a reachable Postgres — see docker-compose.yml)
 blog-posts/             Human-written companion articles about this project — not code, not shipped
@@ -426,6 +427,17 @@ LICENSE                 MIT
   reference `run_id` as a foreign key). `article_count` is the total
   articles considered that run — the denominator for comparing tag/urgency
   weights across runs of different sizes.
+- **Featured reports (`{name}-report.html`, defined in
+  `config/featured_reports.py`) are a pure re-ordering of `index.html`'s
+  content — no LLM calls, nothing persisted, no CLI flag.** Rendered by
+  `renderer.render_report()` into the same `--output-dir` as `index.html`,
+  so both entry points (and anything else that calls `render_report()`)
+  get them with no call-site changes. Listed topics come first, then every
+  other topic in `topic_order.py` order, then the Strategic Overview last.
+  Filenames use a hyphen (`retail-report.html`), unlike the underscore in
+  `{topic}_summaries.html` — requested explicitly, don't "normalize" it.
+  The per-topic section and overview markup lives in `_macros.html.j2`,
+  shared with `index.html.j2`; change it there, not in either page.
 - **`blog-posts/` is the user's own editorial voice, not generated
   documentation.** Unlike `AGENTS.md`/`README.md`/`CHANGELOG.md`, don't
   edit or add to it proactively when updating docs after a code change —
