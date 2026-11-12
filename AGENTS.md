@@ -185,7 +185,7 @@ strategic_reports/
       pipeline.py         Two-phase async orchestrator + cross-topic synthesis (grounded by bridge tags) + summarize_communities() + answer_archive_question()/extract_query_tags()
       renderer.py         Jinja2 HTML rendering; render_db_status() for `db status --html`
       tag_normalizer.py   Tag synonym map, normalize_tags() (Pydantic validator)
-      tag_graph.py        Tag co-occurrence graph + Louvain community detection + find_bridge_tags() + group_articles_by_community()
+      tag_graph.py        Tag co-occurrence graph + Louvain community detection + find_bridge_tags() + group_articles_by_community() + shared D3 viewer (TAG_GRAPH_JS/CSS, script_safe_json) used by tag_graph.html and featured reports
       urgency.py          Urgency alerting: absolute threshold + z-score (PostgreSQL-backed)
       bullet_diff.py      Historical diffing vs. yesterday's bullets (PostgreSQL-backed)
       db.py               PostgreSQL tracking db: pooled connection helper, reachability check, run registration, shared insert_rows_isolating_failures helper (schema lives in alembic/, not here)
@@ -459,6 +459,15 @@ LICENSE                 MIT
   `{topic}_summaries.html` — requested explicitly, don't "normalize" it.
   The per-topic section and overview markup lives in `_macros.html.j2`,
   shared with `index.html.j2`; change it there, not in either page.
+  Each featured report also embeds a **Tag Network** (between the topics
+  and the overview) built by `tag_graph.build_subset_display_graph()` over
+  only that report's topics — Louvain recomputed on the subset, so its
+  clusters deliberately differ from `tag_graph.html`'s. It reuses
+  `tag_graph.py`'s single D3 viewer (`mountTagGraph`, from `TAG_GRAPH_JS`);
+  don't fork a second copy of the viewer into a template. Untrusted tag
+  text: graph JSON goes through `script_safe_json()` (escapes `<`, `>`,
+  `&`) and the viewer sets tooltip/legend text via `textContent`, never
+  `innerHTML`/d3 `.html()` — keep both if you touch the viewer.
 - **`blog-posts/` is the user's own editorial voice, not generated
   documentation.** Unlike `AGENTS.md`/`README.md`/`CHANGELOG.md`, don't
   edit or add to it proactively when updating docs after a code change —

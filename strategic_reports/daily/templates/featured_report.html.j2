@@ -8,6 +8,8 @@
     border-left: 4px solid #4a6cf7;
     padding-left: 1rem;
   }
+  {# Shared viewer styles from tag_graph.py (a Python constant, not user data). #}
+  {{ tag_graph_css | safe }}
 </style>
 {% endblock %}
 
@@ -27,6 +29,9 @@
     {% for result in results %}
     <li><a href="#{{ result.config.slug | replace('feeds_', '') }}">{{ result.config.title }}</a></li>
     {% endfor %}
+    {% if results %}
+    <li><a href="#tag-network">Tag Network</a></li>
+    {% endif %}
     {% if overview %}
     <li><a href="#strategic-overview">Strategic Overview</a></li>
     {% endif %}
@@ -38,10 +43,36 @@
 {{ topic_section(result, diffs, hours_cutoff, "featured" if result.config.slug == report.topics[0] else "") }}
 {% endfor %}
 
+{% if results %}
+<section id="tag-network">
+  <h2>Tag Network</h2>
+  {% if tag_graph.nodes %}
+  <p class="meta">
+    Tags co-occurring in the same article, across this report's topics only. Color = community
+    cluster (recomputed for these topics, so it won't match the full tag graph) or topic, via the
+    toggle. Node size = article count · edge thickness = co-occurrence count. Scroll to zoom,
+    drag to pan or reposition nodes.
+  </p>
+  <div class="tag-graph" id="tag-graph-root"></div>
+  {% else %}
+  <p class="meta">Not enough tag co-occurrence across these topics this run to draw a graph.</p>
+  {% endif %}
+</section>
+{% endif %}
+
 {% if overview %}
 {{ overview_block(overview) }}
 {% endif %}
 
 <hr style="margin-top:3rem; border:none; border-top:1px solid #ddd;">
 <p class="meta">Total tokens used: {{ total_tokens | default(0) }}</p>
+
+{% if results and tag_graph.nodes %}
+<script src="{{ tag_graph_d3_url }}"></script>
+<script>
+{# tag_graph_js is a Python constant; tag_graph_json is escaped by script_safe_json(). #}
+{{ tag_graph_js | safe }}
+mountTagGraph(document.getElementById("tag-graph-root"), {{ tag_graph_json | safe }}, { topicToggle: true });
+</script>
+{% endif %}
 {% endblock %}

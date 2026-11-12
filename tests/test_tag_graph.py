@@ -8,11 +8,18 @@ to keep these tests focused on find_bridge_tags'/group_articles_by_community's
 own logic.
 """
 
+import json
 from pathlib import Path
 from typing import Any
 
 from strategic_reports.daily.core.models import ArticleSummary, TopicConfig, TopicResult
-from strategic_reports.daily.core.tag_graph import find_bridge_tags, group_articles_by_community
+from strategic_reports.daily.core.tag_graph import (
+    build_subset_display_graph,
+    find_bridge_tags,
+    group_articles_by_community,
+    script_safe_json,
+    write_tag_graph,
+)
 
 
 def _node(tag: str, count: int, topics: list[str]) -> dict[str, Any]:
@@ -154,3 +161,55 @@ class TestGroupArticlesByCommunity:
 
     def test_no_articles_returns_empty(self) -> None:
         assert group_articles_by_community([], self._DISPLAY_DATA) == {}
+
+
+class TestSubsetDisplayGraph:
+    """build_subset_display_graph(): the inline graph for one featured report."""
+
+    def _three_articles(self, tags: list[str], prefix: str) -> list[ArticleSummary]:
+        return [_article(f"{prefix} {i}", f"https://x.com/{prefix}/{i}", tags) for i in range(3)]
+
+    def test_only_subset_tags_and_topic_order(self) -> None:
+        retail_tags = ["stores", "shoppers", "pricing", "loyalty", "holiday"]
+        econ_tags = ["pricing", "inflation", "rates", "labor", "wages"]
+        retail = _results(self._three_articles(retail_tags, "r"), "Retail")
+        econ = _results(self._three_articles(econ_tags, "e"), "Economics")
+        graph = build_subset_display_graph(retail + econ, topic_order=["Retail", "Economics"])
+
+        ids = {n["id"] for n in graph["nodes"]}
+        assert ids == {"stores", "shoppers", "pricing", "loyalty", "holiday",
+                       "inflation", "rates", "labor", "wages"}
+        assert graph["topic_order"] == ["Retail", "Economics"]
+        pricing = next(n for n in graph["nodes"] if n["id"] == "pricing")
+        assert pricing["topics"] == ["Economics", "Retail"]
+
+    def test_empty_subset_yields_empty_graph(self) -> None:
+        graph = build_subset_display_graph([], topic_order=[])
+        assert graph["nodes"] == [] and graph["links"] == []
+
+
+class TestScriptSafeJson:
+    def test_script_breakout_escaped_and_round_trips(self) -> None:
+        payload = {"id": "</script><img src=x onerror=alert(1)>&"}
+        out = script_safe_json(payload)
+        assert "<" not in out and ">" not in out and "&" not in out
+        assert json.loads(out) == payload
+
+
+class TestWriteTagGraphHtml:
+    def test_standalone_page_escapes_tags_and_mounts_viewer(self, tmp_path: Path) -> None:
+        evil = "</script><script>alert(1)</script>"
+        articles = [
+            _article(f"a{i}", f"https://x.com/{i}", [evil, "safe tag", "other", "more", "extra"])
+            for i in range(3)
+        ]
+        write_tag_graph(_results(articles), tmp_path)
+        html = (tmp_path / "tag_graph.html").read_text()
+
+        assert evil not in html
+        assert "mountTagGraph(document.getElementById(\"graph-root\")" in html
+        assert "__GRAPH_DATA__" not in html and "__JS__" not in html
+        # Tooltip text is set via textContent, not innerHTML.
+        assert ".html(" not in html
+        # tag_graph.json / tag_graph_display.json are unchanged, plain JSON.
+        assert json.loads((tmp_path / "tag_graph_display.json").read_text())["nodes"]

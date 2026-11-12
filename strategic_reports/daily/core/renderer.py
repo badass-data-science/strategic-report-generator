@@ -45,6 +45,13 @@ from ..config.featured_reports import featured_reports as _DEFAULT_FEATURED_REPO
 from .db_status import DbStatusReport
 from .models import ArticleSummary, BulletDiff, CrossTopicSynthesis, TokenUsage, TopicResult
 from .systems_signals import LaggedCorrelation
+from .tag_graph import (
+    TAG_GRAPH_CSS,
+    TAG_GRAPH_D3_URL,
+    TAG_GRAPH_JS,
+    build_subset_display_graph,
+    script_safe_json,
+)
 
 # Resolved relative to this file (core/renderer.py -> daily/templates/), so
 # this works regardless of where the package is installed.
@@ -179,7 +186,8 @@ def render_report(
 
     Output files:
       index.html              — main strategic report (one section per topic)
-      {name}-report.html      — one per featured_reports entry (see _select_for_featured)
+      {name}-report.html      — one per featured_reports entry (see _select_for_featured),
+                                with an inline tag network over just its topics
       {topic}_summaries.html  — per-topic article summaries (only if articles exist)
       systems_signals.json    — this run's Systems Signals (see _write_systems_signals_json)
 
@@ -223,14 +231,25 @@ def render_report(
         )
     )
 
-    # Featured reports: only each report's listed topics, in its order,
-    # overview last. Written next to index.html -- no extra LLM work.
+    # Featured reports: only each report's listed topics, in its order, then
+    # an inline tag network over just those topics, then the overview.
+    # Written next to index.html -- no extra LLM work.
     featured_tmpl = env.get_template("featured_report.html.j2")
     for report in featured_reports:
+        selected = _select_for_featured(results, report.topics)
+        # Legend lists only topics that contributed articles this run.
+        tag_graph = build_subset_display_graph(
+            selected, topic_order=[r.config.title for r in selected if r.articles]
+        )
         (output_dir / f"{report.name}-report.html").write_text(
             featured_tmpl.render(
                 report=report,
-                results=_select_for_featured(results, report.topics),
+                results=selected,
+                tag_graph=tag_graph,
+                tag_graph_json=script_safe_json(tag_graph),
+                tag_graph_css=TAG_GRAPH_CSS,
+                tag_graph_js=TAG_GRAPH_JS,
+                tag_graph_d3_url=TAG_GRAPH_D3_URL,
                 overview=overview,
                 diffs=diffs or {},
                 date=date_str,

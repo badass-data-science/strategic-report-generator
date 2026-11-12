@@ -751,6 +751,11 @@
                 "title": "Retail Gurukul Gyaan Blog",
                 "url": "https://retailgurukul.com/blog/feed/",
                 "exception": "HTTP 200; malformed XML (11:0: XML or text declaration not at start of entity)"
+            },
+            {
+                "title": "Retail Technology Trends",
+                "url": "https://retailtechnologytrends.com/feed/",
+                "reason": "Spam: publishing off-topic online-casino content (10 Slovenian-language casino articles in run 65547990, 2026-11-11), polluting Retail bullets and tags"
             }
         ],
         "feeds_fashion": [

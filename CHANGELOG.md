@@ -7,6 +7,31 @@ doesn't tag releases.
 ## 2026-11-11
 
 ### Added
+- `render-from-db` CLI command: re-renders a stored run's `index.html`,
+  featured reports, and `{topic}_summaries.html` from the tracking
+  database (latest run by default, or `--run-id`) — no ingestion, no LLM
+  calls, read-only. Bullet diffs, Systems Signals, original error text, and
+  token usage aren't persisted, so they're omitted. New
+  `core/report_rebuild.py`; `render_report()` gains optional
+  `generated_at` and `write_systems_signals` parameters. On-demand only, no
+  Prefect equivalent (same as `ask`).
+- Featured reports: `retail-report.html`, written next to `index.html` in
+  `--output-dir`. Same per-topic sections as `index.html`, re-ordered to
+  lead with Retail (then Business, Business Strategy, Economics, Forex,
+  Leadership, then every other topic in default order), with the Strategic
+  Overview last. Defined in `config/featured_reports.py`; no extra LLM
+  calls. `render_report()` gains an optional `featured_reports` parameter
+  (defaults to that config), so `cli.py run`, the Prefect flow, and the
+  Airflow mirror pick it up with no call-site changes. `index.html`'s table
+  of contents links to each featured report.
+- Featured reports now include an inline **Tag Network** between the topic
+  sections and the Strategic Overview: the tag co-occurrence graph over only
+  that report's topics, with Louvain communities recomputed for the subset
+  and a *Color by* toggle (community cluster / topic, with tags spanning
+  several topics shown as "Multiple topics"). No LLM calls; also rendered
+  by `render-from-db`. The D3 viewer in `tag_graph.py` was refactored into
+  one reusable component (`TAG_GRAPH_JS`/`TAG_GRAPH_CSS`) shared with the
+  standalone `tag_graph.html`.
 - New `Fashion` topic (`feeds_fashion.json`, 45 feeds), registered in
   `topic_order.py` right after Retail (17 -> 18 active topics). Built from
   a 58-feed source list; every feed was health-checked with
@@ -30,31 +55,24 @@ doesn't tag releases.
   Minded, previously removed as dead (still logged in `REMOVED.json`) but
   healthy again. Not added: Rapaport News (HTTP 403 / malformed XML) and
   The Robot Report's main feed (already in `feeds_robotics.json`).
-
-### Added
-- `render-from-db` CLI command: re-renders a stored run's `index.html`,
-  featured reports, and `{topic}_summaries.html` from the tracking
-  database (latest run by default, or `--run-id`) — no ingestion, no LLM
-  calls, read-only. Bullet diffs, Systems Signals, original error text, and
-  token usage aren't persisted, so they're omitted. New
-  `core/report_rebuild.py`; `render_report()` gains optional
-  `generated_at` and `write_systems_signals` parameters. On-demand only, no
-  Prefect equivalent (same as `ask`).
-- Featured reports: `retail-report.html`, written next to `index.html` in
-  `--output-dir`. Same per-topic sections as `index.html`, re-ordered to
-  lead with Retail (then Business, Business Strategy, Economics, Forex,
-  Leadership, then every other topic in default order), with the Strategic
-  Overview last. Defined in `config/featured_reports.py`; no extra LLM
-  calls. `render_report()` gains an optional `featured_reports` parameter
-  (defaults to that config), so `cli.py run`, the Prefect flow, and the
-  Airflow mirror pick it up with no call-site changes. `index.html`'s table
-  of contents links to each featured report.
-
-### Changed
 - `index.html.j2`'s topic-section and overview markup moved into
   `_macros.html.j2` (shared with `featured_report.html.j2`), and its
   report styles moved into `base.html.j2`. Rendered `index.html` content is
   unchanged apart from the new Featured Reports TOC entry.
+
+### Fixed
+- `tag_graph.html`: graph data was embedded in its `<script>` block with a
+  bare `json.dumps()`, so a tag containing `</script>` could break out of
+  it, and node tooltips were built with d3 `.html()` from raw tag text.
+  Data now goes through `script_safe_json()` and tooltips use
+  `textContent`. Tags are LLM output over RSS content, so both were
+  reachable.
+
+### Removed
+- Retail Technology Trends (`retailtechnologytrends.com`) from
+  `feeds_retail.json` — it was publishing Slovenian-language online-casino
+  spam (10 articles in the 2026-11-11 run), polluting Retail's bullets and
+  tags. Logged in `REMOVED.json`.
 
 ## 2026-10-21
 

@@ -706,3 +706,76 @@ class TestRenderFromDbHooks:
         render_report([successful_result], output_dir=tmp_path, write_systems_signals=False)
         assert not (tmp_path / "systems_signals.json").exists()
         assert (tmp_path / "index.html").exists()
+
+
+class TestFeaturedReportTagGraph:
+    """Inline tag network in each featured report, over that report's topics only."""
+
+    REPORT = FeaturedReport(
+        name="retail", title="Retail Report", topics=("feeds_retail", "feeds_economics")
+    )
+
+    @staticmethod
+    def _with_articles(slug: str, title: str, tags: list[str]) -> TopicResult:
+        return TopicResult(
+            config=TopicConfig(slug=slug, title=title, feeds_file=Path(f"{slug}.json")),
+            articles=[
+                ArticleSummary(
+                    title=f"{title} {i}", link=f"https://x.com/{slug}/{i}",
+                    publish_date="2026-11-11", summary=["A.", "B.", "C."], tags=tags,
+                )
+                for i in range(3)
+            ],
+            strategy=StrategicInsight(bullets=["X.", "Y.", "Z."], urgency_score=0.4),
+        )
+
+    def _render(self, tmp_path: Path, results: list[TopicResult]) -> str:
+        out = tmp_path / "out"
+        render_report(
+            results,
+            output_dir=out,
+            overview=CrossTopicSynthesis(bullets=["C1.", "C2.", "C3."]),
+            featured_reports=[self.REPORT],
+        )
+        return (out / "retail-report.html").read_text()
+
+    def test_graph_between_topics_and_overview_with_only_report_tags(
+        self, tmp_path: Path
+    ) -> None:
+        html = self._render(tmp_path, [
+            self._with_articles("feeds_ai", "Artificial Intelligence",
+                                ["llm", "gpu", "agents", "inference", "chips"]),
+            self._with_articles("feeds_retail", "Retail",
+                                ["stores", "shoppers", "pricing", "loyalty", "holiday"]),
+            self._with_articles("feeds_economics", "Economics",
+                                ["pricing", "inflation", "rates", "labor", "gdp"]),
+        ])
+        assert (
+            html.index('<section id="economics"')
+            < html.index('<section id="tag-network"')
+            < html.index('id="strategic-overview"')
+        )
+        assert 'href="#tag-network"' in html
+        assert "mountTagGraph(" in html and "topicToggle: true" in html
+        assert '"topic_order": ["Retail", "Economics"]' in html
+        assert '"id": "pricing"' in html
+        assert '"id": "llm"' not in html  # AI isn't in this report
+
+    def test_tag_text_cannot_break_out_of_script(self, tmp_path: Path) -> None:
+        evil = "</script><script>alert(1)</script>"
+        html = self._render(tmp_path, [
+            self._with_articles("feeds_retail", "Retail", [evil, "a", "b", "c", "d"]),
+        ])
+        assert evil not in html
+        assert "\\u003c/script\\u003e" in html
+
+    def test_no_cooccurrence_shows_note_and_no_viewer(self, tmp_path: Path) -> None:
+        out = tmp_path / "out"
+        render_report(
+            [_topic(tmp_path, "feeds_retail", "Retail")],
+            output_dir=out,
+            featured_reports=[self.REPORT],
+        )
+        html = (out / "retail-report.html").read_text()
+        assert "Not enough tag co-occurrence" in html
+        assert "mountTagGraph(" not in html
