@@ -661,7 +661,7 @@ class TestFeaturedReports:
         # No link back to the main report; links the RDF export and a contact
         # mailto instead.
         assert 'href="index.html"' not in html
-        assert '<a href="knowledge_graph.ttl">' in html
+        assert 'href="knowledge_graph.ttl"' in html
         assert '<a href="mailto:emw314159@gmail.com">emw314159@gmail.com</a>' in html
 
     def test_index_unchanged_order_and_links_to_featured(
@@ -685,12 +685,18 @@ class TestFeaturedReports:
         assert not list(out.glob("*-report.html"))
         assert "Featured Reports" not in (out / "index.html").read_text()
 
-    def test_default_config_renders_retail_report(
+    def test_default_config_renders_every_configured_report(
         self, tmp_path: Path, results: list[TopicResult]
     ) -> None:
+        # Reads filenames from the live config rather than hard-coding one, so
+        # renaming a report in featured_reports.py can't break this test.
+        from strategic_reports.daily.config.featured_reports import featured_reports
+
         out = tmp_path / "out"
         render_report(results, output_dir=out)
-        assert (out / "retail-report.html").exists()
+        assert featured_reports
+        for report in featured_reports:
+            assert (out / report.filename).exists(), report.filename
 
     def test_featured_then_graph_then_related_in_toc_and_body(
         self, tmp_path: Path, overview: CrossTopicSynthesis
