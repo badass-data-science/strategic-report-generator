@@ -752,6 +752,73 @@
                 "url": "https://retailgurukul.com/blog/feed/",
                 "exception": "HTTP 200; malformed XML (11:0: XML or text declaration not at start of entity)"
             }
+        ],
+        "feeds_fashion": [
+            {
+                "title": "Fashion Gone Rogue",
+                "url": "https://www.fashiongonerogue.com/feed/",
+                "exception": "HTTP 403; malformed XML (2:1326: not well-formed (invalid token))"
+            },
+            {
+                "title": "THEFASHIONGUITAR",
+                "url": "https://thefashionguitar.com/feed/",
+                "reason": "Stale: newest entry 1883 days old when checked on 2026-11-11 (no posts in over a year); never added to feeds_fashion.json"
+            },
+            {
+                "title": "Wendy's Lookbook",
+                "url": "http://www.wendyslookbook.com/feed/",
+                "reason": "Stale: newest entry 1143 days old when checked on 2026-11-11 (no posts in over a year); never added to feeds_fashion.json"
+            },
+            {
+                "title": "Eco Age",
+                "url": "https://eco-age.com/feed/",
+                "exception": "HTTP 200 but no parseable entries"
+            },
+            {
+                "title": "Corporette.com",
+                "url": "http://feeds.feedblitz.com/corporette",
+                "exception": "HTTP 404; malformed XML (14:1: undefined entity)"
+            },
+            {
+                "title": "Memorandum",
+                "url": "https://www.memorandum.com/feed/",
+                "reason": "Stale: newest entry 462 days old when checked on 2026-11-11 (no posts in over a year); never added to feeds_fashion.json"
+            },
+            {
+                "title": "Nadia Aboulhosn Blog",
+                "url": "https://nadiaaboulhosn.com/blog?format=rss",
+                "reason": "Stale: newest entry 778 days old when checked on 2026-11-11 (no posts in over a year); never added to feeds_fashion.json"
+            },
+            {
+                "title": "Nicolette Mason Blog",
+                "url": "https://www.nicolettemason.com/blog?format=rss",
+                "reason": "Stale: newest entry 1333 days old when checked on 2026-11-11 (no posts in over a year); never added to feeds_fashion.json"
+            },
+            {
+                "title": "The Blonde Misfit",
+                "url": "https://theblondemisfit.com/feed/",
+                "exception": "HTTP 403; malformed XML (2:1326: not well-formed (invalid token))"
+            },
+            {
+                "title": "Color Me Courtney",
+                "url": "https://www.colormecourtney.com/feed/",
+                "exception": "HTTP 503; text/html; charset=iso-8859-1 is not an XML media type"
+            },
+            {
+                "title": "eat.sleep.wear.",
+                "url": "https://www.eatsleepwear.com/feed/",
+                "reason": "Stale: newest entry 1462 days old when checked on 2026-11-11 (no posts in over a year); never added to feeds_fashion.json"
+            },
+            {
+                "title": "Classy Girls Wear Pearls",
+                "url": "https://www.classygirlswearpearls.com/feed",
+                "reason": "Stale: newest entry 714 days old when checked on 2026-11-11 (no posts in over a year); never added to feeds_fashion.json"
+            },
+            {
+                "title": "The Fashiongton Post",
+                "url": "https://fashiongtonpost.com/feed/",
+                "exception": "HTTP 403; malformed XML (69:50: undefined entity)"
+            }
         ]
     }
 }

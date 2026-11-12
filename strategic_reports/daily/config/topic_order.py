@@ -56,6 +56,10 @@ list_directories_and_titles = [
         'title' : 'Retail',
     },
     {
+        'slug' : 'feeds_fashion',
+        'title' : 'Fashion',
+    },
+    {
         'slug' : 'feeds_leadership',
         'title' : 'Leadership',
     },

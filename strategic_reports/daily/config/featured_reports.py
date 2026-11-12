@@ -28,6 +28,7 @@ featured_reports: tuple[FeaturedReport, ...] = (
         title='Retail Industry Daily Strategic Report',
         topics=(
             'feeds_retail',
+            'feeds_fashion',
             'feeds_business',
             'feeds_business_strategy',
             'feeds_economics',

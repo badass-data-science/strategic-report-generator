@@ -6,7 +6,7 @@ orientation for making changes.
 
 ## What this is
 
-A daily briefing pipeline: fetches RSS across 17 active topics (19 feed
+A daily briefing pipeline: fetches RSS across 18 active topics (20 feed
 configs exist under `data/rss_feeds/`, but `feeds_usa_news.json` and
 `feeds_world_news.json` are deliberately excluded from
 `topic_order.py`'s `list_directories_and_titles` for now — kept on disk

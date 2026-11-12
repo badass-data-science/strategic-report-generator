@@ -6,9 +6,9 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
 
-A daily briefing pipeline that reads recent news across 17 active topic
+A daily briefing pipeline that reads recent news across 18 active topic
 feeds — AI, biotech, economics, geopolitics, defense, forex, robotics,
-energy, IoT, and more — and synthesizes strategic recommendations into a
+energy, IoT, retail, fashion, and more — and synthesizes strategic recommendations into a
 linked HTML report. (Two more, USA News and World News, have feed configs
 checked in but are currently excluded from the pipeline — see
 `topic_order.py`.)

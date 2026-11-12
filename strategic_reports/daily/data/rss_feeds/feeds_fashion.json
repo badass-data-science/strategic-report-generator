@@ -1,0 +1,184 @@
+{
+    "feeds": [
+        {
+            "title": "Vogue",
+            "url": "https://www.vogue.com/feed/rss"
+        },
+        {
+            "title": "Harpers Bazaar \u00bb Fashion",
+            "url": "https://www.harpersbazaar.com/rss/fashion.xml"
+        },
+        {
+            "title": "ELLE",
+            "url": "https://www.elle.com/rss/all.xml/"
+        },
+        {
+            "title": "Sincerely Jules",
+            "url": "https://sincerelyjules.com/feed/"
+        },
+        {
+            "title": "We Wore What",
+            "url": "https://weworewhat.com/blogs/fashion.atom"
+        },
+        {
+            "title": "Damsel in Dior",
+            "url": "https://damselindior.com/feed/"
+        },
+        {
+            "title": "Atlantic Pacific",
+            "url": "https://www.the-atlantic-pacific.com/feed/"
+        },
+        {
+            "title": "Julia Berolzheimer",
+            "url": "https://juliaberolzheimer.com/feed/"
+        },
+        {
+            "title": "Who What Wear",
+            "url": "https://www.whowhatwear.com/feeds.xml"
+        },
+        {
+            "title": "Hypebeast \u00bb Fashion",
+            "url": "https://hypebeast.com/fashion/feed"
+        },
+        {
+            "title": "Highsnobiety",
+            "url": "https://www.highsnobiety.com/feeds/rss"
+        },
+        {
+            "title": "Editorialist",
+            "url": "https://editorialist.com/feed/"
+        },
+        {
+            "title": "Pynck",
+            "url": "https://pynck.com/feed"
+        },
+        {
+            "title": "He Spoke Style",
+            "url": "https://hespokestyle.com/feed/"
+        },
+        {
+            "title": "Gentleman's Gazette",
+            "url": "https://www.gentlemansgazette.com/feed/"
+        },
+        {
+            "title": "Permanent Style",
+            "url": "https://www.permanentstyle.com/feed"
+        },
+        {
+            "title": "Ape To Gentleman",
+            "url": "https://www.apetogentleman.com/feed/"
+        },
+        {
+            "title": "Effortless Gent",
+            "url": "https://effortlessgent.com/feed/"
+        },
+        {
+            "title": "Put This On",
+            "url": "https://putthison.com/feed/"
+        },
+        {
+            "title": "TheUnstitchd",
+            "url": "https://www.theunstitchd.com/feed/"
+        },
+        {
+            "title": "Not Dressed As Lamb",
+            "url": "https://www.notdressedaslamb.com/feed"
+        },
+        {
+            "title": "Style at a Certain Age",
+            "url": "https://www.styleatacertainage.com/feed/"
+        },
+        {
+            "title": "Midlifechic",
+            "url": "https://www.midlifechic.com/feed/"
+        },
+        {
+            "title": "The Middle Page",
+            "url": "https://the-middlepage.com/feed/"
+        },
+        {
+            "title": "A Well Styled Life",
+            "url": "https://awellstyledlife.com/feed/"
+        },
+        {
+            "title": "Good On You",
+            "url": "https://goodonyou.eco/feed/"
+        },
+        {
+            "title": "Capitol Hill Style",
+            "url": "https://caphillstyle.com/feed"
+        },
+        {
+            "title": "Wardrobe Oxygen \u00bb Fashion",
+            "url": "https://www.wardrobeoxygen.com/fashion-advice/feed/"
+        },
+        {
+            "title": "The Budget Babe",
+            "url": "https://www.thebudgetbabe.com/feeds/index.rss2"
+        },
+        {
+            "title": "Kendi Everyday",
+            "url": "https://www.kendieveryday.com/feed"
+        },
+        {
+            "title": "Hello Fashion Blog",
+            "url": "https://www.hellofashionblog.com/feed"
+        },
+        {
+            "title": "Cella Jane",
+            "url": "https://cellajane.com/feed"
+        },
+        {
+            "title": "Sydne Style",
+            "url": "https://www.sydnestyle.com/feed/"
+        },
+        {
+            "title": "Natalie Off Duty",
+            "url": "https://natalieoffduty.com/feed/"
+        },
+        {
+            "title": "Fashion Jackson Blog",
+            "url": "https://fashionjackson.com/feed/"
+        },
+        {
+            "title": "Fashion Bomb Daily",
+            "url": "https://fashionbombdaily.com/feed/"
+        },
+        {
+            "title": "Style Rave",
+            "url": "https://www.stylerave.com/feed/"
+        },
+        {
+            "title": "Styling You",
+            "url": "https://www.stylingyou.com.au/feed/"
+        },
+        {
+            "title": "Styled Snapshots",
+            "url": "https://styledsnapshots.com/feed"
+        },
+        {
+            "title": "GlamCityz",
+            "url": "https://www.glamcityz.com/feed/"
+        },
+        {
+            "title": "Oui Speak Fashion",
+            "url": "https://ouispeakfashion.com/feed/"
+        },
+        {
+            "title": "Kate Middleton Style",
+            "url": "https://katemiddletonstyle.org/feed/"
+        },
+        {
+            "title": "College Fashion",
+            "url": "https://www.collegefashion.net/feed/"
+        },
+        {
+            "title": "Faviana",
+            "url": "https://faviana.com/blogs/glam-gowns.atom"
+        },
+        {
+            "title": "Marc Kaufman Furs",
+            "url": "https://kaufmanfurs.com/feed/"
+        }
+    ]
+}

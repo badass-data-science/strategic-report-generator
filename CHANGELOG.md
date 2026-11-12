@@ -6,6 +6,17 @@ doesn't tag releases.
 
 ## 2026-11-11
 
+### Added
+- New `Fashion` topic (`feeds_fashion.json`, 45 feeds), registered in
+  `topic_order.py` right after Retail (17 -> 18 active topics). Built from
+  a 58-feed source list; every feed was health-checked with
+  `feed_validation` and its newest entry dated before inclusion. Excluded
+  and logged in `REMOVED.json` under `feeds_fashion`: 6 dead feeds
+  (HTTP 403/404/503 or no parseable entries) and 7 stale feeds with no
+  posts in over a year. Damsel in Dior switched from http to https. Vogue
+  is in both `feeds_retail.json` and `feeds_fashion.json`. Fashion is the
+  retail featured report's second topic, right after Retail.
+
 ### Changed
 - Featured reports now show only the topics listed for them in
   `config/featured_reports.py`, in that order (plus the Strategic Overview
