@@ -1,20 +1,12 @@
 {
     "feeds": [
         {
-            "title": "Fierce Biotech",
-            "url": "https://www.fiercebiotech.com/rss/biotech/xml"
-        },
-        {
             "title": "Labiotech.eu",
             "url": "https://www.labiotech.eu/feed/"
         },
         {
             "title": "Bioengineer.org",
             "url": "https://bioengineer.org/feed/"
-        },
-        {
-            "title": "BiotechBlog",
-            "url": "http://www.biotechblog.com/feed/"
         },
         {
             "title": "BioPharma Dive",
@@ -75,10 +67,6 @@
         {
             "title": "BioCentury",
             "url": "https://www.biocentury.com/rss/BioCentury.xml"
-        },
-        {
-            "title": "American Biotech Supply Blog",
-            "url": "https://americanbiotechsupply.com/feed/"
         },
         {
             "title": "Adaptive Biotech Blog",

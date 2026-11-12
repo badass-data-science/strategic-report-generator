@@ -55,14 +55,6 @@
         {
             "title": "Loadshedding.com",
             "url": "https://loadshedding.com/feed/"
-        },
-        {
-            "title": "Energy Global Magazine",
-            "url": "https://www.energyglobal.com/rss/energyglobal.xml"
-        },
-        {
-            "title": "EcoWatch",
-            "url": "https://www.ecowatch.com/energy-news/feed"
         }
     ]
 }

@@ -76,6 +76,14 @@ doesn't tag releases.
 - Retailing Africa (`retailingafrica.com`) from `feeds_retail.json` — also
   published online-casino promotional content (1 article in the same run).
   Logged in `REMOVED.json`.
+- 22 failing feeds across 11 topics, from a `validate-feeds` pass over all
+  795 feeds (28 failed): 9 blocking automated fetches (HTTP 403), 4 gone
+  (HTTP 404/410), 1 with no entries, 4 redirecting to HTML pages, 3
+  serving malformed XML, 1 HTTP 409. Logged in `REMOVED.json` with each
+  failure reason. Pruned selectively rather than via `--fix`: the 6
+  failures that looked transient (HTTP 429 from RetailWire and
+  VentureBeat » AI, a DNS failure, a timeout, a dropped connection, and an
+  HTTP 503) were left in place to recheck later.
 
 ## 2026-10-21
 
