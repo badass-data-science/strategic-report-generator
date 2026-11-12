@@ -43,8 +43,6 @@ featured_reports: tuple[FeaturedReport, ...] = (
             'feeds_business_strategy',
             'feeds_leadership',
             'feeds_economics',
-            'feeds_ai',
-            'feeds_data_science',
         ),
     ),
 )
