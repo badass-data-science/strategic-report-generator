@@ -54,6 +54,9 @@ doesn't tag releases.
   retail featured report's second topic, right after Retail.
 
 ### Changed
+- Featured reports no longer include the Strategic Overview (section or
+  table-of-contents entry); it remains in `index.html`. The inline graph's
+  heading is now "Source Article Tag Network".
 - Featured reports now separate `featured_topics` from `related_topics` in
   `config/featured_reports.py` (replacing the single `topics` list). The
   page and its table of contents run Featured Topics → Tag Network →

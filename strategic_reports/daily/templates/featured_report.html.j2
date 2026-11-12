@@ -1,5 +1,5 @@
 {% extends "base.html.j2" %}
-{% from "_macros.html.j2" import topic_section, overview_block %}
+{% from "_macros.html.j2" import topic_section %}
 
 {% block head %}
 <title>{{ report.title }} — {{ date }}</title>
@@ -30,7 +30,7 @@
   Apply judgement before acting on any recommendation. <strong>Caveat emptor!</strong></span>
 </p>
 
-{% if overview or results %}
+{% if results %}
 <nav class="toc">
   <h2>Table of Contents</h2>
   <ul>
@@ -56,9 +56,6 @@
         {% endfor %}
       </ul>
     </li>
-    {% endif %}
-    {% if overview %}
-    <li><a href="#strategic-overview">Strategic Overview</a></li>
     {% endif %}
   </ul>
 </nav>
@@ -88,10 +85,6 @@
 {% for result in related_results %}
 {{ topic_section(result, diffs, hours_cutoff) }}
 {% endfor %}
-
-{% if overview %}
-{{ overview_block(overview) }}
-{% endif %}
 
 <hr style="margin-top:3rem; border:none; border-top:1px solid #ddd;">
 <p class="meta">Total tokens used: {{ total_tokens | default(0) }}</p>

@@ -238,8 +238,9 @@ def render_report(
     )
 
     # Featured reports: featured topics, then an inline tag network over
-    # featured + related topics, then related topics, then the overview --
-    # each list in its configured order. Written next to index.html -- no
+    # featured + related topics, then related topics -- each list in its
+    # configured order. No Strategic Overview (it's cross-topic; index.html
+    # only). Written next to index.html -- no
     # extra LLM work.
     featured_tmpl = env.get_template("featured_report.html.j2")
     for report in featured_reports:
@@ -262,7 +263,6 @@ def render_report(
                 tag_graph_css=TAG_GRAPH_CSS,
                 tag_graph_js=TAG_GRAPH_JS,
                 tag_graph_d3_url=TAG_GRAPH_D3_URL,
-                overview=overview,
                 diffs=diffs or {},
                 date=date_str,
                 updated=updated_str,

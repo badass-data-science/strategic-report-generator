@@ -206,7 +206,7 @@ strategic_reports/
     cli.py                typer CLI entrypoint — seven commands: run, ask, export-rdf, validate-feeds, render-from-db, db upgrade, db status
     paths.py              default_data_dir() — resolves bundled rss_feeds/ via importlib.resources
     config/topic_order.py Ordered topic slugs + display titles
-    config/featured_reports.py Featured reports ({name}-report.html): featured_topics, tag network, related_topics, overview
+    config/featured_reports.py Featured reports ({name}-report.html): featured_topics, tag network, related_topics (no overview)
 alembic/                Tracking-db schema migrations (Postgres) — versions/0001_initial_schema.py is the whole schema, hand-written, no autogeneration (no SQLAlchemy models in this codebase)
 tests/                  Per-module test files + conftest.py fixtures (database_url fixture requires a reachable Postgres — see docker-compose.yml)
 blog-posts/             Human-written companion articles about this project — not code, not shipped
@@ -453,8 +453,11 @@ LICENSE                 MIT
   so both entry points (and anything else that calls `render_report()`)
   get them with no call-site changes. Each `FeaturedReport` has
   `featured_topics` and `related_topics` (each kept in its configured
-  order); the page and its TOC run featured topics (all highlighted) → Tag
-  Network → related topics → Strategic Overview. Topics in neither list
+  order); the page and its TOC run featured topics (all highlighted) →
+  Source Article Tag Network → related topics. No Strategic Overview —
+  removed on request; it's cross-topic and stays index.html-only, so
+  `render_report()` doesn't pass `overview` to the featured template.
+  Topics in neither list
   are deliberately omitted (an earlier version appended them; removed on
   request). `render_report()`'s `featured_reports` defaults to `None` and
   reads `config/featured_reports.featured_reports` at call time, so tests

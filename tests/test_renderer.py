@@ -646,12 +646,10 @@ class TestFeaturedReports:
             results, output_dir=out, overview=overview, featured_reports=[self.RETAIL_FIRST]
         )
         html = (out / "retail-report.html").read_text()
-        positions = [
-            html.index('<section id="retail"'),
-            html.index('<section id="economics"'),
-            html.index('<div class="overview" id="strategic-overview"'),
-        ]
-        assert positions == sorted(positions)
+        assert html.index('<section id="retail"') < html.index('<section id="economics"')
+        # No Strategic Overview on featured reports -- body or TOC.
+        assert "strategic-overview" not in html
+        assert "Cross A." not in html
         # Unlisted topics are left out entirely -- sections and TOC alike.
         assert '<section id="ai"' not in html
         assert '<section id="defense"' not in html
@@ -721,8 +719,8 @@ class TestFeaturedReports:
             toc.index("Related Topics"),
             toc.index('href="#economics"'),
             toc.index('href="#ai"'),
-            toc.index('href="#strategic-overview"'),
         ]
+        assert "Strategic Overview" not in toc
         assert toc_order == sorted(toc_order)
 
         body_order = [
@@ -731,8 +729,8 @@ class TestFeaturedReports:
             html.index('<section id="tag-network"'),
             html.index('<section id="economics"'),
             html.index('<section id="ai"'),
-            html.index('<div class="overview" id="strategic-overview"'),
         ]
+        assert "strategic-overview" not in html
         assert body_order == sorted(body_order)
 
         # Every featured topic is highlighted; related topics aren't.
@@ -823,13 +821,13 @@ class TestFeaturedReportTagGraph:
             self._with_articles("feeds_economics", "Economics",
                                 ["pricing", "inflation", "rates", "labor", "gdp"]),
         ])
-        # Featured (Retail) -> graph -> related (Economics) -> overview.
+        # Featured (Retail) -> graph -> related (Economics); no overview.
         assert (
             html.index('<section id="retail"')
             < html.index('<section id="tag-network"')
             < html.index('<section id="economics"')
-            < html.index('id="strategic-overview"')
         )
+        assert "strategic-overview" not in html
         assert 'href="#tag-network"' in html
         assert "mountTagGraph(" in html and "topicToggle: true" in html
         # Featured reports open fitted to the panel (the standalone

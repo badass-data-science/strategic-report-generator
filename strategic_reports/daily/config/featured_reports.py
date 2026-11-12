@@ -5,8 +5,8 @@ featured topics, with related topics for context.
 Each entry renders `{name}-report.html` alongside index.html in --output-dir
 (see renderer.render_report()). The page runs: featured topics (in the order
 given, each highlighted), then an inline tag network over featured + related
-topics, then related topics (in the order given), then the cross-topic
-Strategic Overview. Topics in neither list are left out. Purely a selection
+topics, then related topics (in the order given). The cross-topic Strategic
+Overview is index.html-only. Topics in neither list are left out. Purely a selection
 from the same run's results -- no extra LLM calls, nothing persisted.
 
 Every slug must exist in topic_order.py, appear at most once across both
