@@ -6,6 +6,14 @@ doesn't tag releases.
 
 ## 2026-11-11
 
+### Changed
+- Featured reports now show only the topics listed for them in
+  `config/featured_reports.py`, in that order (plus the Strategic Overview
+  last). Unlisted topics are no longer appended after them. The retail
+  report is now titled "Retail Industry Daily Strategic Report" and lists
+  Retail, Business, Business Strategy, Economics, Leadership (Forex
+  dropped).
+
 ### Added
 - `render-from-db` CLI command: re-renders a stored run's `index.html`,
   featured reports, and `{topic}_summaries.html` from the tracking

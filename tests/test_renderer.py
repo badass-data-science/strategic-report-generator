@@ -65,7 +65,7 @@ from strategic_reports.daily.core.models import (
 )
 from strategic_reports.daily.core.renderer import (
     _dedupe_bidirectional_lag_zero,
-    _order_for_featured,
+    _select_for_featured,
     render_db_status,
     render_report,
 )
@@ -619,21 +619,13 @@ class TestFeaturedReports:
     def overview(self) -> CrossTopicSynthesis:
         return CrossTopicSynthesis(bullets=["Cross A.", "Cross B.", "Cross C."])
 
-    def test_order_listed_first_then_rest_in_original_order(
-        self, results: list[TopicResult]
-    ) -> None:
-        ordered = _order_for_featured(results, ("feeds_retail", "feeds_economics"))
-        assert [r.config.slug for r in ordered] == [
-            "feeds_retail",
-            "feeds_economics",
-            "feeds_ai",
-            "feeds_defense",
-        ]
+    def test_only_listed_topics_in_listed_order(self, results: list[TopicResult]) -> None:
+        selected = _select_for_featured(results, ("feeds_retail", "feeds_economics"))
+        assert [r.config.slug for r in selected] == ["feeds_retail", "feeds_economics"]
 
-    def test_order_skips_unknown_lead_slug(self, results: list[TopicResult]) -> None:
-        ordered = _order_for_featured(results, ("feeds_nonexistent", "feeds_retail"))
-        assert [r.config.slug for r in ordered][0] == "feeds_retail"
-        assert len(ordered) == len(results)
+    def test_skips_unknown_slug(self, results: list[TopicResult]) -> None:
+        selected = _select_for_featured(results, ("feeds_nonexistent", "feeds_retail"))
+        assert [r.config.slug for r in selected] == ["feeds_retail"]
 
     def test_file_written_with_hyphenated_name(
         self, tmp_path: Path, results: list[TopicResult]
@@ -654,11 +646,14 @@ class TestFeaturedReports:
         positions = [
             html.index('<section id="retail"'),
             html.index('<section id="economics"'),
-            html.index('<section id="ai"'),
-            html.index('<section id="defense"'),
             html.index('<div class="overview" id="strategic-overview"'),
         ]
         assert positions == sorted(positions)
+        # Unlisted topics are left out entirely -- sections and TOC alike.
+        assert '<section id="ai"' not in html
+        assert '<section id="defense"' not in html
+        assert 'href="#ai"' not in html
+        assert "Artificial Intelligence" not in html
         assert "<h1>Retail Report" in html
         assert '<section id="retail" class="featured">' in html
         assert 'href="index.html"' in html

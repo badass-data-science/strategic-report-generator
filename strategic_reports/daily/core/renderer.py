@@ -126,19 +126,17 @@ def _dedupe_bidirectional_lag_zero(
     return deduped
 
 
-def _order_for_featured(
-    results: list[TopicResult], lead_slugs: Sequence[str]
+def _select_for_featured(
+    results: list[TopicResult], slugs: Sequence[str]
 ) -> list[TopicResult]:
     """
-    Re-order results for a featured report: topics named in lead_slugs
-    first, in that order, then every remaining topic in its original
-    (topic_order.py) order. A lead slug with no matching result is skipped
-    rather than raising -- the report still renders with what's there.
+    Select results for a featured report: only the topics named in slugs,
+    in that order -- topics not listed are left out entirely. A slug with
+    no matching result is skipped rather than raising -- the report still
+    renders with what's there.
     """
     by_slug = {r.config.slug: r for r in results}
-    lead = [by_slug[s] for s in lead_slugs if s in by_slug]
-    lead_set = set(lead_slugs)
-    return lead + [r for r in results if r.config.slug not in lead_set]
+    return [by_slug[s] for s in slugs if s in by_slug]
 
 
 def render_report(
@@ -181,7 +179,7 @@ def render_report(
 
     Output files:
       index.html              — main strategic report (one section per topic)
-      {name}-report.html      — one per featured_reports entry (see _order_for_featured)
+      {name}-report.html      — one per featured_reports entry (see _select_for_featured)
       {topic}_summaries.html  — per-topic article summaries (only if articles exist)
       systems_signals.json    — this run's Systems Signals (see _write_systems_signals_json)
 
@@ -225,14 +223,14 @@ def render_report(
         )
     )
 
-    # Featured reports: the same results, re-ordered to lead with one topic,
+    # Featured reports: only each report's listed topics, in its order,
     # overview last. Written next to index.html -- no extra LLM work.
     featured_tmpl = env.get_template("featured_report.html.j2")
     for report in featured_reports:
         (output_dir / f"{report.name}-report.html").write_text(
             featured_tmpl.render(
                 report=report,
-                results=_order_for_featured(results, report.topics),
+                results=_select_for_featured(results, report.topics),
                 overview=overview,
                 diffs=diffs or {},
                 date=date_str,

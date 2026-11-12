@@ -141,7 +141,8 @@ class TestRenderFromDbCommand:
         assert (out / "retail_summaries.html").exists()
         assert not (out / "systems_signals.json").exists()
         html = (out / "retail-report.html").read_text()
-        assert html.index("Retail lead.") < html.index("AI 1.") < html.index("Cross 1.")
+        assert html.index("Retail lead.") < html.index("Cross 1.")
+        assert "AI 1." not in html  # AI isn't listed for the retail report
 
     def test_unknown_run_id_exits_nonzero(self, database_url: str, tmp_path: Path) -> None:
         _seed_run(database_url, "r1", ["R 1.", "R 2.", "R 3."])

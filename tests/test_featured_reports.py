@@ -1,6 +1,6 @@
 """
 Config sanity checks for config/featured_reports.py -- a typo'd slug would
-otherwise be silently skipped by renderer._order_for_featured().
+otherwise be silently skipped by renderer._select_for_featured().
 """
 
 from strategic_reports.daily.config.featured_reports import featured_reports

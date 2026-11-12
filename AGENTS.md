@@ -206,7 +206,7 @@ strategic_reports/
     cli.py                typer CLI entrypoint — seven commands: run, ask, export-rdf, validate-feeds, render-from-db, db upgrade, db status
     paths.py              default_data_dir() — resolves bundled rss_feeds/ via importlib.resources
     config/topic_order.py Ordered topic slugs + display titles
-    config/featured_reports.py Featured reports ({name}-report.html): lead topics in order, rest follow, overview last
+    config/featured_reports.py Featured reports ({name}-report.html): only the listed topics, in order, overview last
 alembic/                Tracking-db schema migrations (Postgres) — versions/0001_initial_schema.py is the whole schema, hand-written, no autogeneration (no SQLAlchemy models in this codebase)
 tests/                  Per-module test files + conftest.py fixtures (database_url fixture requires a reachable Postgres — see docker-compose.yml)
 blog-posts/             Human-written companion articles about this project — not code, not shipped
@@ -447,12 +447,14 @@ LICENSE                 MIT
   articles considered that run — the denominator for comparing tag/urgency
   weights across runs of different sizes.
 - **Featured reports (`{name}-report.html`, defined in
-  `config/featured_reports.py`) are a pure re-ordering of `index.html`'s
+  `config/featured_reports.py`) are a pure selection from `index.html`'s
   content — no LLM calls, nothing persisted, no CLI flag.** Rendered by
   `renderer.render_report()` into the same `--output-dir` as `index.html`,
   so both entry points (and anything else that calls `render_report()`)
-  get them with no call-site changes. Listed topics come first, then every
-  other topic in `topic_order.py` order, then the Strategic Overview last.
+  get them with no call-site changes. Only the report's listed topics
+  appear, in the order given — unlisted topics are deliberately omitted
+  (an earlier version appended them; removed on request) — then the
+  Strategic Overview last.
   Filenames use a hyphen (`retail-report.html`), unlike the underscore in
   `{topic}_summaries.html` — requested explicitly, don't "normalize" it.
   The per-topic section and overview markup lives in `_macros.html.j2`,
