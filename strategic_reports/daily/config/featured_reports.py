@@ -41,9 +41,9 @@ class FeaturedReport:
 
 featured_reports: tuple[FeaturedReport, ...] = (
     FeaturedReport(
-        filename='retail-report.html',
+        filename='retail-strategy-report.html',
         heading='Retail & Fashion - Daily Strategic Report',
-        page_title='Retail & Fashion - Daily Strategic Report',
+        page_title='Retail & Fashion - Strategic Report',
         featured_topics=(
             'feeds_retail',
             'feeds_fashion',
