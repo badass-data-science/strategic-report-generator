@@ -43,6 +43,9 @@ doesn't tag releases.
   retail featured report's second topic, right after Retail.
 
 ### Changed
+- Featured reports no longer link back to `index.html`. The header links
+  `knowledge_graph.ttl` instead (same directory on the published site), and
+  the footer adds a "Questions? Comments?" `mailto:` contact line.
 - Featured reports now show only the topics listed for them in
   `config/featured_reports.py`, in that order (plus the Strategic Overview
   last). Unlisted topics are no longer appended after them. The retail

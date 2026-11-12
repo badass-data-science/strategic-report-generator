@@ -656,7 +656,11 @@ class TestFeaturedReports:
         assert "Artificial Intelligence" not in html
         assert "<h1>Retail Report" in html
         assert '<section id="retail" class="featured">' in html
-        assert 'href="index.html"' in html
+        # No link back to the main report; links the RDF export and a contact
+        # mailto instead.
+        assert 'href="index.html"' not in html
+        assert '<a href="knowledge_graph.ttl">' in html
+        assert '<a href="mailto:emw314159@gmail.com">emw314159@gmail.com</a>' in html
 
     def test_index_unchanged_order_and_links_to_featured(
         self, tmp_path: Path, results: list[TopicResult], overview: CrossTopicSynthesis

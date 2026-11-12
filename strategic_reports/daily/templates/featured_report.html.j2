@@ -16,7 +16,11 @@
 {% block body %}
 <h1>{{ report.title }} — {{ date }}</h1>
 <p class="meta">
-  <a href="index.html">← Strategic Report</a><br>
+  {# knowledge_graph.ttl sits next to the report pages on the published site
+     (publishing_dag copies both into reports/daily-strategic-report/). In the
+     local pipeline output it's one level up (output_dir.parent), so this
+     link only resolves on the published site. #}
+  Knowledge graph (RDF/Turtle): <a href="knowledge_graph.ttl">knowledge_graph.ttl</a><br>
   Updated: {{ updated }}<br>
   <span class="warn">Generated from recent industry news using LLM analysis.
   Apply judgement before acting on any recommendation. <strong>Caveat emptor!</strong></span>
@@ -65,6 +69,10 @@
 {% endif %}
 
 <hr style="margin-top:3rem; border:none; border-top:1px solid #ddd;">
+<p class="meta">
+  Questions? Comments? Please email
+  <a href="mailto:emw314159@gmail.com">emw314159@gmail.com</a>
+</p>
 <p class="meta">Total tokens used: {{ total_tokens | default(0) }}</p>
 
 {% if results and tag_graph.nodes %}
