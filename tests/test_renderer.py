@@ -603,8 +603,9 @@ class TestFeaturedReports:
     """
 
     RETAIL_FIRST = FeaturedReport(
-        name="retail",
-        title="Retail Report",
+        filename="retail-report.html",
+        heading="Retail Report",
+        page_title="Retail Report",
         featured_topics=("feeds_retail",),
         related_topics=("feeds_economics",),
     )
@@ -695,8 +696,9 @@ class TestFeaturedReports:
         self, tmp_path: Path, overview: CrossTopicSynthesis
     ) -> None:
         report = FeaturedReport(
-            name="retail",
-            title="Retail Report",
+            filename="retail-report.html",
+            heading="Retail Report",
+            page_title="Retail Report",
             featured_topics=("feeds_retail", "feeds_fashion"),
             related_topics=("feeds_economics", "feeds_ai"),
         )
@@ -750,7 +752,8 @@ class TestFeaturedReports:
             return r.model_copy(update={"token_usage": TokenUsage(total_tokens=tokens)})
 
         report = FeaturedReport(
-            name="retail", title="Retail", featured_topics=("feeds_retail",),
+            filename="retail-report.html", heading="Retail", page_title="Retail",
+            featured_topics=("feeds_retail",),
             related_topics=("feeds_economics",),
         )
         results = [
@@ -764,10 +767,34 @@ class TestFeaturedReports:
         # index.html still reports the whole run.
         assert "Total tokens used: 5500<" in (out / "index.html").read_text()
 
+    def test_filename_heading_and_page_title_are_independent(
+        self, tmp_path: Path, results: list[TopicResult]
+    ) -> None:
+        report = FeaturedReport(
+            filename="custom-name.html",
+            heading="The Big Heading",
+            page_title="Short Tab Title",
+            featured_topics=("feeds_retail",),
+        )
+        out = tmp_path / "out"
+        render_report(results, output_dir=out, featured_reports=[report])
+
+        html = (out / "custom-name.html").read_text()  # exact filename, nothing appended
+        assert not list(out.glob("*-report.html"))
+        assert "<title>Short Tab Title — " in html
+        assert "<h1>The Big Heading — " in html
+        assert "<title>The Big Heading" not in html and "<h1>Short Tab Title" not in html
+        # index.html links to the exact filename, labelled with the heading.
+        index = (out / "index.html").read_text()
+        assert '<a href="custom-name.html">The Big Heading</a>' in index
+
     def test_report_without_related_topics_omits_that_toc_part(
         self, tmp_path: Path, results: list[TopicResult]
     ) -> None:
-        report = FeaturedReport(name="solo", title="Solo", featured_topics=("feeds_retail",))
+        report = FeaturedReport(
+            filename="solo-report.html", heading="Solo", page_title="Solo",
+            featured_topics=("feeds_retail",),
+        )
         out = tmp_path / "out"
         render_report(results, output_dir=out, featured_reports=[report])
         html = (out / "solo-report.html").read_text()
@@ -800,8 +827,9 @@ class TestFeaturedReportTagGraph:
     """Inline tag network in each featured report, over that report's topics only."""
 
     REPORT = FeaturedReport(
-        name="retail",
-        title="Retail Report",
+        filename="retail-report.html",
+        heading="Retail Report",
+        page_title="Retail Report",
         featured_topics=("feeds_retail",),
         related_topics=("feeds_economics",),
     )
@@ -876,11 +904,13 @@ class TestFeaturedReportTagGraph:
         ]
         out = tmp_path / "out"
         loose = FeaturedReport(
-            name="loose", title="Loose", featured_topics=("feeds_retail",),
+            filename="loose-report.html", heading="Loose", page_title="Loose",
+            featured_topics=("feeds_retail",),
             related_topics=("feeds_economics",), min_co_occurrences=1, min_article_count=1,
         )
         default = FeaturedReport(
-            name="default", title="Default", featured_topics=("feeds_retail",),
+            filename="default-report.html", heading="Default", page_title="Default",
+            featured_topics=("feeds_retail",),
             related_topics=("feeds_economics",),
         )
         render_report(results, output_dir=out, featured_reports=[loose, default])

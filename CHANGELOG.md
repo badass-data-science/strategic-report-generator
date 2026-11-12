@@ -60,6 +60,13 @@ doesn't tag releases.
   retail featured report's second topic, right after Retail.
 
 ### Changed
+- `FeaturedReport` now takes a complete output `filename` (replacing
+  `name`, which had `-report.html` appended), plus separate `heading`
+  (`<h1>`) and `page_title` (`<title>`) fields (replacing the shared
+  `title`); the date is still appended to both. `index.html` links to
+  `filename`, labelled with `heading`. Config tests reject duplicate,
+  non-`.html`, unsafe, or reserved filenames. The retail report keeps
+  `retail-report.html` and its current title for both.
 - A featured report's "Total tokens used" footer now counts only its
   featured + related topics' tokens, not the whole run's total
   (`index.html` still shows the whole run).

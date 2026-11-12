@@ -2,7 +2,7 @@
 Featured reports: focused views of the main report built around a few
 featured topics, with related topics for context.
 
-Each entry renders `{name}-report.html` alongside index.html in --output-dir
+Each entry renders its `filename` alongside index.html in --output-dir
 (see renderer.render_report()). The page runs: featured topics (in the order
 given, each highlighted), then an inline tag network over featured + related
 topics, then related topics (in the order given). The cross-topic Strategic
@@ -19,8 +19,9 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class FeaturedReport:
-    name: str                          # filename stem: "retail" -> retail-report.html
-    title: str                         # page heading
+    filename: str                      # output file, written next to index.html
+    heading: str                       # text of the page's <h1> (the date is appended)
+    page_title: str                    # text of the HTML <title> (the date is appended)
     featured_topics: tuple[str, ...]   # topic slugs to feature, in order
     related_topics: tuple[str, ...] = ()  # topic slugs shown after the tag network, in order
     # Tag-network thresholds for this report's inline graph. They're applied
@@ -40,8 +41,9 @@ class FeaturedReport:
 
 featured_reports: tuple[FeaturedReport, ...] = (
     FeaturedReport(
-        name='retail',
-        title='Retail & Fashion - Daily Strategic Report',
+        filename='retail-report.html',
+        heading='Retail & Fashion - Daily Strategic Report',
+        page_title='Retail & Fashion - Daily Strategic Report',
         featured_topics=(
             'feeds_retail',
             'feeds_fashion',

@@ -2,7 +2,7 @@
 {% from "_macros.html.j2" import topic_section %}
 
 {% block head %}
-<title>{{ report.title }} — {{ date }}</title>
+<title>{{ report.page_title }} — {{ date }}</title>
 <style>
   section.featured {
     border-left: 4px solid #4a6cf7;
@@ -18,7 +18,7 @@
 
 {% block body %}
 {% set results = featured_results + related_results %}
-<h1>{{ report.title }} — {{ date }}</h1>
+<h1>{{ report.heading }} — {{ date }}</h1>
 <p class="meta">
 
   <span class="warn">Generated from recent industry news using LLM analysis.

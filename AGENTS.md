@@ -206,7 +206,7 @@ strategic_reports/
     cli.py                typer CLI entrypoint — seven commands: run, ask, export-rdf, validate-feeds, render-from-db, db upgrade, db status
     paths.py              default_data_dir() — resolves bundled rss_feeds/ via importlib.resources
     config/topic_order.py Ordered topic slugs + display titles
-    config/featured_reports.py Featured reports ({name}-report.html): featured_topics, tag network, related_topics (no overview)
+    config/featured_reports.py Featured reports: filename, heading (<h1>), page_title (<title>), featured_topics, related_topics, graph thresholds
 alembic/                Tracking-db schema migrations (Postgres) — versions/0001_initial_schema.py is the whole schema, hand-written, no autogeneration (no SQLAlchemy models in this codebase)
 tests/                  Per-module test files + conftest.py fixtures (database_url fixture requires a reachable Postgres — see docker-compose.yml)
 blog-posts/             Human-written companion articles about this project — not code, not shipped
@@ -446,7 +446,7 @@ LICENSE                 MIT
   reference `run_id` as a foreign key). `article_count` is the total
   articles considered that run — the denominator for comparing tag/urgency
   weights across runs of different sizes.
-- **Featured reports (`{name}-report.html`, defined in
+- **Featured reports (one HTML file each, named by `filename`, defined in
   `config/featured_reports.py`) are a pure selection from `index.html`'s
   content — no LLM calls, nothing persisted, no CLI flag.** Rendered by
   `renderer.render_report()` into the same `--output-dir` as `index.html`,
@@ -464,8 +464,16 @@ LICENSE                 MIT
   monkeypatch that module attribute rather than depending on the live
   config (a test that did once broke CI when the retail topic list
   changed).
-  Filenames use a hyphen (`retail-report.html`), unlike the underscore in
-  `{topic}_summaries.html` — requested explicitly, don't "normalize" it.
+  Each report sets its own complete output `filename` (written as-is
+  next to `index.html`, nothing appended), its `<h1>` text (`heading`) and
+  its HTML `<title>` text (`page_title`) separately — the template appends
+  " — {date}" to both. `index.html` links to `filename`, labelled with
+  `heading`. `tests/test_featured_reports.py` rejects filenames that aren't
+  unique, aren't `.html`, contain path/space characters, or would
+  overwrite another generated file (`index.html`, `tag_graph.html`,
+  `*_summaries.html`, etc.). The retail report's `retail-report.html` uses
+  a hyphen, unlike `{topic}_summaries.html` — requested explicitly, don't
+  "normalize" it.
   The per-topic section and overview markup lives in `_macros.html.j2`,
   shared with `index.html.j2`; change it there, not in either page.
   Each featured report also embeds a **Tag Network** (between the

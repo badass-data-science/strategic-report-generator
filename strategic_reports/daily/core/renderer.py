@@ -253,7 +253,7 @@ def render_report(
             min_count=report.min_article_count,
             min_weight=report.min_co_occurrences,
         )
-        (output_dir / f"{report.name}-report.html").write_text(
+        (output_dir / report.filename).write_text(
             featured_tmpl.render(
                 report=report,
                 featured_results=featured,

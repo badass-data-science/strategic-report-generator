@@ -135,7 +135,12 @@ class TestRenderFromDbCommand:
         monkeypatch.setattr(
             featured_reports_config,
             "featured_reports",
-            (FeaturedReport(name="retail", title="Retail", featured_topics=("feeds_retail",)),),
+            (
+                FeaturedReport(
+                    filename="retail-report.html", heading="Retail", page_title="Retail",
+                    featured_topics=("feeds_retail",),
+                ),
+            ),
         )
         _seed_run(database_url, "r1", ["Retail lead.", "R 2.", "R 3."])
         out = tmp_path / "out"

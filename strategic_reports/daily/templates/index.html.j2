@@ -35,7 +35,7 @@
       Featured Reports
       <ul>
         {% for report in featured_reports %}
-        <li><a href="{{ report.name }}-report.html">{{ report.title }}</a></li>
+        <li><a href="{{ report.filename }}">{{ report.heading }}</a></li>
         {% endfor %}
       </ul>
     </li>
