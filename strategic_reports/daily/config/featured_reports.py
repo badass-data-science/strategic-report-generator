@@ -25,14 +25,16 @@ class FeaturedReport:
 featured_reports: tuple[FeaturedReport, ...] = (
     FeaturedReport(
         name='retail',
-        title='Retail Industry Daily Strategic Report',
+        title='Retail & Fashion Industry - Daily Strategic Report',
         topics=(
             'feeds_retail',
             'feeds_fashion',
             'feeds_business',
             'feeds_business_strategy',
-            'feeds_economics',
             'feeds_leadership',
+            'feeds_economics',
+            'feeds_ai',
+            'feeds_data_science',
         ),
     ),
 )
