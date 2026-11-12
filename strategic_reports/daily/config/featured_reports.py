@@ -41,15 +41,15 @@ class FeaturedReport:
 featured_reports: tuple[FeaturedReport, ...] = (
     FeaturedReport(
         name='retail',
-        title='Retail & Fashion Industry - Daily Strategic Report',
+        title='Retail & Fashion - Daily Strategic Report',
         featured_topics=(
             'feeds_retail',
             'feeds_fashion',
         ),
         related_topics=(
+            'feeds_leadership',
             'feeds_business',
             'feeds_business_strategy',
-            'feeds_leadership',
             'feeds_economics',
         ),
         min_co_occurrences = 2,
