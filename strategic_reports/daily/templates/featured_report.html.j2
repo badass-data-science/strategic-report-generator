@@ -23,8 +23,9 @@
      link only resolves on the published site. #}
   Download the knowledge graph for this report: <a href="knowledge_graph.ttl">knowledge_graph.ttl</a><br>
   Questions? Comments? Please email Emily Williams at 
-  <a href="mailto:emw314159@gmail.com">emw314159@gmail.com</a><br>
+  <a href="mailto:emw314159@gmail.com">emw314159@gmail.com</a>.<br>
   Updated: {{ updated }}<br>
+  <br>
   <span class="warn">Generated from recent industry news using LLM analysis.
   Apply judgement before acting on any recommendation. <strong>Caveat emptor!</strong></span>
 </p>
@@ -44,7 +45,7 @@
     </li>
     {% endif %}
     {% if results %}
-    <li><a href="#tag-network">Tag Network</a></li>
+    <li><a href="#tag-network">Source Article Tag Network</a></li>
     {% endif %}
     {% if related_results %}
     <li>
@@ -69,7 +70,7 @@
 
 {% if results %}
 <section id="tag-network">
-  <h2>Tag Network</h2>
+  <h2>Source Article Tag Network</h2>
   {% if tag_graph.nodes %}
   <p class="meta">
     Tags co-occurring in the same article, across this report's topics only. Color = community
