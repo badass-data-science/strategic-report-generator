@@ -21,8 +21,8 @@ Jinja2 templates solve all three:
 Template inheritance:
   base.html.j2   — shared <head>, styles, <body> wrapper
   index.html.j2  — extends base; the main strategic report
-  featured_report.html.j2 — extends base; the main report re-ordered to lead
-                 with one topic (see config/featured_reports.py)
+  featured_report.html.j2 — extends base; featured topics, tag network,
+                 related topics, overview (see config/featured_reports.py)
   topic.html.j2  — extends base; per-topic article summaries
   _macros.html.j2 — topic-section/overview macros shared by index and
                  featured_report, so the two can't drift apart
@@ -40,8 +40,8 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
+from ..config import featured_reports as _featured_reports_config
 from ..config.featured_reports import FeaturedReport
-from ..config.featured_reports import featured_reports as _DEFAULT_FEATURED_REPORTS
 from .db_status import DbStatusReport
 from .models import ArticleSummary, BulletDiff, CrossTopicSynthesis, TokenUsage, TopicResult
 from .systems_signals import LaggedCorrelation
@@ -156,7 +156,7 @@ def render_report(
     tag_signals: list[LaggedCorrelation] | None = None,
     systems_signals_error: str | None = None,
     run_id: str | None = None,
-    featured_reports: Sequence[FeaturedReport] = _DEFAULT_FEATURED_REPORTS,
+    featured_reports: Sequence[FeaturedReport] | None = None,
     generated_at: datetime | None = None,
     write_systems_signals: bool = True,
 ) -> None:
@@ -176,6 +176,9 @@ def render_report(
     systems_signals_error is the caller's repr() of the exception if
     computing them failed -- recorded as status "failed" so a failed scan
     is never mistaken for a scan that found nothing.
+
+    featured_reports defaults to config/featured_reports.py, looked up at call
+    time (not bound as a default argument) so tests can swap the config.
 
     generated_at sets the report's date/"Updated" stamp (default: now).
     write_systems_signals=False skips systems_signals.json entirely. Both
@@ -200,6 +203,9 @@ def render_report(
     # had articles, but this run doesn't) never linger alongside fresh ones.
     # mkdir(parents=True) then creates the directory fresh, including any
     # missing parent directories if it didn't exist at all.
+    if featured_reports is None:
+        featured_reports = _featured_reports_config.featured_reports
+
     if output_dir.exists():
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True)
@@ -231,20 +237,24 @@ def render_report(
         )
     )
 
-    # Featured reports: only each report's listed topics, in its order, then
-    # an inline tag network over just those topics, then the overview.
-    # Written next to index.html -- no extra LLM work.
+    # Featured reports: featured topics, then an inline tag network over
+    # featured + related topics, then related topics, then the overview --
+    # each list in its configured order. Written next to index.html -- no
+    # extra LLM work.
     featured_tmpl = env.get_template("featured_report.html.j2")
     for report in featured_reports:
-        selected = _select_for_featured(results, report.topics)
+        featured = _select_for_featured(results, report.featured_topics)
+        related = _select_for_featured(results, report.related_topics)
         # Legend lists only topics that contributed articles this run.
         tag_graph = build_subset_display_graph(
-            selected, topic_order=[r.config.title for r in selected if r.articles]
+            featured + related,
+            topic_order=[r.config.title for r in featured + related if r.articles],
         )
         (output_dir / f"{report.name}-report.html").write_text(
             featured_tmpl.render(
                 report=report,
-                results=selected,
+                featured_results=featured,
+                related_results=related,
                 tag_graph=tag_graph,
                 tag_graph_json=script_safe_json(tag_graph),
                 tag_graph_css=TAG_GRAPH_CSS,

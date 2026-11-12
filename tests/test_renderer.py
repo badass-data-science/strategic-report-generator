@@ -603,7 +603,10 @@ class TestFeaturedReports:
     """
 
     RETAIL_FIRST = FeaturedReport(
-        name="retail", title="Retail Report", topics=("feeds_retail", "feeds_economics")
+        name="retail",
+        title="Retail Report",
+        featured_topics=("feeds_retail",),
+        related_topics=("feeds_economics",),
     )
 
     @pytest.fixture
@@ -690,6 +693,69 @@ class TestFeaturedReports:
         render_report(results, output_dir=out)
         assert (out / "retail-report.html").exists()
 
+    def test_featured_then_graph_then_related_in_toc_and_body(
+        self, tmp_path: Path, overview: CrossTopicSynthesis
+    ) -> None:
+        report = FeaturedReport(
+            name="retail",
+            title="Retail Report",
+            featured_topics=("feeds_retail", "feeds_fashion"),
+            related_topics=("feeds_economics", "feeds_ai"),
+        )
+        results = [
+            _topic(tmp_path, "feeds_ai", "Artificial Intelligence"),
+            _topic(tmp_path, "feeds_economics", "Economics"),
+            _topic(tmp_path, "feeds_fashion", "Fashion"),
+            _topic(tmp_path, "feeds_retail", "Retail"),
+        ]
+        out = tmp_path / "out"
+        render_report(results, output_dir=out, overview=overview, featured_reports=[report])
+        html = (out / "retail-report.html").read_text()
+
+        toc = html[html.index('<nav class="toc">'):html.index("</nav>")]
+        toc_order = [
+            toc.index("Featured Topics"),
+            toc.index('href="#retail"'),
+            toc.index('href="#fashion"'),
+            toc.index('href="#tag-network"'),
+            toc.index("Related Topics"),
+            toc.index('href="#economics"'),
+            toc.index('href="#ai"'),
+            toc.index('href="#strategic-overview"'),
+        ]
+        assert toc_order == sorted(toc_order)
+
+        body_order = [
+            html.index('<section id="retail"'),
+            html.index('<section id="fashion"'),
+            html.index('<section id="tag-network"'),
+            html.index('<section id="economics"'),
+            html.index('<section id="ai"'),
+            html.index('<div class="overview" id="strategic-overview"'),
+        ]
+        assert body_order == sorted(body_order)
+
+        # Every featured topic is highlighted; related topics aren't.
+        assert '<section id="retail" class="featured">' in html
+        assert '<section id="fashion" class="featured">' in html
+        assert '<section id="economics">' in html
+        assert '<section id="ai">' in html
+
+        # Contact line sits in the header, above the TOC, not in the footer.
+        mailto = html.index('<a href="mailto:emw314159@gmail.com">')
+        assert html.index("Questions? Comments?") < mailto < html.index('<nav class="toc">')
+        assert html.count("Questions? Comments?") == 1
+
+    def test_report_without_related_topics_omits_that_toc_part(
+        self, tmp_path: Path, results: list[TopicResult]
+    ) -> None:
+        report = FeaturedReport(name="solo", title="Solo", featured_topics=("feeds_retail",))
+        out = tmp_path / "out"
+        render_report(results, output_dir=out, featured_reports=[report])
+        html = (out / "solo-report.html").read_text()
+        assert "Featured Topics" in html
+        assert "Related Topics" not in html
+
 
 class TestRenderFromDbHooks:
     """generated_at / write_systems_signals exist for `render-from-db`."""
@@ -716,7 +782,10 @@ class TestFeaturedReportTagGraph:
     """Inline tag network in each featured report, over that report's topics only."""
 
     REPORT = FeaturedReport(
-        name="retail", title="Retail Report", topics=("feeds_retail", "feeds_economics")
+        name="retail",
+        title="Retail Report",
+        featured_topics=("feeds_retail",),
+        related_topics=("feeds_economics",),
     )
 
     @staticmethod
@@ -743,7 +812,7 @@ class TestFeaturedReportTagGraph:
         )
         return (out / "retail-report.html").read_text()
 
-    def test_graph_between_topics_and_overview_with_only_report_tags(
+    def test_graph_between_featured_and_related_with_only_report_tags(
         self, tmp_path: Path
     ) -> None:
         html = self._render(tmp_path, [
@@ -754,9 +823,11 @@ class TestFeaturedReportTagGraph:
             self._with_articles("feeds_economics", "Economics",
                                 ["pricing", "inflation", "rates", "labor", "gdp"]),
         ])
+        # Featured (Retail) -> graph -> related (Economics) -> overview.
         assert (
-            html.index('<section id="economics"')
+            html.index('<section id="retail"')
             < html.index('<section id="tag-network"')
+            < html.index('<section id="economics"')
             < html.index('id="strategic-overview"')
         )
         assert 'href="#tag-network"' in html

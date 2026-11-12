@@ -14,6 +14,7 @@
 {% endblock %}
 
 {% block body %}
+{% set results = featured_results + related_results %}
 <h1>{{ report.title }} — {{ date }}</h1>
 <p class="meta">
   {# knowledge_graph.ttl sits next to the report pages on the published site
@@ -21,6 +22,8 @@
      local pipeline output it's one level up (output_dir.parent), so this
      link only resolves on the published site. #}
   Knowledge graph (RDF/Turtle): <a href="knowledge_graph.ttl">knowledge_graph.ttl</a><br>
+  Questions? Comments? Please email
+  <a href="mailto:emw314159@gmail.com">emw314159@gmail.com</a><br>
   Updated: {{ updated }}<br>
   <span class="warn">Generated from recent industry news using LLM analysis.
   Apply judgement before acting on any recommendation. <strong>Caveat emptor!</strong></span>
@@ -30,11 +33,28 @@
 <nav class="toc">
   <h2>Table of Contents</h2>
   <ul>
-    {% for result in results %}
-    <li><a href="#{{ result.config.slug | replace('feeds_', '') }}">{{ result.config.title }}</a></li>
-    {% endfor %}
+    {% if featured_results %}
+    <li>
+      Featured Topics
+      <ul>
+        {% for result in featured_results %}
+        <li><a href="#{{ result.config.slug | replace('feeds_', '') }}">{{ result.config.title }}</a></li>
+        {% endfor %}
+      </ul>
+    </li>
+    {% endif %}
     {% if results %}
     <li><a href="#tag-network">Tag Network</a></li>
+    {% endif %}
+    {% if related_results %}
+    <li>
+      Related Topics
+      <ul>
+        {% for result in related_results %}
+        <li><a href="#{{ result.config.slug | replace('feeds_', '') }}">{{ result.config.title }}</a></li>
+        {% endfor %}
+      </ul>
+    </li>
     {% endif %}
     {% if overview %}
     <li><a href="#strategic-overview">Strategic Overview</a></li>
@@ -43,8 +63,8 @@
 </nav>
 {% endif %}
 
-{% for result in results %}
-{{ topic_section(result, diffs, hours_cutoff, "featured" if result.config.slug == report.topics[0] else "") }}
+{% for result in featured_results %}
+{{ topic_section(result, diffs, hours_cutoff, "featured") }}
 {% endfor %}
 
 {% if results %}
@@ -64,15 +84,15 @@
 </section>
 {% endif %}
 
+{% for result in related_results %}
+{{ topic_section(result, diffs, hours_cutoff) }}
+{% endfor %}
+
 {% if overview %}
 {{ overview_block(overview) }}
 {% endif %}
 
 <hr style="margin-top:3rem; border:none; border-top:1px solid #ddd;">
-<p class="meta">
-  Questions? Comments? Please email
-  <a href="mailto:emw314159@gmail.com">emw314159@gmail.com</a>
-</p>
 <p class="meta">Total tokens used: {{ total_tokens | default(0) }}</p>
 
 {% if results and tag_graph.nodes %}

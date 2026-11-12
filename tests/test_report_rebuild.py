@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 from strategic_reports.daily.cli import app
+from strategic_reports.daily.config import featured_reports as featured_reports_config
+from strategic_reports.daily.config.featured_reports import FeaturedReport
 from strategic_reports.daily.core.article_archive import record_articles
 from strategic_reports.daily.core.bullet_diff import append_bullet_run
 from strategic_reports.daily.core.db import record_run
@@ -126,8 +128,15 @@ class TestLoadStoredRun:
 
 class TestRenderFromDbCommand:
     def test_renders_index_featured_and_summaries_without_signals(
-        self, database_url: str, tmp_path: Path
+        self, database_url: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        # Pin the featured-report config so this test doesn't depend on
+        # whatever topics the real retail report happens to list.
+        monkeypatch.setattr(
+            featured_reports_config,
+            "featured_reports",
+            (FeaturedReport(name="retail", title="Retail", featured_topics=("feeds_retail",)),),
+        )
         _seed_run(database_url, "r1", ["Retail lead.", "R 2.", "R 3."])
         out = tmp_path / "out"
 

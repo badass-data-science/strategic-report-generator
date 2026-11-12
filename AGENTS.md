@@ -206,7 +206,7 @@ strategic_reports/
     cli.py                typer CLI entrypoint — seven commands: run, ask, export-rdf, validate-feeds, render-from-db, db upgrade, db status
     paths.py              default_data_dir() — resolves bundled rss_feeds/ via importlib.resources
     config/topic_order.py Ordered topic slugs + display titles
-    config/featured_reports.py Featured reports ({name}-report.html): only the listed topics, in order, overview last
+    config/featured_reports.py Featured reports ({name}-report.html): featured_topics, tag network, related_topics, overview
 alembic/                Tracking-db schema migrations (Postgres) — versions/0001_initial_schema.py is the whole schema, hand-written, no autogeneration (no SQLAlchemy models in this codebase)
 tests/                  Per-module test files + conftest.py fixtures (database_url fixture requires a reachable Postgres — see docker-compose.yml)
 blog-posts/             Human-written companion articles about this project — not code, not shipped
@@ -451,17 +451,24 @@ LICENSE                 MIT
   content — no LLM calls, nothing persisted, no CLI flag.** Rendered by
   `renderer.render_report()` into the same `--output-dir` as `index.html`,
   so both entry points (and anything else that calls `render_report()`)
-  get them with no call-site changes. Only the report's listed topics
-  appear, in the order given — unlisted topics are deliberately omitted
-  (an earlier version appended them; removed on request) — then the
-  Strategic Overview last.
+  get them with no call-site changes. Each `FeaturedReport` has
+  `featured_topics` and `related_topics` (each kept in its configured
+  order); the page and its TOC run featured topics (all highlighted) → Tag
+  Network → related topics → Strategic Overview. Topics in neither list
+  are deliberately omitted (an earlier version appended them; removed on
+  request). `render_report()`'s `featured_reports` defaults to `None` and
+  reads `config/featured_reports.featured_reports` at call time, so tests
+  monkeypatch that module attribute rather than depending on the live
+  config (a test that did once broke CI when the retail topic list
+  changed).
   Filenames use a hyphen (`retail-report.html`), unlike the underscore in
   `{topic}_summaries.html` — requested explicitly, don't "normalize" it.
   The per-topic section and overview markup lives in `_macros.html.j2`,
   shared with `index.html.j2`; change it there, not in either page.
-  Each featured report also embeds a **Tag Network** (between the topics
-  and the overview) built by `tag_graph.build_subset_display_graph()` over
-  only that report's topics — Louvain recomputed on the subset, so its
+  Each featured report also embeds a **Tag Network** (between the
+  featured and related topics) built by
+  `tag_graph.build_subset_display_graph()` over that report's featured +
+  related topics — Louvain recomputed on the subset, so its
   clusters deliberately differ from `tag_graph.html`'s. It reuses
   `tag_graph.py`'s single D3 viewer (`mountTagGraph`, from `TAG_GRAPH_JS`);
   don't fork a second copy of the viewer into a template. Untrusted tag

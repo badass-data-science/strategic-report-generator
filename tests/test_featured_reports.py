@@ -15,9 +15,11 @@ def test_every_featured_slug_is_an_active_topic() -> None:
         assert not unknown, f"{report.name}: unknown topic slugs {unknown}"
 
 
-def test_each_report_lists_at_least_one_topic_without_duplicates() -> None:
+def test_each_report_has_featured_topics_and_no_duplicates() -> None:
+    # report.topics is featured_topics + related_topics, so a slug listed in
+    # both (or twice in one) shows up as a duplicate here.
     for report in featured_reports:
-        assert report.topics, report.name
+        assert report.featured_topics, report.name
         assert len(set(report.topics)) == len(report.topics), report.name
 
 

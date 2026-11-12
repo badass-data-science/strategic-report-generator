@@ -43,6 +43,16 @@ doesn't tag releases.
   retail featured report's second topic, right after Retail.
 
 ### Changed
+- Featured reports now separate `featured_topics` from `related_topics` in
+  `config/featured_reports.py` (replacing the single `topics` list). The
+  page and its table of contents run Featured Topics → Tag Network →
+  Related Topics → Strategic Overview, each list in its configured order,
+  and every featured topic is highlighted (not just the first). The tag
+  network still covers featured + related topics. The retail report
+  features Retail and Fashion, with Business, Business Strategy,
+  Leadership, Economics, AI, and Data Science as related topics.
+- The featured report's "Questions? Comments?" contact line moved from the
+  footer to the header.
 - Featured reports no longer link back to `index.html`. The header links
   `knowledge_graph.ttl` instead (same directory on the published site), and
   the footer adds a "Questions? Comments?" `mailto:` contact line.
@@ -64,6 +74,10 @@ doesn't tag releases.
   unchanged apart from the new Featured Reports TOC entry.
 
 ### Fixed
+- CI `pytest` failing since the retail report's topic list gained AI:
+  `test_report_rebuild`'s CLI test asserted against the live
+  featured-report config. `render_report()` now reads that config at call
+  time, and the test pins its own.
 - `tag_graph.html`: graph data was embedded in its `<script>` block with a
   bare `json.dumps()`, so a tag containing `</script>` could break out of
   it, and node tooltips were built with d3 `.html()` from raw tag text.
