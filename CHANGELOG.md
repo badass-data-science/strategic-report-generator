@@ -13,6 +13,12 @@ doesn't tag releases.
   report is now titled "Retail Industry Daily Strategic Report" and lists
   Retail, Business, Business Strategy, Economics, Leadership (Forex
   dropped).
+- `feeds_retail.json` expanded from 29 to 90 feeds: 61 new feeds from a
+  regenerated retail source list, each health-checked with
+  `feed_validation` before adding. Includes Retail Prophet and Retail
+  Minded, previously removed as dead (still logged in `REMOVED.json`) but
+  healthy again. Not added: Rapaport News (HTTP 403 / malformed XML) and
+  The Robot Report's main feed (already in `feeds_robotics.json`).
 
 ### Added
 - `render-from-db` CLI command: re-renders a stored run's `index.html`,

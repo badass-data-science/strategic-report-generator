@@ -115,6 +115,250 @@
         {
             "title": "Lebensmittel Zeitung",
             "url": "https://www.lebensmittelzeitung.net/news/feed/"
+        },
+        {
+            "title": "Modern Retail",
+            "url": "https://modernretail.co.uk/feed/"
+        },
+        {
+            "title": "Retail Prophet - Retail Speaker Blog",
+            "url": "http://www.retailprophet.com/feed/"
+        },
+        {
+            "title": "Retail Minded",
+            "url": "https://retailminded.com/feed"
+        },
+        {
+            "title": "J.C. Williams Group Blog",
+            "url": "https://jcwg.com/feed/"
+        },
+        {
+            "title": "Restaurant and Retail POS Blog",
+            "url": "https://partech.com/feed/"
+        },
+        {
+            "title": "Retail Focus Magazine",
+            "url": "https://retail-focus.co.uk/category/news/feed/"
+        },
+        {
+            "title": "GSP Blog",
+            "url": "https://www.gspretail.com/feed/"
+        },
+        {
+            "title": "Modern Retail \u00bb Technology",
+            "url": "https://www.modernretail.co/technology/feed/"
+        },
+        {
+            "title": "Automated Warehouse",
+            "url": "https://www.automatedwarehouseonline.com/feed"
+        },
+        {
+            "title": "Retail Insight Network",
+            "url": "https://www.retail-insight-network.com/feed/"
+        },
+        {
+            "title": "Digital Commerce 360",
+            "url": "https://www.digitalcommerce360.com/feed"
+        },
+        {
+            "title": "Kiosk Marketplace",
+            "url": "https://www.kioskmarketplace.com/rss"
+        },
+        {
+            "title": "Retail Detail",
+            "url": "https://www.retaildetail.eu/feed/"
+        },
+        {
+            "title": "Emerj",
+            "url": "https://emerj.com/feed/"
+        },
+        {
+            "title": "Circana",
+            "url": "https://www.circana.com/blog-feed.xml"
+        },
+        {
+            "title": "YouGov",
+            "url": "https://yougov.com/en/rss"
+        },
+        {
+            "title": "Ipsos",
+            "url": "https://www.ipsos.com/en-us/rss.xml"
+        },
+        {
+            "title": "CivicScience",
+            "url": "https://civicscience.com/feed/"
+        },
+        {
+            "title": "Modern Retail",
+            "url": "https://www.modernretail.co/feed"
+        },
+        {
+            "title": "Supply Chain Dive",
+            "url": "https://www.supplychaindive.com/feeds/news/"
+        },
+        {
+            "title": "DC Velocity",
+            "url": "https://www.dcvelocity.com/feeds/feed.rss"
+        },
+        {
+            "title": "The Loadstar",
+            "url": "https://theloadstar.com/feed/"
+        },
+        {
+            "title": "The Supply Chain Xchange",
+            "url": "https://www.thescxchange.com/feeds/feed.rss"
+        },
+        {
+            "title": "Post & Parcel",
+            "url": "https://postandparcel.info/feed/"
+        },
+        {
+            "title": "Glossy",
+            "url": "https://www.glossy.co/feed"
+        },
+        {
+            "title": "Beauty Independent",
+            "url": "https://www.beautyindependent.com/feed/"
+        },
+        {
+            "title": "Food Dive",
+            "url": "https://www.fooddive.com/feeds/news/"
+        },
+        {
+            "title": "2PM",
+            "url": "https://2pml.com/feed/"
+        },
+        {
+            "title": "Crunchbase News",
+            "url": "https://news.crunchbase.com/feed/"
+        },
+        {
+            "title": "Retail Insider",
+            "url": "https://retail-insider.com/feed/"
+        },
+        {
+            "title": "Snaxshot",
+            "url": "https://www.snaxshot.com/feed"
+        },
+        {
+            "title": "Luxury Society",
+            "url": "https://luxurysociety.com/en/feed/"
+        },
+        {
+            "title": "CPP-LUXURY",
+            "url": "https://cpp-luxury.com/feed/"
+        },
+        {
+            "title": "Inside Retail US",
+            "url": "https://insideretail.us/feed/"
+        },
+        {
+            "title": "TRBusiness",
+            "url": "https://www.trbusiness.com/feed"
+        },
+        {
+            "title": "Vogue",
+            "url": "https://www.vogue.com/feed/rss"
+        },
+        {
+            "title": "C-Store Dive",
+            "url": "https://www.cstoredive.com/feeds/news/"
+        },
+        {
+            "title": "CStore Decisions",
+            "url": "https://cstoredecisions.com/feed"
+        },
+        {
+            "title": "Convenience Store News Canada + OCTANE",
+            "url": "https://ccentral.ca/feed"
+        },
+        {
+            "title": "Better Retailing",
+            "url": "https://www.betterretailing.com/feed"
+        },
+        {
+            "title": "Convenience & Impulse Retailing",
+            "url": "https://www.c-store.com.au/feed/"
+        },
+        {
+            "title": "Asian Trader",
+            "url": "https://www.asiantrader.biz/feeds/feed.rss"
+        },
+        {
+            "title": "Fuels Market News",
+            "url": "https://fuelsmarketnews.com/feed/"
+        },
+        {
+            "title": "Transportation Energy Institute",
+            "url": "https://www.transportationenergy.org/feed"
+        },
+        {
+            "title": "CSP Daily News",
+            "url": "https://www.cspdailynews.com/feed"
+        },
+        {
+            "title": "Chain Drug Review",
+            "url": "https://chaindrugreview.com/latest/rss/"
+        },
+        {
+            "title": "Drug Topics",
+            "url": "https://www.drugtopics.com/rss.xml"
+        },
+        {
+            "title": "NACDS",
+            "url": "https://www.nacds.org/feed/"
+        },
+        {
+            "title": "Pharmacy Business",
+            "url": "https://www.pharmacy.biz/feeds/feed.rss"
+        },
+        {
+            "title": "The Pharmacist",
+            "url": "https://www.thepharmacist.co.uk/feed"
+        },
+        {
+            "title": "Australian Journal of Pharmacy",
+            "url": "https://ajp.com.au/feed/"
+        },
+        {
+            "title": "Shopping Center Business",
+            "url": "https://shoppingcenterbusiness.com/feed/"
+        },
+        {
+            "title": "Commercial Observer",
+            "url": "https://commercialobserver.com/feed/"
+        },
+        {
+            "title": "Completely Retail News",
+            "url": "https://news.completelyretail.co.uk/feed"
+        },
+        {
+            "title": "Retail & Leisure International",
+            "url": "https://www.rli.uk.com/feed/"
+        },
+        {
+            "title": "ACROSS",
+            "url": "https://www.across-magazine.com/feed/"
+        },
+        {
+            "title": "Shopping Centre News",
+            "url": "https://shoppingcentrenews.com.au/feed/"
+        },
+        {
+            "title": "Retail & Hospitality ISAC",
+            "url": "https://rhisac.org/feed/"
+        },
+        {
+            "title": "Security Sales & Integration",
+            "url": "https://www.securitysales.com/feed/"
+        },
+        {
+            "title": "Security Journal Americas",
+            "url": "https://securityjournalamericas.com/feed/"
+        },
+        {
+            "title": "Security Journal UK",
+            "url": "https://securityjournaluk.com/feed/"
         }
     ]
 }
