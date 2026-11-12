@@ -468,7 +468,9 @@ LICENSE                 MIT
   Each featured report also embeds a **Tag Network** (between the
   featured and related topics) built by
   `tag_graph.build_subset_display_graph()` over that report's featured +
-  related topics — Louvain recomputed on the subset, so its
+  related topics, pruned at that report's own `min_co_occurrences` /
+  `min_article_count` (defaults 2/3; build-time prune, so also the
+  sliders' floor) — Louvain recomputed on the subset, so its
   clusters deliberately differ from `tag_graph.html`'s. It reuses
   `tag_graph.py`'s single D3 viewer (`mountTagGraph`, from `TAG_GRAPH_JS`);
   don't fork a second copy of the viewer into a template. Untrusted tag

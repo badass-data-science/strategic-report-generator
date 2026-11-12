@@ -28,3 +28,11 @@ def test_report_names_unique_and_filename_safe() -> None:
     assert len(set(names)) == len(names)
     for name in names:
         assert name and all(c.isalnum() or c in "-_" for c in name), name
+
+
+def test_tag_graph_thresholds_are_positive_ints() -> None:
+    # Both feed build_display_graph() and the viewer's sliders (min="1").
+    for report in featured_reports:
+        for field in ("min_co_occurrences", "min_article_count"):
+            value = getattr(report, field)
+            assert isinstance(value, int) and value >= 1, (report.name, field, value)

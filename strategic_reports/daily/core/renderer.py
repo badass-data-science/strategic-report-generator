@@ -249,6 +249,8 @@ def render_report(
         tag_graph = build_subset_display_graph(
             featured + related,
             topic_order=[r.config.title for r in featured + related if r.articles],
+            min_count=report.min_article_count,
+            min_weight=report.min_co_occurrences,
         )
         (output_dir / f"{report.name}-report.html").write_text(
             featured_tmpl.render(

@@ -23,6 +23,14 @@ class FeaturedReport:
     title: str                         # page heading
     featured_topics: tuple[str, ...]   # topic slugs to feature, in order
     related_topics: tuple[str, ...] = ()  # topic slugs shown after the tag network, in order
+    # Tag-network thresholds for this report's inline graph. They're applied
+    # when the graph data is built (so they're also the lowest the page's
+    # sliders can go) and set the sliders' starting positions. Defaults match
+    # the standalone tag_graph.html's, which these never affect. Lower values
+    # show more of the graph but grow it fast: 1/1 embeds every tag and every
+    # co-occurring pair.
+    min_co_occurrences: int = 2   # min articles a tag pair must share to draw an edge
+    min_article_count: int = 3    # min articles a tag must appear in to be drawn
 
     @property
     def topics(self) -> tuple[str, ...]:
@@ -44,5 +52,7 @@ featured_reports: tuple[FeaturedReport, ...] = (
             'feeds_leadership',
             'feeds_economics',
         ),
+        min_co_occurrences = 2,
+        min_article_count = 2,
     ),
 )

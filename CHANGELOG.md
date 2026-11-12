@@ -7,6 +7,11 @@ doesn't tag releases.
 ## 2026-11-11
 
 ### Added
+- Per-report tag-network thresholds: `FeaturedReport.min_co_occurrences`
+  and `min_article_count` (defaults 2 and 3, matching `tag_graph.html`)
+  set where each featured report's inline graph is pruned and where its
+  sliders start. The retail report uses 2 and 2. Featured reports only:
+  the standalone `tag_graph.html` keeps its fixed thresholds.
 - `render-from-db` CLI command: re-renders a stored run's `index.html`,
   featured reports, and `{topic}_summaries.html` from the tracking
   database (latest run by default, or `--run-id`) — no ingestion, no LLM

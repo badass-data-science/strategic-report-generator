@@ -836,6 +836,38 @@ class TestFeaturedReportTagGraph:
         assert '"id": "pricing"' in html
         assert '"id": "llm"' not in html  # AI isn't in this report
 
+    def test_per_report_thresholds_prune_graph_and_set_sliders(self, tmp_path: Path) -> None:
+        # One article each: every tag has count 1 and every pair weight 1, so
+        # the default 2/3 thresholds draw nothing while 1/1 draws them all.
+        def one_article(slug: str, title: str, tags: list[str]) -> TopicResult:
+            r = self._with_articles(slug, title, tags)
+            return r.model_copy(update={"articles": r.articles[:1]})
+
+        retail_tags = ["stores", "shoppers", "pricing", "loyalty", "holiday"]
+        econ_tags = ["pricing", "inflation", "rates", "labor", "wages"]
+        results = [
+            one_article("feeds_retail", "Retail", retail_tags),
+            one_article("feeds_economics", "Economics", econ_tags),
+        ]
+        out = tmp_path / "out"
+        loose = FeaturedReport(
+            name="loose", title="Loose", featured_topics=("feeds_retail",),
+            related_topics=("feeds_economics",), min_co_occurrences=1, min_article_count=1,
+        )
+        default = FeaturedReport(
+            name="default", title="Default", featured_topics=("feeds_retail",),
+            related_topics=("feeds_economics",),
+        )
+        render_report(results, output_dir=out, featured_reports=[loose, default])
+
+        loose_html = (out / "loose-report.html").read_text()
+        assert '"min_count": 1' in loose_html and '"min_weight": 1' in loose_html
+        assert '"id": "inflation"' in loose_html and "mountTagGraph(" in loose_html
+
+        default_html = (out / "default-report.html").read_text()
+        assert "Not enough tag co-occurrence" in default_html
+        assert "mountTagGraph(" not in default_html
+
     def test_tag_text_cannot_break_out_of_script(self, tmp_path: Path) -> None:
         evil = "</script><script>alert(1)</script>"
         html = self._render(tmp_path, [
