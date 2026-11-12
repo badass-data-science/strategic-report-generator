@@ -100,7 +100,7 @@
 <script>
 {# tag_graph_js is a Python constant; tag_graph_json is escaped by script_safe_json(). #}
 {{ tag_graph_js | safe }}
-mountTagGraph(document.getElementById("tag-graph-root"), {{ tag_graph_json | safe }}, { topicToggle: true });
+mountTagGraph(document.getElementById("tag-graph-root"), {{ tag_graph_json | safe }}, { topicToggle: true, fitToView: true });
 </script>
 {% endif %}
 {% endblock %}

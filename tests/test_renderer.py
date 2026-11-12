@@ -832,6 +832,9 @@ class TestFeaturedReportTagGraph:
         )
         assert 'href="#tag-network"' in html
         assert "mountTagGraph(" in html and "topicToggle: true" in html
+        # Featured reports open fitted to the panel (the standalone
+        # tag_graph.html doesn't opt in -- see TestWriteTagGraphHtml).
+        assert "fitToView: true" in html
         assert '"topic_order": ["Retail", "Economics"]' in html
         assert '"id": "pricing"' in html
         assert '"id": "llm"' not in html  # AI isn't in this report

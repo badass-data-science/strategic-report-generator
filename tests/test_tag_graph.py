@@ -208,6 +208,8 @@ class TestWriteTagGraphHtml:
 
         assert evil not in html
         assert "mountTagGraph(document.getElementById(\"graph-root\")" in html
+        # Fit-to-view is opt-in and only the featured reports opt in.
+        assert "fitToView: true" not in html
         assert "__GRAPH_DATA__" not in html and "__JS__" not in html
         # Tooltip text is set via textContent, not innerHTML.
         assert ".html(" not in html

@@ -228,6 +228,9 @@ TAG_GRAPH_CSS = """\
 .tag-graph .tg-group { display: flex; align-items: center; gap: 8px; }
 .tag-graph .tg-group input[type=range] { width: 120px; accent-color: #4e79a7; }
 .tag-graph .tg-val { font-weight: 600; color: #1a1a1a; min-width: 22px; }
+.tag-graph .tg-fit { font: inherit; font-size: 12px; padding: 3px 10px; color: #333;
+             background: #f4f4f4; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
+.tag-graph .tg-fit:hover { background: #e8e8e8; }
 .tag-graph .tg-stats { font-size: 12px; color: #888; margin-left: auto; }
 .tag-graph .tg-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 8px 14px;
              font-size: 12px; color: #444; background: #fff; border-bottom: 1px solid #e0e0e0; }
@@ -322,6 +325,13 @@ function mountTagGraph(root, allData, opts) {
       circles && circles.attr("fill", nodeColor);
     });
   }
+  let fitView = null;  // set by render(); re-fits the current graph to the panel
+  if (opts.fitToView) {
+    const fitButton = el("button", "tg-fit", "Fit to view");
+    fitButton.type = "button";
+    fitButton.addEventListener("click", () => fitView && fitView(500));
+    controls.appendChild(fitButton);
+  }
   const stats = el("div", "tg-stats");
   controls.appendChild(stats);
 
@@ -356,7 +366,9 @@ function mountTagGraph(root, allData, opts) {
     svg.selectAll("*").remove();
     const { width, height } = svgEl.getBoundingClientRect();
     const g = svg.append("g");
-    svg.call(d3.zoom().scaleExtent([0.05, 10]).on("zoom", e => g.attr("transform", e.transform)));
+    const zoom = d3.zoom().scaleExtent([0.05, 10])
+      .on("zoom", e => g.attr("transform", e.transform));
+    svg.call(zoom);
 
     const r  = d => Math.max(5, Math.sqrt(d.count) * 5);
     const lw = d => Math.max(0.6, Math.sqrt(d.weight) * 1.4);
@@ -405,12 +417,41 @@ d.fx = d.x; d.fy = d.y; })
       .attr("font-size", d => Math.min(13, 8 + r(d) * 0.25) + "px")
       .text(d => d.count >= 4 ? d.id : "");
 
-    sim.on("tick", () => {
+    const draw = () => {
       linkSel
         .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
         .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
       nodeSel.attr("transform", d => `translate(${d.x},${d.y})`);
-    });
+    };
+    sim.on("tick", draw);
+
+    if (opts.fitToView) {
+      // Gentle pull toward the center: without it, charge repulsion pushes
+      // small disconnected pieces (tag pairs, tiny clusters) far out, and
+      // fitting everything would shrink the main cluster to a speck.
+      sim.force("x", d3.forceX(width / 2).strength(0.07))
+         .force("y", d3.forceY(height / 2).strength(0.07));
+      // Run the layout to rest before first paint (no visible drift), then
+      // zoom so the whole graph -- labels included -- fits the panel. Never
+      // zooms in past 1:1, so a small graph isn't blown up. Dragging a node
+      // still restarts the simulation as usual.
+      sim.stop();
+      const settle = Math.ceil(Math.log(sim.alphaMin()) / Math.log(1 - sim.alphaDecay()));
+      for (let i = 0; i < settle; i++) sim.tick();
+      draw();
+      fitView = duration => {
+        const box = g.node().getBBox();
+        if (!box.width || !box.height) return;
+        const pad = 0.94;
+        const k = Math.min(1, pad * Math.min(width / box.width, height / box.height));
+        const t = d3.zoomIdentity
+          .translate(width / 2 - k * (box.x + box.width / 2),
+                     height / 2 - k * (box.y + box.height / 2))
+          .scale(k);
+        (duration ? svg.transition().duration(duration) : svg).call(zoom.transform, t);
+      };
+      fitView(0);
+    }
   }
 
   [weight, count].forEach(s => s.input.addEventListener("input", () => {

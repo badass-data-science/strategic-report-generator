@@ -12,6 +12,12 @@ doesn't tag releases.
   set where each featured report's inline graph is pruned and where its
   sliders start. The retail report uses 2 and 2. Featured reports only:
   the standalone `tag_graph.html` keeps its fixed thresholds.
+- Featured reports' inline tag network now opens fitted to its panel
+  instead of at 1:1 (where a 2/2 graph spilled far past the panel and
+  looked zoomed in): the layout settles before first paint, with a gentle
+  centering force so disconnected pieces stay close, then zooms to fit
+  (never past 1:1). Adds a *Fit to view* button. Opt-in viewer option
+  (`fitToView`); the standalone `tag_graph.html` is unchanged.
 - `render-from-db` CLI command: re-renders a stored run's `index.html`,
   featured reports, and `{topic}_summaries.html` from the tracking
   database (latest run by default, or `--run-id`) — no ingestion, no LLM
