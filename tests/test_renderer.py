@@ -744,6 +744,26 @@ class TestFeaturedReports:
         assert html.index("Questions? Comments?") < mailto < html.index('<nav class="toc">')
         assert html.count("Questions? Comments?") == 1
 
+    def test_token_total_counts_only_report_topics(self, tmp_path: Path) -> None:
+        def with_tokens(slug: str, title: str, tokens: int) -> TopicResult:
+            r = _topic(tmp_path, slug, title)
+            return r.model_copy(update={"token_usage": TokenUsage(total_tokens=tokens)})
+
+        report = FeaturedReport(
+            name="retail", title="Retail", featured_topics=("feeds_retail",),
+            related_topics=("feeds_economics",),
+        )
+        results = [
+            with_tokens("feeds_ai", "Artificial Intelligence", 5000),  # not in the report
+            with_tokens("feeds_retail", "Retail", 300),
+            with_tokens("feeds_economics", "Economics", 200),
+        ]
+        out = tmp_path / "out"
+        render_report(results, output_dir=out, featured_reports=[report])
+        assert "Total tokens used: 500<" in (out / "retail-report.html").read_text()
+        # index.html still reports the whole run.
+        assert "Total tokens used: 5500<" in (out / "index.html").read_text()
+
     def test_report_without_related_topics_omits_that_toc_part(
         self, tmp_path: Path, results: list[TopicResult]
     ) -> None:

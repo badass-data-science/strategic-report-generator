@@ -267,7 +267,8 @@ def render_report(
                 date=date_str,
                 updated=updated_str,
                 hours_cutoff=hours_cutoff,
-                total_tokens=total_usage.total_tokens,
+                # Only this report's topics, not the whole run's total.
+                total_tokens=sum(r.token_usage.total_tokens for r in featured + related),
             )
         )
 

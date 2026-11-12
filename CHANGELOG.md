@@ -54,6 +54,9 @@ doesn't tag releases.
   retail featured report's second topic, right after Retail.
 
 ### Changed
+- A featured report's "Total tokens used" footer now counts only its
+  featured + related topics' tokens, not the whole run's total
+  (`index.html` still shows the whole run).
 - Featured reports no longer include the Strategic Overview (section or
   table-of-contents entry); it remains in `index.html`. The inline graph's
   heading is now "Source Article Tag Network".
