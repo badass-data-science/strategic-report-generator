@@ -756,6 +756,11 @@
                 "title": "Retail Technology Trends",
                 "url": "https://retailtechnologytrends.com/feed/",
                 "reason": "Spam: publishing off-topic online-casino content (10 Slovenian-language casino articles in run 65547990, 2026-11-11), polluting Retail bullets and tags"
+            },
+            {
+                "title": "Retailing Africa",
+                "url": "https://retailingafrica.com/feed/",
+                "reason": "Spam: published online-casino promotional content (casino slot-games article in run 65547990, 2026-11-11); removed on request alongside retailtechnologytrends.com"
             }
         ],
         "feeds_fashion": [

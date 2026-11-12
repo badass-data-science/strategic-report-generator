@@ -73,6 +73,9 @@ doesn't tag releases.
   `feeds_retail.json` — it was publishing Slovenian-language online-casino
   spam (10 articles in the 2026-11-11 run), polluting Retail's bullets and
   tags. Logged in `REMOVED.json`.
+- Retailing Africa (`retailingafrica.com`) from `feeds_retail.json` — also
+  published online-casino promotional content (1 article in the same run).
+  Logged in `REMOVED.json`.
 
 ## 2026-10-21
 
